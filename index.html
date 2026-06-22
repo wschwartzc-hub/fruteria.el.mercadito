@@ -553,7 +553,7 @@ function render(){
   const m=$('#main');
   const views={inteligencia:vInteligencia,inventario:vInventario,vender:vVender,
                movimientos:vMovimientos,mas:vMas,productos:vProductos,compras:vCompras,
-               merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes};
+               merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes,gastos:vGastos};
   m.innerHTML=`<div class="view">${(views[currentView]||vInteligencia)()}</div>`;
   renderTicketBar();
 }
@@ -605,7 +605,7 @@ function svgBars(vals,lbls,opts={}){
   const {color='#1f9d55',h=80,active=-1}=opts;
   const max=Math.max(...vals,1);
   const n=vals.length;
-  const W=360,PB=16,PT=4;
+  const W=360,PB=16,PT=18; // PT=18 para espacio de labels arriba
   const gap=W/n,bW=Math.max(4,gap*0.55);
   const bars=vals.map((v,i)=>{
     const bh=Math.max(0,(v/max)*h);
@@ -614,12 +614,14 @@ function svgBars(vals,lbls,opts={}){
     const isActive=active===i;
     const fill=isActive?'#f59e0b':color;
     const opacity=v>0?1:0.18;
+    // label arriba de la barra (solo si tiene valor)
+    const lbl=v>0?`<text x="${(x+bW/2).toFixed(1)}" y="${(y-3).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="${fill}" font-weight="700">${money0(v)}</text>`:'';
     return `<g opacity="${opacity}">
       <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}" rx="3"/>
-      ${bh>16?`<text x="${(x+bW/2).toFixed(1)}" y="${(y+11).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="white" font-weight="700">${money0(v)}</text>`:''}
+      ${lbl}
     </g>`;}).join('');
-  const xlbls=lbls.map((l,i)=>
-    `<text x="${(i*gap+gap/2).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="middle" font-size="9" fill="${active===i?'#f59e0b':'#999'}" font-weight="${active===i?'700':'400'}">${l}</text>`).join('');
+  const xlbls=lbls.map((l,i)=>l?
+    `<text x="${(i*gap+gap/2).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="middle" font-size="9" fill="${active===i?'#f59e0b':'#999'}" font-weight="${active===i?'700':'400'}">${l}</text>`:'').join('');
   return `<svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${bars}${xlbls}</svg>`;}
 
 function svgLines(series,lbls,h=120){
@@ -681,7 +683,9 @@ function topByGanancia(n=5){
 function topByMerma(n=5){
   const map={};
   mermas().forEach(m=>{const k=m.producto_id||m.nombre;
-    if(!map[k])map[k]={nombre:m.nombre,emoji:'🗑️',v:0};map[k].v+=m.valor_perdido;});
+    const prod=m.producto_id?findP(m.producto_id):null;
+    if(!map[k])map[k]={nombre:m.nombre,emoji:prod?.emoji||'🍎',v:0};
+    map[k].v+=m.valor_perdido;});
   return Object.values(map).sort((a,b)=>b.v-a.v).slice(0,n);}
 
 function topClientes(n=5){
@@ -1018,7 +1022,7 @@ function _invRows(ps){
         return `<div class="lrow" onclick="openProd('${p.id}')">
           <span class="l-emj">${p.emoji}</span>
           <div class="l-main"><div class="l-n">${p.nombre}
-            ${low?'<span class="chip r">bajo</span>':''}${risk?'<span class="chip m">riesgo</span>':''}</div>
+            ${low?'<span class="chip r">Pedir más</span>':''}${risk?'<span class="chip m">Vender pronto</span>':''}</div>
             <div class="l-s">Costo ${money0(p.costo)} · vende ${money0(p.precio_venta)} · margen ${margenPct(p).toFixed(0)}%</div></div>
           <div class="l-r"><div class="bb num">${qty(p.stock,p.unidad)}</div>
             <div class="tiny faint">${money0(p.stock*p.costo)}</div></div>
@@ -1247,6 +1251,8 @@ function vMovimientos(){
     <div class="divider"></div>
     ${acc('💵','Caja','Corte y control de efectivo','caja','#fffbe8')}
     <div class="divider"></div>
+    ${acc('💸','Gastos','Bolsas, servicios, personal...','gastos','#fdf4ff')}
+    <div class="divider"></div>
     ${acc('📜','Ventas','Historial de tickets','historial','#f0f4ff')}
   </div>
   <div class="sec-title">Actividad reciente</div>
@@ -1333,7 +1339,11 @@ function _renderEditTicket(id){
     <div class="between" style="padding:10px 0 0;font-weight:800">
       <span>Total estimado</span><span>${money(tot)}</span></div>
   </div>
-
+  <div class="field" style="margin-bottom:14px">
+    <label style="color:var(--rose)">* Motivo de la edición (obligatorio)</label>
+    <input id="etMotivo" placeholder="Ej: Error en cantidad, producto devuelto, precio incorrecto..."
+      autocomplete="off" style="border-color:var(--rose)">
+  </div>
   <div style="border-radius:14px;border:1.5px solid var(--line);padding:14px;margin-bottom:10px">
     <div class="b" style="margin-bottom:8px">➕ Agregar producto del catálogo</div>
     <input id="etSearch" placeholder="Buscar producto..." autocomplete="off"
@@ -1417,6 +1427,8 @@ window._editAgregarNota=function(id){
 };
 
 window._editGuardar=function(id){
+  const motivo=(document.getElementById('etMotivo')||{value:''}).value.trim();
+  if(!motivo){toast('Escribe el motivo de la edición','bad');document.getElementById('etMotivo')?.focus();return;}
   const v=ventas().find(x=>x.id===id);if(!v)return;
   // 1. Restaurar stock de items originales (no custom)
   (v.items||[]).forEach(it=>{if(!it.custom){const p=findP(it.producto_id);
@@ -1428,7 +1440,8 @@ window._editGuardar=function(id){
   const sub=_editItems.reduce((a,it)=>a+it.subtotal,0);
   const tot=Math.max(0,sub-v.descuento);
   const costoTotal=_editItems.reduce((a,it)=>a+(it.costo||0)*it.cantidad,0);
-  v.items=_editItems;v.subtotal=sub;v.total=tot;v.costo_total=costoTotal;v.updated_at=now();
+  v.items=_editItems;v.subtotal=sub;v.total=tot;v.costo_total=costoTotal;
+  v.nota_edicion=motivo;v.editado=true;v.updated_at=now();
   // 4. Persistir
   save();push('ventas',v);
   productos().forEach(p=>push('productos',p));
@@ -1854,6 +1867,67 @@ window.eliminarCliente=function(cid){
   c.deleted=true;c.updated_at=now();save();push('clientes',c);
   closeSheet();render();toast('Cliente eliminado');
 };
+
+
+/* ============================ VISTA: GASTOS ============================ */
+const GASTO_CATS=['🛍️ Bolsas/empaques','🧹 Limpieza','👷 Personal/nómina',
+  '⛽ Gasolina/transporte','💡 Servicios','🏪 Local/renta','🛒 Insumos','📦 Otro'];
+
+function vGastos(){
+  const gastos=(state.caja||[]).filter(c=>!c.deleted&&c.tipo==='salida')
+    .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  const total=gastos.reduce((a,g)=>a+g.monto,0);
+  const hoyG=gastos.filter(g=>new Date(g.fecha)>=startOfDay(new Date())).reduce((a,g)=>a+g.monto,0);
+  const row=g=>{
+    const d=new Date(g.fecha).toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+    const hora=new Date(g.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="between" style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <div><div style="font-weight:600;font-size:14px">${g.concepto||'Gasto'}</div>
+        <div class="tiny muted">${d} ${hora} · ${g.usuario||'—'}</div></div>
+      <span style="font-weight:800;color:var(--rose);font-size:15px">-${money(g.monto)}</span>
+    </div>`;};
+  return `
+  <div class="kpis" style="margin-top:0">
+    <div class="kpi"><div class="k-lbl">Gastos hoy</div><div class="k-val money neg">${money0(hoyG)}</div></div>
+    <div class="kpi"><div class="k-lbl">Total registrado</div><div class="k-val money neg">${money0(total)}</div></div>
+  </div>
+  <button class="btn primary block" style="margin-bottom:14px" onclick="openAddGasto()">+ Registrar gasto</button>
+  <div class="card pad">
+    ${gastos.length?gastos.map(row).join('')
+      :'<div class="empty"><span class="e-ico">💰</span>Sin gastos registrados</div>'}
+  </div><div style="height:14px"></div>`;}
+
+function openAddGasto(){
+  const cats=GASTO_CATS.map(c=>`<button onclick="window._setGastoCat(this,'${c}')"
+    style="padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);font-size:13px;cursor:pointer;
+    background:transparent;color:var(--text);white-space:nowrap">${c}</button>`).join('');
+  openSheet(`<h2>Registrar gasto</h2>
+  <div class="field"><label>Categoría</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="gastoCats">${cats}</div></div>
+  <div class="field"><label>Descripción</label>
+    <input id="gastoConcepto" placeholder="Ej: Bolsas de plástico, pago de luz..." autocomplete="off"></div>
+  <div class="field"><label>Monto ($)</label>
+    <input id="gastoMonto" type="number" inputmode="decimal" placeholder="0"></div>
+  <button class="btn primary block" onclick="window._guardarGasto()">Guardar gasto</button>
+  <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet()">Cancelar</button>`);
+  window._gastoCategoria='';}
+
+window._setGastoCat=function(btn,cat){
+  window._gastoCategoria=cat;
+  document.querySelectorAll('#gastoCats button').forEach(b=>{const on=b===btn;
+    b.style.background=on?'var(--green)':'transparent';b.style.color=on?'#fff':'var(--text)';
+    b.style.borderColor=on?'var(--green)':'var(--line)';});};
+
+window._guardarGasto=function(){
+  const concepto=(document.getElementById('gastoConcepto')||{value:''}).value.trim();
+  const monto=parseFloat((document.getElementById('gastoMonto')||{value:'0'}).value)||0;
+  if(!concepto){toast('Pon el concepto del gasto','bad');return;}
+  if(monto<=0){toast('El monto debe ser mayor a $0','bad');return;}
+  const g={id:uid(),business_id:state.business.id,fecha:now(),tipo:'salida',
+    monto,concepto:(window._gastoCategoria?window._gastoCategoria+': ':'')+concepto,
+    usuario:state.member.nombre||'—',deleted:false,updated_at:now()};
+  state.caja.push(g);save();push('caja',g);
+  closeSheet();render();toast('Gasto registrado -'+money(monto),'ok');};
 
 
 function openSheet(html){$('#modalRoot').innerHTML=`<div class="scrim" onclick="if(event.target===this)closeSheet()">
