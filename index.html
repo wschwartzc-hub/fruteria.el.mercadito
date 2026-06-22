@@ -317,7 +317,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '2.0.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -554,7 +554,8 @@ function render(){
   const m=$('#main');
   const views={inteligencia:vInteligencia,inventario:vInventario,vender:vVender,
                movimientos:vMovimientos,mas:vMas,productos:vProductos,compras:vCompras,
-               merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes,gastos:vGastos};
+               merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes,
+               gastos:vGastos,rentabilidad:vRentabilidad};
   m.innerHTML=`<div class="view">${(views[currentView]||vInteligencia)()}</div>`;
   renderTicketBar();
 }
@@ -778,8 +779,9 @@ function vInteligencia(){
     <div class="kpi"><div class="k-lbl">Valor inventario</div><div class="k-val money">${money0(productos().reduce((a,p)=>a+p.stock*p.costo,0))}</div>
       <div class="k-sub muted">${productos().length} productos</div></div>
   </div>
-
-  <!-- COMPORTAMIENTO -->
+  <button class="btn block" style="margin:-4px 0 14px;font-size:13px" onclick="go('rentabilidad')">
+    📊 Ver análisis de rentabilidad →
+  </button>
   <div class="sec-title">Comportamiento de ventas</div>
   <div class="card pad">
     <div class="between" style="margin-bottom:10px">
@@ -1036,7 +1038,8 @@ function finalizarVenta(){
 /* ============================ VISTA: INVENTARIO ============================ */
 let invSort='alpha'; // 'alpha' | 'mas' | 'menos'
 let invSearch='';
-let dashSelected=new Set(['ventas','ganancia']); // métricas activas en la gráfica de tendencia
+let dashSelected=new Set(['ventas','ganancia']);
+let rentPreset='30d'; // 'hoy'|'7d'|'30d'|'mes'|'custom'
 
 function _invRows(ps){
   return ps.length
@@ -1304,6 +1307,8 @@ function vMovimientos(){
     ${acc('💵','Caja','Corte y control de efectivo','caja','#fffbe8')}
     <div class="divider"></div>
     ${acc('💸','Gastos','Bolsas, servicios, personal...','gastos','#fdf4ff')}
+    <div class="divider"></div>
+    ${acc('📊','Rentabilidad','¿Cuánto ganás de verdad?','rentabilidad','#f0fdf4')}
     <div class="divider"></div>
     ${acc('📜','Ventas','Historial de tickets','historial','#f0f4ff')}
   </div>
@@ -1849,6 +1854,114 @@ window.nuevoClienteWA=window._waNuevo;
 window.seleccionarClienteWA=window._waSeleccionar;
 
 /* ============================ VISTA: CLIENTES ============================ */
+/* ============================ VISTA: RENTABILIDAD ============================ */
+function rentRange(){
+  const hoy=new Date();
+  if(rentPreset==='hoy')return{d:startOfDay(hoy),h:hoy};
+  if(rentPreset==='7d') return{d:daysAgo(7),h:hoy};
+  if(rentPreset==='30d')return{d:daysAgo(30),h:hoy};
+  if(rentPreset==='mes')return{d:new Date(hoy.getFullYear(),hoy.getMonth(),1),h:hoy};
+  // custom
+  const di=document.getElementById('rentD');const hi=document.getElementById('rentH');
+  if(!di||!hi||!di.value||!hi.value)return{d:daysAgo(30),h:hoy};
+  let d=new Date(di.value+'T00:00:00');let h=new Date(hi.value+'T23:59:59');
+  if(d>h){const tmp=d;d=h;h=tmp;}
+  return{d,h};}
+
+function calcRent(d,h){
+  const inR=t=>{const dt=new Date(t);return dt>=d&&dt<=h;};
+  const vs=ventas().filter(v=>inR(v.fecha));
+  const ms=mermas().filter(m=>inR(m.fecha));
+  const gs=(state.caja||[]).filter(c=>!c.deleted&&c.tipo==='salida'&&inR(c.fecha));
+  const tv=vs.reduce((a,v)=>a+v.total,0);
+  const cm=vs.reduce((a,v)=>a+(v.costo_total||0),0);
+  const ub=tv-cm;
+  const tm=ms.reduce((a,m)=>a+m.valor_perdido,0);
+  const te=gs.reduce((a,g)=>a+g.monto,0);
+  const un=ub-tm-te;
+  return{tv,cm,ub,mbr:tv>0?ub/tv*100:0,tm,te,un,mnr:tv>0?un/tv*100:0,nv:vs.length};}
+
+window._rentCalc=()=>{
+  const di=document.getElementById('rentD');const hi=document.getElementById('rentH');
+  if(di&&hi&&di.value&&hi.value)render();};
+
+function vRentabilidad(){
+  const{d,h}=rentRange();
+  const r=calcRent(d,h);
+  const rentable=r.un>=0;
+  const chip=(k,lbl)=>`<button onclick="rentPreset='${k}';render()"
+    style="padding:5px 13px;border-radius:20px;border:1.5px solid ${rentPreset===k?'var(--green)':'var(--line)'};
+    font-size:12px;font-weight:700;cursor:pointer;background:${rentPreset===k?'var(--green)':'transparent'};
+    color:${rentPreset===k?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
+  const minibar=(v,tot,color)=>{const p=tot>0?Math.min(100,Math.max(0,v/tot*100)):0;
+    return `<div style="flex:1;background:var(--surface-2);border-radius:4px;height:8px;overflow:hidden">
+      <div style="width:${p.toFixed(0)}%;background:${color};height:8px;border-radius:4px"></div></div>`;};
+  const fila=(label,val,tot,color,indent,bold)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div style="flex:0 0 130px;font-size:${bold?'14px':'13px'};font-weight:${bold?'800':'400'};
+        color:var(--${bold?'ink':'muted'});padding-left:${indent?'10px':'0'}">${label}</div>
+      ${tot>0?minibar(Math.abs(val),tot,color):'<div style="flex:1"></div>'}
+      <div style="font-size:${bold?'15px':'14px'};font-weight:${bold?'800':'600'};
+        color:${color};min-width:72px;text-align:right">${money0(val)}</div>
+    </div>`;
+  const fmtPeriodo=`${d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})} – ${h.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}`;
+  return `
+  <div class="sec-title">Rentabilidad</div>
+  <div class="card pad" style="margin-bottom:0">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${chip('hoy','Hoy')}${chip('7d','7 días')}${chip('30d','30 días')}${chip('mes','Este mes')}${chip('custom','Personalizado')}
+    </div>
+    ${rentPreset==='custom'?`<div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end">
+      <div style="flex:1"><div class="tiny muted" style="margin-bottom:4px">Desde</div>
+        <input type="date" id="rentD" onchange="window._rentCalc()"
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px"></div>
+      <div style="color:var(--muted);padding-bottom:12px">→</div>
+      <div style="flex:1"><div class="tiny muted" style="margin-bottom:4px">Hasta</div>
+        <input type="date" id="rentH" onchange="window._rentCalc()"
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px"></div>
+    </div>`:''}
+  </div>
+  <div class="tiny muted" style="text-align:center;padding:6px 0 10px">${fmtPeriodo} · ${r.nv} venta${r.nv===1?'':'s'}</div>
+
+  <div class="card pad">
+    ${fila('Ventas (ingresos)',r.tv,r.tv,'var(--green-d)',false,false)}
+    ${fila('− Costo mercancía',r.cm,r.tv,'#94a3b8',true,false)}
+    ${fila('= Utilidad bruta',r.ub,r.tv,r.ub>=0?'#0891b2':'var(--rose)',false,true)}
+    <div class="tiny muted" style="text-align:right;padding:2px 0 8px;border-bottom:1px solid var(--line)">Margen bruto: ${r.mbr.toFixed(1)}%</div>
+    ${fila('− Merma',r.tm,r.tv,'var(--rose)',true,false)}
+    ${fila('− Gastos / Egresos',r.te,r.tv,'#f59e0b',true,false)}
+    <div style="padding:14px 0 4px;border-top:2px solid var(--ink);margin-top:6px">
+      <div class="between">
+        <span style="font-size:16px;font-weight:900">= Utilidad neta</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px;font-weight:900;color:${rentable?'var(--green-d)':'var(--rose)'}">${money0(r.un)}</span>
+          <span style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:800;
+            background:${rentable?'#dcfce7':'#fee2e2'};color:${rentable?'#16a34a':'#dc2626'}">
+            ${rentable?'✓ Rentable':'✗ En pérdida'}</span>
+        </div>
+      </div>
+      <div class="tiny muted" style="text-align:right;margin-top:4px">Margen neto: <b>${r.mnr.toFixed(1)}%</b></div>
+    </div>
+  </div>
+
+  ${r.tv>0?`<div class="card pad" style="margin-top:0">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px">💡 ¿Dónde va cada peso que entra?</div>
+    ${[['Costo mercancía',r.cm/r.tv*100,'#94a3b8'],
+       ['Utilidad bruta',r.ub/r.tv*100,'#0891b2'],
+       ['Merma',r.tm/r.tv*100,'var(--rose)'],
+       ['Gastos',r.te/r.tv*100,'#f59e0b'],
+       ['Te queda (neto)',Math.max(0,r.un/r.tv*100),'var(--green-d)']
+      ].map(([l,p,c])=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        <span style="width:130px;font-size:12px;color:var(--muted);flex-shrink:0">${l}</span>
+        <div style="flex:1;background:var(--surface-2);border-radius:4px;height:10px;overflow:hidden">
+          <div style="width:${Math.max(0,p).toFixed(0)}%;background:${c};height:10px;border-radius:4px"></div></div>
+        <span style="font-size:12px;font-weight:700;color:${c};width:40px;text-align:right">${p.toFixed(1)}%</span>
+      </div>`).join('')}
+  </div>`:''}
+  <div style="height:14px"></div>`;
+}
+
+
 function vClientes(){
   if(!state.clientes)state.clientes=[];
   const cs=state.clientes.filter(c=>!c.deleted)
