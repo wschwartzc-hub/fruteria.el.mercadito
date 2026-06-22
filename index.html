@@ -365,7 +365,10 @@ function blank(){return {
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
 function load(){try{const r=localStorage.getItem(LS);if(r)return JSON.parse(r);}catch(e){}
-  const s=blank(); s.productos=seed(s.business.id); return s;}
+  const s=blank(); s.productos=seed(s.business.id);
+  seedDemo(s);
+  try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}  // guarda el demo inmediatamente
+  return s;}
 function save(){state._t=now();try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
 
 function seed(bid){const P=(nombre,categoria,unidad,costo,precio,stock,stock_min,perecedero,vida)=>(
@@ -392,7 +395,127 @@ function seed(bid){const P=(nombre,categoria,unidad,costo,precio,stock,stock_min
   P('Cebollín','Hierbas','manojo',6,12,14,5,true,4),
  ];}
 
-/* ============================ HELPERS NEGOCIO ============================ */
+/* ============================ DATOS DE DEMO ============================ */
+function seedDemo(s){
+  const bid=s.business.id;
+  const ps=s.productos;
+  const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1)+a);
+  const rndF=(a,b)=>Math.round((Math.random()*(b-a)+a)*10)/10;
+  const dateAgo=(days,h,m=0)=>{const d=new Date();d.setDate(d.getDate()-days);d.setHours(h,m,0,0);return d.toISOString();};
+
+  // ── CLIENTES ──────────────────────────────────────────────────────────
+  const clientesSeed=[
+    {nombre:'María Garza',    tel:'8112345678'},
+    {nombre:'Roberto Sánchez',tel:'8119876543'},
+    {nombre:'Carmen López',   tel:'8113456789'},
+    {nombre:'Juan Martínez',  tel:'8118765432'},
+    {nombre:'Lupita Flores',  tel:'8114567890'},
+  ];
+  const cls=clientesSeed.map((c,i)=>({id:uid(),business_id:bid,num_cliente:i+1,nombre:c.nombre,
+    telefono:c.tel,num_visitas:0,total_compras:0,ultima_visita:null,notas:'',deleted:false,updated_at:now()}));
+  s.clientes=cls;
+  s.config.nextNumCliente=cls.length+1;
+
+  // ── COMPRAS (1 por semana, 6 semanas) ────────────────────────────────
+  const proveedores=['Central de Abastos','Mercado Juárez','Proveedor del Valle'];
+  for(let w=6;w>=0;w--){
+    const dia=w*7+rnd(0,2);
+    const items=ps.filter((_,i)=>i%3!==w%3).slice(0,rnd(6,10)).map(p=>{
+      const cant=rnd(20,80);const costo=p.costo*rndF(0.9,1.1);
+      return {producto_id:p.id,nombre:p.nombre,unidad:p.unidad,cantidad:cant,costo,subtotal:Math.round(cant*costo*100)/100};});
+    const total=items.reduce((a,i)=>a+i.subtotal,0);
+    s.compras.push({id:uid(),business_id:bid,fecha:dateAgo(dia,7,rnd(0,59)),
+      proveedor:proveedores[w%3],items,total:Math.round(total),usuario:'Dueño',deleted:false,updated_at:now()});
+  }
+
+  // ── VENTAS (últimos 45 días) ─────────────────────────────────────────
+  // Peso por hora (pico 10-12h y 17-19h)
+  const horaW=[0,0,0,0,0,0,1,2,3,5,7,7,5,4,3,3,4,6,7,5,3,2,1,0];
+  // Peso por día semana (0=dom,1=lun...) — mejor vie/sab/mar
+  const diaW=[3,5,6,4,4,7,8];
+  let folio=s.config.folio;
+  const clientIds=cls.map(c=>c.id);
+  const productList=ps.filter(p=>p.activo);
+
+  for(let d=44;d>=0;d--){
+    const dayOfWeek=new Date(Date.now()-d*86400000).getDay();
+    const nVentas=Math.max(0,Math.round(diaW[dayOfWeek]*rndF(0.7,1.4)));
+    for(let v=0;v<nVentas;v++){
+      // hora con peso
+      let hr=0; const r=Math.random()*horaW.reduce((a,b)=>a+b,0); let cum=0;
+      for(let h=0;h<24;h++){cum+=horaW[h];if(r<cum){hr=h;break;}}
+      const nProds=rnd(1,4);
+      const prods=productList.sort(()=>Math.random()-0.5).slice(0,nProds);
+      const items=prods.map(p=>{
+        const cant=p.unidad==='kg'?rndF(0.5,3):rnd(1,5);
+        return {producto_id:p.id,nombre:p.nombre,emoji:p.emoji,unidad:p.unidad,
+          cantidad:cant,precio:p.precio_venta,costo:p.costo,
+          subtotal:Math.round(cant*p.precio_venta*100)/100};});
+      const subtotal=items.reduce((a,i)=>a+i.subtotal,0);
+      const descuento=Math.random()<0.05?rnd(5,20):0;
+      const total=Math.max(0,subtotal-descuento);
+      const costoTotal=items.reduce((a,i)=>a+i.costo*i.cantidad,0);
+      const metodo=Math.random()<0.8?'efectivo':'tarjeta';
+      // asignar cliente en ~30% de ventas
+      const conCliente=Math.random()<0.30;
+      const clienteIdx=conCliente?rnd(0,cls.length-1):-1;
+      const venta={id:uid(),business_id:bid,folio:folio++,
+        fecha:dateAgo(d,hr,rnd(0,59)),items,subtotal:Math.round(subtotal*100)/100,
+        descuento,total:Math.round(total*100)/100,costo_total:Math.round(costoTotal*100)/100,
+        metodo_pago:metodo,usuario:'Dueño',
+        cliente_id:clienteIdx>=0?clientIds[clienteIdx]:null,
+        cliente_nombre:clienteIdx>=0?cls[clienteIdx].nombre:null,
+        deleted:false,updated_at:now()};
+      s.ventas.push(venta);
+      // actualizar stats del cliente
+      if(clienteIdx>=0){
+        cls[clienteIdx].num_visitas=(cls[clienteIdx].num_visitas||0)+1;
+        cls[clienteIdx].total_compras=(cls[clienteIdx].total_compras||0)+total;
+        cls[clienteIdx].ultima_visita=venta.fecha;
+        cls[clienteIdx].updated_at=now();}
+      // ajustar stock del producto (baja con ventas)
+      items.forEach(i=>{const p=ps.find(x=>x.id===i.producto_id);
+        if(p)p.stock=Math.max(0,Math.round((p.stock-i.cantidad*0.3)*10)/10);});
+    }
+  }
+  s.config.folio=folio;
+
+  // ── MERMAS (últimos 45 días, ~1-2 por semana) ───────────────────────
+  const motivos=['podrido','golpeado','vencido','aplastado','temperatura'];
+  const perecederos=ps.filter(p=>p.perecedero);
+  for(let d=44;d>=0;d-=rnd(2,5)){
+    const p=perecederos[rnd(0,perecederos.length-1)];
+    const cant=p.unidad==='kg'?rndF(0.5,3):rnd(1,6);
+    const valPerdido=Math.round(cant*p.costo*100)/100;
+    s.mermas.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(8,18)),
+      producto_id:p.id,nombre:p.nombre,unidad:p.unidad,cantidad:cant,costo:p.costo,
+      valor_perdido:valPerdido,motivo:motivos[rnd(0,motivos.length-1)],
+      usuario:'Dueño',deleted:false,updated_at:now()});
+    // ajustar stock por merma
+    p.stock=Math.max(0,Math.round((p.stock-cant*0.5)*10)/10);
+  }
+
+  // ── CAJA (apertura + cierre diario, últimos 15 días) ─────────────────
+  for(let d=14;d>=0;d--){
+    const dayOfWeek=new Date(Date.now()-d*86400000).getDay();
+    if(dayOfWeek===0&&d>2)continue; // domingos solo recientes
+    const fondo=rnd(400,600);
+    s.caja.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(9,10),rnd(0,30)),
+      tipo:'apertura',monto:fondo,concepto:'Fondo inicial del día',usuario:'Dueño',deleted:false,updated_at:now()});
+    if(d>0){// cierre solo para días pasados
+      const ventasDelDia=s.ventas.filter(v=>new Date(v.fecha).toDateString()===new Date(Date.now()-d*86400000).toDateString()&&v.metodo_pago==='efectivo');
+      const totalEf=ventasDelDia.reduce((a,v)=>a+v.total,0);
+      s.caja.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(19,20),rnd(0,30)),
+        tipo:'cierre',monto:fondo+totalEf,concepto:'Corte del día',usuario:'Dueño',deleted:false,updated_at:now()});
+    }
+    // gastos pequeños algunos días
+    if(Math.random()<0.3){
+      s.caja.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(14,17)),
+        tipo:'salida',monto:rnd(50,200),concepto:['Bolsas','Hielo','Limpieza','Caja chica'][rnd(0,3)],
+        usuario:'Dueño',deleted:false,updated_at:now()});
+    }
+  }
+}
 const productos = ()=> state.productos.filter(p=>!p.deleted);
 const ventas    = ()=> state.ventas.filter(v=>!v.deleted);
 const compras   = ()=> state.compras.filter(c=>!c.deleted);
@@ -523,6 +646,13 @@ const DASH_M={
   gastos:{lbl:'Gastos',color:'#f59e0b',key:'gastos'},
   clientes:{lbl:'Clientes',color:'#8b5cf6',key:'clientes'}};
 
+function togBtn(k){const m=DASH_M[k];const on=dashSelected.has(k);
+  return `<button onclick="window._dashToggle('${k}')"
+    style="padding:5px 11px;border-radius:20px;border:1.5px solid ${on?m.color:'var(--line)'};
+    font-size:12px;font-weight:700;cursor:pointer;background:${on?m.color+'18':'transparent'};
+    color:${on?m.color:'var(--muted)'};display:flex;align-items:center;gap:5px">
+    <span style="width:8px;height:8px;border-radius:50%;background:${on?m.color:'var(--line)'}"></span>${m.lbl}</button>`;}
+
 function buildSeries(mes){
   return Object.values(DASH_M).filter(m=>dashSelected.has(m.key)).map(m=>({
     name:m.lbl,color:m.color,values:mes.map(mo=>mo[m.key]||0)}));}
@@ -530,8 +660,12 @@ function buildSeries(mes){
 window._dashToggle=function(k){
   if(dashSelected.has(k)){if(dashSelected.size>1)dashSelected.delete(k);}
   else dashSelected.add(k);
-  const el=document.getElementById('dashSvgWrap');
-  if(el){const mes=aggMes(6);el.innerHTML=svgLines(buildSeries(mes),mes.map(m=>m.lbl));}};
+  const mes=aggMes(6);
+  const svgEl=document.getElementById('dashSvgWrap');
+  if(svgEl)svgEl.innerHTML=svgLines(buildSeries(mes),mes.map(m=>m.lbl));
+  const btnsEl=document.getElementById('dashToggles');
+  if(btnsEl)btnsEl.innerHTML=Object.keys(DASH_M).map(k=>togBtn(k)).join('');
+};
 
 function topByGanancia(n=5){
   const map={};
@@ -602,13 +736,6 @@ function vInteligencia(){
   const bestHour=horaAgg.reduce((b,h)=>h.v>b.v?h:b,horaAgg[0]);
   const bestDay=diaAgg.reduce((b,d)=>d.v>b.v?d:b,diaAgg[0]);
 
-  const togBtn=(k)=>{const m=DASH_M[k];const on=dashSelected.has(k);
-    return `<button onclick="window._dashToggle('${k}')"
-      style="padding:5px 11px;border-radius:20px;border:1.5px solid ${on?m.color:'var(--line)'};
-      font-size:12px;font-weight:700;cursor:pointer;background:${on?m.color+'18':'transparent'};
-      color:${on?m.color:'var(--muted)'};display:flex;align-items:center;gap:5px">
-      <span style="width:8px;height:8px;border-radius:50%;background:${on?m.color:'var(--line)'}"></span>${m.lbl}</button>`;};
-
   const tGananciaMax=tGanancia[0]?.g||1;
   const tMermaMax=tMerma[0]?.v||1;
 
@@ -647,7 +774,7 @@ function vInteligencia(){
   <!-- TENDENCIA MENSUAL -->
   <div class="sec-title">Tendencia mensual</div>
   <div class="card pad">
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+    <div id="dashToggles" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
       ${Object.keys(DASH_M).map(k=>togBtn(k)).join('')}
     </div>
     <div id="dashSvgWrap">${svgLines(buildSeries(mes),mes.map(m=>m.lbl))}</div>
