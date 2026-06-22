@@ -772,19 +772,31 @@ function vInteligencia(){
   <!-- COMPORTAMIENTO -->
   <div class="sec-title">Comportamiento de ventas</div>
   <div class="card pad">
-    <div class="b" style="font-size:13px;margin-bottom:10px">Por hora del día
-      ${maxHora>0?`<span class="chip g" style="font-size:11px;margin-left:6px">Pico: ${bestHour.h}:00h</span>`:''}</div>
-    ${svgBars(horaAgg.map(h=>h.v),horaAgg.map(h=>h.h%6===0?h.h+'h':''),{color:'#1f9d55',h:72,active:bestHour.h})}
-    <div class="b" style="font-size:13px;margin:14px 0 10px">Por día de la semana
-      ${diaAgg.some(d=>d.v>0)?`<span class="chip g" style="font-size:11px;margin-left:6px">Mejor: ${bestDay.n}</span>`:''}</div>
-    ${svgBars(diaAgg.map(d=>d.v),diaAgg.map(d=>d.n),{color:'#0891b2',h:72,active:diaAgg.reduce((b,d,i)=>d.v>diaAgg[b].v?i:b,0)})}
+    <div class="between" style="margin-bottom:10px">
+      <div class="b" style="font-size:13px">Por hora del día
+        ${maxHora>0?`<span class="chip g" style="font-size:11px;margin-left:6px">Pico: ${bestHour.h}:00h</span>`:''}</div>
+      <button onclick="openChartFS('Ventas por hora',document.getElementById('chartHora'))"
+        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">⛶ Ampliar</button>
+    </div>
+    <div id="chartHora">${svgBars(horaAgg.map(h=>h.v),horaAgg.map(h=>h.h%6===0?h.h+'h':''),{color:'#1f9d55',h:72,active:bestHour.h})}</div>
+    <div class="between" style="margin:14px 0 10px">
+      <div class="b" style="font-size:13px">Por día de la semana
+        ${diaAgg.some(d=>d.v>0)?`<span class="chip g" style="font-size:11px;margin-left:6px">Mejor: ${bestDay.n}</span>`:''}</div>
+      <button onclick="openChartFS('Ventas por día de semana',document.getElementById('chartDia'))"
+        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">⛶ Ampliar</button>
+    </div>
+    <div id="chartDia">${svgBars(diaAgg.map(d=>d.v),diaAgg.map(d=>d.n),{color:'#0891b2',h:72,active:diaAgg.reduce((b,d,i)=>d.v>diaAgg[b].v?i:b,0)})}</div>
   </div>
 
   <!-- TENDENCIA MENSUAL -->
   <div class="sec-title">Tendencia mensual</div>
   <div class="card pad">
-    <div id="dashToggles" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
-      ${Object.keys(DASH_M).map(k=>togBtn(k)).join('')}
+    <div class="between" style="margin-bottom:10px">
+      <div id="dashToggles" style="display:flex;flex-wrap:wrap;gap:6px">
+        ${Object.keys(DASH_M).map(k=>togBtn(k)).join('')}
+      </div>
+      <button onclick="openChartFS('Tendencia mensual',document.getElementById('dashSvgWrap'))"
+        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer;flex-shrink:0;margin-left:6px">⛶</button>
     </div>
     <div id="dashSvgWrap">${svgLines(buildSeries(mes),mes.map(m=>m.lbl))}</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
@@ -1019,16 +1031,24 @@ let dashSelected=new Set(['ventas','ganancia']); // métricas activas en la grá
 function _invRows(ps){
   return ps.length
     ? ps.map(p=>{const low=p.stock<=p.stock_min;const risk=enRiesgo(p);
+        const dias=p.perecedero&&p.stock>0?diasInventario(p):null;
+        const vidaU=p.vida_util_dias||5;
+        const diasTxt=dias&&isFinite(dias)?`${dias.toFixed(1)} días de stock · vida útil ${vidaU}d`:'';
+        const dc=dias&&isFinite(dias)?(dias<=vidaU*0.5?'var(--rose)':dias<=vidaU?'#f59e0b':'var(--green)'):'var(--green)';
+        const diasBar=dias&&isFinite(dias)?`<div style="margin-top:3px;background:var(--surface-2);border-radius:3px;height:4px;max-width:110px">
+          <div style="width:${Math.min(100,dias/vidaU*100).toFixed(0)}%;background:${dc};border-radius:3px;height:4px"></div></div>`:'';
         return `<div class="lrow" onclick="openProd('${p.id}')">
           <span class="l-emj">${p.emoji}</span>
           <div class="l-main"><div class="l-n">${p.nombre}
             ${low?'<span class="chip r">Pedir más</span>':''}${risk?'<span class="chip m">Vender pronto</span>':''}</div>
-            <div class="l-s">Costo ${money0(p.costo)} · vende ${money0(p.precio_venta)} · margen ${margenPct(p).toFixed(0)}%</div></div>
+            <div class="l-s">Costo ${money0(p.costo)} · vende ${money0(p.precio_venta)} · margen ${margenPct(p).toFixed(0)}%</div>
+            ${diasTxt?`<div class="tiny" style="color:${dc};margin-top:1px">${diasTxt}</div>${diasBar}`:''}
+          </div>
           <div class="l-r"><div class="bb num">${qty(p.stock,p.unidad)}</div>
             <div class="tiny faint">${money0(p.stock*p.costo)}</div></div>
         </div>`;}).join('')
-    : '<div class="empty" style="padding:20px 0"><span class="e-ico">🔍</span>Sin resultados</div>';
-}
+    : '<div class="empty" style="padding:20px 0"><span class="e-ico">&#x1F50D;</span>Sin resultados</div>';}
+
 
 window._invSearch=()=>{
   invSearch=(document.getElementById('invQ')||{value:''}).value.toLowerCase().trim();
@@ -1105,17 +1125,39 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
   </div>
   <div class="field"><label class="row" style="gap:9px;justify-content:flex-start">
     <input type="checkbox" id="pPere" ${e.perecedero?'checked':''} style="width:auto"> Es perecedero (se echa a perder)</label></div>
+  <div class="field" id="pVidaWrap" style="${e.perecedero?'':'display:none'}">
+    <label>⏱️ Vida útil estimada (días)</label>
+    <div style="display:flex;align-items:center;gap:10px">
+      <input id="pVida" type="number" inputmode="numeric" min="1" max="365" value="${e.vida_util_dias||5}"
+        style="width:80px" oninput="updateVidaBar()">
+      <div style="flex:1">
+        <div id="pVidaLabel" class="tiny muted">días antes de que se eche a perder</div>
+        <div style="background:var(--surface-2);border-radius:4px;height:6px;margin-top:4px">
+          <div id="pVidaBar" style="height:6px;border-radius:4px;background:var(--green);transition:width .3s;width:${Math.min(100,(e.vida_util_dias||5)/30*100).toFixed(0)}%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tiny muted" style="margin-top:4px">
+      La app avisa "Vender pronto" cuando el stock al ritmo actual no alcanza para venderlo todo antes de que expire.
+    </div>
+  </div>
   <button class="btn primary block" onclick="saveProd('${e.id}',${!!p})">Guardar</button>
   ${p?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="delProd('${e.id}')">Eliminar producto</button>`:''}`;
   openSheet(html);
   window._emj=v=>emojiFor(v);
+  window.updateVidaBar=()=>{const v=parseInt(document.getElementById('pVida')?.value)||5;
+    const bar=document.getElementById('pVidaBar');const lbl=document.getElementById('pVidaLabel');
+    if(bar)bar.style.width=Math.min(100,v/30*100).toFixed(0)+'%';
+    if(bar)bar.style.background=v<=4?'var(--rose)':v<=10?'var(--amber)':'var(--green)';
+    if(lbl)lbl.textContent=v<=3?'⚠️ Muy perecedero — revisa diario':v<=7?'Normal para frutas frescas':'Aguanta bien en almacén';};
 }
 function saveProd(id,exists){
   const nombre=$('#pNombre').value.trim();if(!nombre){toast('Ponle nombre','bad');return;}
   const data={nombre,emoji:$('#pEmoji').value||emojiFor(nombre),categoria:$('#pCat').value,unidad:$('#pUnidad').value,
     costo:parseFloat($('#pCosto').value)||0,precio_venta:parseFloat($('#pPrecio').value)||0,
     stock:parseFloat($('#pStock').value)||0,stock_min:parseFloat($('#pMin').value)||0,
-    perecedero:$('#pPere').checked,updated_at:now()};
+    perecedero:$('#pPere').checked,vida_util_dias:parseInt($('#pVida')?.value)||5,updated_at:now()};
+  $('#pPere').onchange=()=>{const w=document.getElementById('pVidaWrap');if(w)w.style.display=$('#pPere').checked?'':'none';};
   let p;
   if(exists){p=findP(id);Object.assign(p,data);}
   else{p={id,business_id:state.business.id,activo:true,deleted:false,vida_util_dias:5,...data};state.productos.push(p);}
@@ -2064,7 +2106,24 @@ async function cloudLogout(){
   toast('Sesión cerrada');
 }
 
-/* ============================ CLIMA ============================ */
+function openChartFS(title,svgEl){
+  const svg=svgEl?svgEl.innerHTML:'';
+  const ov=document.createElement('div');
+  ov.id='chartFS';
+  ov.style.cssText='position:fixed;inset:0;z-index:300;background:white;overflow:hidden;display:flex;flex-direction:column';
+  ov.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);flex-shrink:0">
+      <div style="font-weight:800;font-size:16px">${title}</div>
+      <button onclick="document.getElementById('chartFS').remove()"
+        style="width:34px;height:34px;border-radius:17px;background:var(--surface-2);border:none;font-size:18px;cursor:pointer;display:grid;place-items:center">✕</button>
+    </div>
+    <div style="flex:1;overflow:auto;padding:20px 12px;display:flex;align-items:center">
+      <div style="width:100%">${svg}</div>
+    </div>
+    <div class="tiny faint" style="text-align:center;padding:8px">Rota el teléfono para ver la gráfica más amplia</div>`;
+  document.body.appendChild(ov);
+}
+window.openChartFS=openChartFS;
 const WMO={0:'Despejado ☀️',1:'Mayormente despejado 🌤️',2:'Parcialmente nublado ⛅',3:'Nublado ☁️',
   45:'Neblina 🌫️',48:'Neblina ❄️',51:'Llovizna 🌦️',53:'Llovizna 🌦️',55:'Llovizna fuerte 🌧️',
   61:'Lluvia ligera 🌧️',63:'Lluvia 🌧️',65:'Lluvia fuerte 🌧️',
