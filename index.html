@@ -306,7 +306,7 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
 window.SUPABASE_URL    = "https://hygzjoyexwyoucgkmncv.supabase.co";
 window.SUPABASE_ANON   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5Z3pqb3lleHd5b3VjZ2ttbmN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNDMxOTUsImV4cCI6MjA5NTkxOTE5NX0.2Ab4f22eGsWGOv4AZBd04cpX1ZilaEsRpkmO4SXhTq8";
 window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
-window.NEGOCIO_CORREO  = "Dasaro0283@gmail.com";
+window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
 const APP_VERSION = '1.0.0';
@@ -1606,8 +1606,17 @@ function subscribeRealtime(){realtimeChans.forEach(c=>sb.removeChannel(c));realt
       payload=>{if(payload.new){mergeRows(t,[payload.new]);save();render();}})
     .subscribe();realtimeChans.push(ch);});
 }
-async function cloudLogout(){try{await sb.auth.signOut();}catch(e){}
-  state.cloud.connected=false;save();closeSheet();setSync(false,'Local');toast('Sesión cerrada');render();}
+async function cloudLogout(){
+  try{await sb.auth.signOut();}catch(e){}
+  // Limpiar sesión y datos en memoria — sin datos que ver
+  sbUser=null;sb=null;
+  state.cloud={connected:false,businessId:null,url:'',anon:''};
+  state.ventas=[];state.compras=[];state.mermas=[];state.caja=[];
+  state.clientes=[];state.productos=[];
+  save();closeSheet();setSync(false,'Local');
+  showLogin();
+  toast('Sesión cerrada');
+}
 
 /* ============================ CLIMA ============================ */
 const WMO={0:'Despejado ☀️',1:'Mayormente despejado 🌤️',2:'Parcialmente nublado ⛅',3:'Nublado ☁️',
