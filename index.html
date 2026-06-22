@@ -222,11 +222,24 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
 #toast.ok{background:var(--green-d)}#toast.bad{background:var(--rose)}
 
 /* login */
-.login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:30px 24px;max-width:440px;margin:0 auto}
-.login .llogo{width:64px;height:64px;border-radius:19px;display:grid;place-items:center;font-size:34px;margin:0 auto 16px;
-  background:linear-gradient(150deg,var(--green),var(--green-d));box-shadow:0 10px 26px rgba(31,157,85,.4)}
-.login h1{text-align:center;font-size:26px;letter-spacing:-.02em}
-.login p.s{text-align:center;color:var(--muted);margin:6px 0 26px}
+.login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  padding:36px 28px 40px;max-width:420px;margin:0 auto;background:#ffffff}
+.login .llogo{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;font-size:38px;
+  margin:0 auto 14px;background:linear-gradient(150deg,var(--green),var(--green-d));
+  box-shadow:0 12px 30px rgba(31,157,85,.35)}
+.login .l-biz{text-align:center;font-size:22px;font-weight:900;color:var(--ink);
+  letter-spacing:-.03em;margin-bottom:4px}
+.login h1{text-align:center;font-size:15px;font-weight:600;color:var(--muted);margin:0 0 28px}
+.login p.s{text-align:center;color:var(--muted);font-size:13px;margin:-20px 0 24px}
+.login .field label{color:#555;font-size:13px;font-weight:700}
+.login .field input{background:#f7f8f9;border:1.5px solid #e8eae6;border-radius:13px;
+  font-size:16px;padding:13px 16px;color:#111}
+.login .field input:focus{border-color:var(--green);background:#fff;box-shadow:0 0 0 3px rgba(31,157,85,.12)}
+.login #lgBtn{margin-top:6px;padding:15px;font-size:16px;border-radius:14px;font-weight:800;
+  letter-spacing:.01em;box-shadow:0 6px 18px rgba(31,157,85,.35)}
+.login #lgToggle{margin-top:10px;background:#f0f0f0;color:#444;border:none;border-radius:14px;
+  padding:13px;font-size:14px;font-weight:700;width:100%;cursor:pointer}
+.login #lgToggle:hover{background:#e8e8e8}
 .link{color:var(--green-d);font-weight:800;background:none}
 
 @media(max-width:360px){.pgrid{grid-template-columns:repeat(2,1fr)}.pcard .pemj{font-size:30px}}
@@ -237,13 +250,13 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
 <!-- ===================== LOGIN (solo si activas nube) ===================== -->
 <div id="loginScreen" class="login hidden">
   <div class="llogo">🍉</div>
-  <h1 id="loginTitle">Entrar a tu negocio</h1>
-  <p class="s" id="loginSub">Tus datos se sincronizan en todos los dispositivos</p>
+  <div class="l-biz">Frutería El Mercadito</div>
+  <h1 id="loginTitle">Inicia sesión para continuar</h1>
   <div class="field"><label>Correo</label><input id="lgEmail" type="email" inputmode="email" placeholder="tucorreo@gmail.com" autocomplete="email"></div>
-  <div class="field"><label>Contraseña</label><input id="lgPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
-  <button class="btn primary block" id="lgBtn" style="margin-top:6px">Entrar</button>
-  <button class="btn ghost block" id="lgToggle" style="margin-top:8px">Crear cuenta nueva</button>
-  <button class="link" id="lgSkip" style="margin:18px auto 0;display:block">Usar sin nube (solo este aparato)</button>
+  <div class="field" style="margin-top:12px"><label>Contraseña</label><input id="lgPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+  <button class="btn primary block" id="lgBtn" style="margin-top:14px">Entrar</button>
+  <button id="lgToggle">¿No tienes cuenta? Crear cuenta nueva</button>
+  <button class="link" id="lgSkip" style="margin:20px auto 0;display:block;font-size:13px">Continuar sin cuenta (solo este aparato)</button>
   <p id="lgMsg" class="tiny" style="text-align:center;margin-top:14px;color:var(--rose);min-height:18px"></p>
 </div>
 
@@ -290,8 +303,8 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
    Werner: pega aquí las 2 llaves UNA vez y publica. El cliente NUNCA ve esto
    ni configura nada: abre la app y solo inicia sesión.
    ============================================================================ */
-window.SUPABASE_URL    = "";          // https://xxxx.supabase.co
-window.SUPABASE_ANON   = "";          // eyJhbGci...  (anon public, NUNCA la secreta)
+window.SUPABASE_URL    = "https://hygzjoyexwyoucgkmncv.supabase.co";
+window.SUPABASE_ANON   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5Z3pqb3lleHd5b3VjZ2ttbmN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNDMxOTUsImV4cCI6MjA5NTkxOTE5NX0.2Ab4f22eGsWGOv4AZBd04cpX1ZilaEsRpkmO4SXhTq8";
 window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "Dasaro0283@gmail.com";
 
@@ -1489,9 +1502,9 @@ function hideLogin(){$('#loginScreen').classList.add('hidden');$('#app').classLi
 
 let loginMode='login';
 $('#lgToggle').onclick=()=>{loginMode=loginMode==='login'?'signup':'login';
-  $('#loginTitle').textContent=loginMode==='login'?'Entrar a tu negocio':'Crear tu cuenta';
+  $('#loginTitle').textContent=loginMode==='login'?'Inicia sesión para continuar':'Crea tu cuenta';
   $('#lgBtn').textContent=loginMode==='login'?'Entrar':'Crear cuenta';
-  $('#lgToggle').textContent=loginMode==='login'?'Crear cuenta nueva':'Ya tengo cuenta';};
+  $('#lgToggle').textContent=loginMode==='login'?'¿No tienes cuenta? Crear cuenta nueva':'¿Ya tienes cuenta? Iniciar sesión';};
 $('#lgSkip').onclick=()=>{hideLogin();setSync(false,'Local');boot();};
 $('#lgBtn').onclick=async()=>{
   const email=$('#lgEmail').value.trim(),pass=$('#lgPass').value;
