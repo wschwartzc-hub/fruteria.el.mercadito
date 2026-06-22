@@ -268,8 +268,9 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
     <div class="sync-pill" id="syncPill" onclick="openCloud()"><span class="sync-dot" id="syncDot"></span><span id="syncTxt">Local</span></div>
     <button class="icon-btn" onclick="go('mas')">⚙️</button>
   </div>
-  <div id="infoBar" style="display:flex;align-items:center;justify-content:space-between;
-    padding:7px 16px;background:#fff;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)">
+  <div id="infoBar" style="position:sticky;top:52px;z-index:29;display:flex;align-items:center;
+    justify-content:space-between;padding:6px 16px;background:rgba(255,255,255,.95);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)">
     <span id="infoGreet">👋 Bienvenido</span>
     <span id="infoClima" style="font-weight:600">—</span>
   </div>
@@ -455,7 +456,6 @@ function vInteligencia(){
   const greet = (()=>{const h=new Date().getHours();return h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches';})();
 
   return `
-  <p class="faint tiny bb" style="margin:2px 4px 6px">${greet}, ${state.member.nombre||''} 👋</p>
   <div class="stat-hero">
     <span class="emj">🍉</span>
     <div class="lbl">Ganancia de hoy</div>
