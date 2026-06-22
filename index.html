@@ -268,6 +268,11 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
     <div class="sync-pill" id="syncPill" onclick="openCloud()"><span class="sync-dot" id="syncDot"></span><span id="syncTxt">Local</span></div>
     <button class="icon-btn" onclick="go('mas')">⚙️</button>
   </div>
+  <div id="infoBar" style="display:flex;align-items:center;justify-content:space-between;
+    padding:7px 16px;background:#fff;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)">
+    <span id="infoGreet">👋 Bienvenido</span>
+    <span id="infoClima" style="font-weight:600">—</span>
+  </div>
 
   <main id="main"></main>
 
@@ -855,20 +860,26 @@ function saveMerma(pid){const p=findP(pid);const cant=parseFloat($('#mCant').val
 
 /* ============================ VISTA: MOVIMIENTOS ============================ */
 function vMovimientos(){
+  const acc=(emoji,title,sub,view,color)=>`
+    <button class="lrow" style="width:100%;text-align:left;padding:13px 0" onclick="go('${view}')">
+      <span class="l-emj" style="width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+        font-size:22px;background:${color};flex-shrink:0">${emoji}</span>
+      <div class="l-main">
+        <div class="l-n" style="font-size:15px">${title}</div>
+        <div class="l-s">${sub}</div>
+      </div>
+      <span style="color:var(--muted);font-size:18px;font-weight:300">›</span>
+    </button>`;
   return `
-  <div class="grid2" style="gap:11px">
-    <button class="card pad" style="text-align:left" onclick="go('compras')">
-      <div style="font-size:30px">🚚</div><div class="bb" style="margin-top:4px">Compras</div>
-      <div class="tiny muted">Reabastecer stock</div></button>
-    <button class="card pad" style="text-align:left" onclick="go('merma')">
-      <div style="font-size:30px">🗑️</div><div class="bb" style="margin-top:4px">Merma</div>
-      <div class="tiny muted">Lo que se perdió</div></button>
-    <button class="card pad" style="text-align:left" onclick="go('caja')">
-      <div style="font-size:30px">💵</div><div class="bb" style="margin-top:4px">Caja</div>
-      <div class="tiny muted">Corte y efectivo</div></button>
-    <button class="card pad" style="text-align:left" onclick="go('historial')">
-      <div style="font-size:30px">📜</div><div class="bb" style="margin-top:4px">Ventas</div>
-      <div class="tiny muted">Historial de tickets</div></button>
+  <div class="sec-title">Acciones</div>
+  <div class="card pad">
+    ${acc('🚚','Compras','Reabastecer inventario','compras','#e8f5ee')}
+    <div class="divider"></div>
+    ${acc('🗑️','Merma','Registrar producto perdido','merma','#fff4f4')}
+    <div class="divider"></div>
+    ${acc('💵','Caja','Corte y control de efectivo','caja','#fffbe8')}
+    <div class="divider"></div>
+    ${acc('📜','Ventas','Historial de tickets','historial','#f0f4ff')}
   </div>
   <div class="sec-title">Actividad reciente</div>
   <div class="card pad">${actividadHtml()}</div>
@@ -1128,13 +1139,6 @@ function confirmarCorte(esperado){const real=parseFloat($('#ccReal').value)||0;c
 /* ============================ VISTA: MÁS / CONFIG ============================ */
 function vMas(){const cl=state.cloud;
   return `
-  ${window._climaHTML||`<div class="card pad" id="climaCard" style="margin-bottom:0">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:28px">🌤️</span>
-      <div><div class="b" style="font-size:14px">Cargando clima...</div>
-      <div class="tiny muted">Obteniendo ubicación...</div></div>
-    </div></div>`}
-
   <div class="sec-title">Negocio</div>
   <div class="card pad">
     <div class="field"><label>Nombre del negocio</label>
@@ -1626,8 +1630,17 @@ const WMO={0:'Despejado ☀️',1:'Mayormente despejado 🌤️',2:'Parcialmente
   80:'Chubascos 🌦️',81:'Chubascos 🌧️',82:'Chubascos fuertes ⛈️',
   95:'Tormenta ⛈️',96:'Tormenta con granizo ⛈️',99:'Tormenta fuerte ⛈️'};
 
+function updateInfoBar(){
+  const h=new Date().getHours();
+  const greet=h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches';
+  const nombre=state.member.nombre||'';
+  const el=document.getElementById('infoGreet');
+  if(el)el.textContent=(nombre?`${greet}, ${nombre} 👋`:`${greet} 👋`);
+}
+
 async function cargarClima(){
-  if(!navigator.geolocation){window._climaHTML=null;return;}
+  updateInfoBar();
+  if(!navigator.geolocation)return;
   navigator.geolocation.getCurrentPosition(async pos=>{
     try{
       const {latitude:lat,longitude:lon}=pos.coords;
@@ -1636,29 +1649,13 @@ async function cargarClima(){
         `&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;
       const r=await fetch(url);const d=await r.json();
       const temp=Math.round(d.current.temperature_2m);
-      const sens=Math.round(d.current.apparent_temperature);
       const max=Math.round(d.daily.temperature_2m_max[0]);
       const min=Math.round(d.daily.temperature_2m_min[0]);
-      const cond=WMO[d.current.weathercode]||'—';
-      window._climaHTML=`<div class="card pad" style="margin-bottom:0">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div style="display:flex;align-items:center;gap:12px">
-            <span style="font-size:36px;line-height:1">${cond.split(' ').pop()}</span>
-            <div>
-              <div style="font-size:28px;font-weight:900;line-height:1">${temp}°</div>
-              <div style="font-size:12px;color:var(--muted)">${cond.split(' ').slice(0,-1).join(' ')}</div>
-            </div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:13px;font-weight:700">↑${max}° ↓${min}°</div>
-            <div style="font-size:12px;color:var(--muted)">Sensación ${sens}°</div>
-          </div>
-        </div></div>`;
-      // actualizar si la vista ya está abierta
-      const card=document.getElementById('climaCard');
-      if(card)card.outerHTML=window._climaHTML;
-    }catch(e){window._climaHTML=null;}
-  },()=>{window._climaHTML=null;},{timeout:6000});
+      const emoji=(WMO[d.current.weathercode]||'—').split(' ').pop();
+      const el=document.getElementById('infoClima');
+      if(el)el.textContent=`${emoji} ${temp}° · ↑${max}° ↓${min}°`;
+    }catch(e){}
+  },()=>{},{timeout:6000});
 }
 
 /* ============================ ARRANQUE ============================ */
