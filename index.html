@@ -441,23 +441,179 @@ function rangeStats(fromDate){
   let merma=0; mermas().forEach(x=>{if(new Date(x.fecha)>=fromDate)merma+=+x.valor_perdido||0;});
   return {total,costo,ganancia:total-costo,n,ticket:n?total/n:0,merma,byProd};
 }
+
+/* ============================ DASHBOARD HELPERS ============================ */
+
+function aggHora(){
+  const h=Array(24).fill(0).map((_,i)=>({h:i,v:0,n:0}));
+  ventas().forEach(v=>{const hr=new Date(v.fecha).getHours();h[hr].v+=v.total;h[hr].n++;});
+  return h;}
+
+function aggDia(){
+  const D=['\u0044om','\u004cun','\u004dar','\u004di\u00e9','\u004aue','\u0056ie','\u0053\u00e1b'];
+  const d=D.map((n,i)=>({n,v:0,g:0,cnt:0}));
+  ventas().forEach(v=>{const di=new Date(v.fecha).getDay();d[di].v+=v.total;d[di].g+=(v.total-(v.costo_total||0));d[di].cnt++;});
+  return d;}
+
+function aggMes(nm=6){
+  const r=[];
+  for(let i=nm-1;i>=0;i--){
+    const ref=new Date();ref.setDate(1);ref.setMonth(ref.getMonth()-i);
+    const y=ref.getFullYear(),m=ref.getMonth();
+    const lbl=ref.toLocaleDateString('es-MX',{month:'short'}).replace('.','');
+    const vs=ventas().filter(v=>{const d=new Date(v.fecha);return d.getFullYear()===y&&d.getMonth()===m;});
+    const ms=mermas().filter(v=>{const d=new Date(v.fecha);return d.getFullYear()===y&&d.getMonth()===m;});
+    const cs=compras().filter(v=>{const d=new Date(v.fecha);return d.getFullYear()===y&&d.getMonth()===m;});
+    r.push({lbl,
+      ventas:vs.reduce((a,v)=>a+v.total,0),
+      ganancia:vs.reduce((a,v)=>a+v.total-(v.costo_total||0),0),
+      merma:ms.reduce((a,m)=>a+m.valor_perdido,0),
+      gastos:cs.reduce((a,c)=>a+c.total,0),
+      clientes:new Set(vs.filter(v=>v.cliente_id).map(v=>v.cliente_id)).size,
+      n:vs.length});}
+  return r;}
+
+function svgBars(vals,lbls,opts={}){
+  const {color='#1f9d55',h=80,active=-1}=opts;
+  const max=Math.max(...vals,1);
+  const n=vals.length;
+  const W=360,PB=16,PT=4;
+  const gap=W/n,bW=Math.max(4,gap*0.55);
+  const bars=vals.map((v,i)=>{
+    const bh=Math.max(0,(v/max)*h);
+    const x=i*gap+(gap-bW)/2;
+    const y=PT+h-bh;
+    const isActive=active===i;
+    const fill=isActive?'#f59e0b':color;
+    const opacity=v>0?1:0.18;
+    return `<g opacity="${opacity}">
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}" rx="3"/>
+      ${bh>16?`<text x="${(x+bW/2).toFixed(1)}" y="${(y+11).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="white" font-weight="700">${money0(v)}</text>`:''}
+    </g>`;}).join('');
+  const xlbls=lbls.map((l,i)=>
+    `<text x="${(i*gap+gap/2).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="middle" font-size="9" fill="${active===i?'#f59e0b':'#999'}" font-weight="${active===i?'700':'400'}">${l}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${bars}${xlbls}</svg>`;}
+
+function svgLines(series,lbls,h=120){
+  const W=380,PL=44,PR=8,PT=8,PB=18;
+  const cW=W-PL-PR;const n=lbls.length;
+  if(n<2)return `<div style="padding:24px 0;text-align:center;color:var(--muted);font-size:13px">Registra ventas para ver la tendencia mensual</div>`;
+  const allV=series.flatMap(s=>s.values.filter(v=>isFinite(v)));
+  const maxV=Math.max(...allV,1);
+  const xp=i=>PL+i*(cW/(n-1));
+  const yp=v=>PT+h-Math.max(0,Math.min(v/maxV,1))*h;
+  const grid=[0,0.5,1].map(f=>{
+    const y=(PT+h-f*h).toFixed(1);
+    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#f0f0f0" stroke-width="1"/>
+      <text x="${(PL-4).toFixed(1)}" y="${(parseFloat(y)+3.5).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#ccc">${money0(maxV*f)}</text>`;}).join('');
+  const lines=series.map(s=>{
+    const pts=s.values.map((v,i)=>`${xp(i).toFixed(1)},${yp(v).toFixed(1)}`).join(' ');
+    const a=`M ${xp(0).toFixed(1)},${yp(s.values[0]).toFixed(1)} ${s.values.slice(1).map((v,i)=>`L ${xp(i+1).toFixed(1)},${yp(v).toFixed(1)}`).join(' ')} L ${xp(n-1).toFixed(1)},${(PT+h).toFixed(1)} L ${PL},${(PT+h).toFixed(1)} Z`;
+    const dots=s.values.map((v,i)=>`<circle cx="${xp(i).toFixed(1)}" cy="${yp(v).toFixed(1)}" r="3.5" fill="${s.color}" stroke="white" stroke-width="1.5"/>`).join('');
+    return `<path d="${a}" fill="${s.color}" fill-opacity="0.07"/>
+      <polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}`;}).join('');
+  const xlbls=lbls.map((l,i)=>`<text x="${xp(i).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" font-size="9" fill="#aaa">${l}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${grid}${lines}${xlbls}</svg>`;}
+
+const DASH_M={
+  ventas:{lbl:'Ventas',color:'#1f9d55',key:'ventas'},
+  ganancia:{lbl:'Ganancia',color:'#0891b2',key:'ganancia'},
+  merma:{lbl:'Merma',color:'#e11d48',key:'merma'},
+  gastos:{lbl:'Gastos',color:'#f59e0b',key:'gastos'},
+  clientes:{lbl:'Clientes',color:'#8b5cf6',key:'clientes'}};
+
+function buildSeries(mes){
+  return Object.values(DASH_M).filter(m=>dashSelected.has(m.key)).map(m=>({
+    name:m.lbl,color:m.color,values:mes.map(mo=>mo[m.key]||0)}));}
+
+window._dashToggle=function(k){
+  if(dashSelected.has(k)){if(dashSelected.size>1)dashSelected.delete(k);}
+  else dashSelected.add(k);
+  const el=document.getElementById('dashSvgWrap');
+  if(el){const mes=aggMes(6);el.innerHTML=svgLines(buildSeries(mes),mes.map(m=>m.lbl));}};
+
+function topByGanancia(n=5){
+  const map={};
+  ventas().forEach(v=>(v.items||[]).forEach(i=>{if(!map[i.producto_id])map[i.producto_id]={nombre:i.nombre,emoji:i.emoji||'🍎',g:0,u:0};
+    map[i.producto_id].g+=(i.precio-i.costo)*i.cantidad; map[i.producto_id].u+=i.cantidad;}));
+  return Object.values(map).sort((a,b)=>b.g-a.g).slice(0,n);}
+
+function topByMerma(n=5){
+  const map={};
+  mermas().forEach(m=>{const k=m.producto_id||m.nombre;
+    if(!map[k])map[k]={nombre:m.nombre,emoji:'🗑️',v:0};map[k].v+=m.valor_perdido;});
+  return Object.values(map).sort((a,b)=>b.v-a.v).slice(0,n);}
+
+function topClientes(n=5){
+  return (state.clientes||[]).filter(c=>!c.deleted)
+    .sort((a,b)=>(b.num_visitas||0)-(a.num_visitas||0)).slice(0,n);}
+
+function dashTips(mes,horaAgg,diaAgg,s30){
+  const tips=[];
+  if(ventas().length===0){
+    tips.push({ico:'🚀',txt:'Empieza registrando tus ventas del día con el botón Vender. Aquí verás estadísticas reales de tu negocio.'});
+    return tips;}
+  // Merma alta
+  if(s30.total>0&&s30.merma/s30.total>0.08)
+    tips.push({ico:'⚠️',txt:`Tu merma representa el ${(s30.merma/s30.total*100).toFixed(0)}% de tus ventas. Compra menos cantidad de los productos que más se pierden y rota el inventario más rápido.`});
+  // Hora pico
+  const ph=horaAgg.filter(h=>h.v>0);
+  if(ph.length){const best=ph.reduce((b,h)=>h.v>b.v?h:b);
+    tips.push({ico:'🕐',txt:`Tu hora pico de ventas es ${best.h}:00–${best.h+1}:00. Asegúrate de tener inventario completo antes de esa hora.`});}
+  // Mejor día
+  const pd=diaAgg.filter(d=>d.v>0);
+  if(pd.length>=2){
+    const bd=pd.reduce((b,d)=>d.v>b.v?d:b);
+    const wd=pd.reduce((w,d)=>d.v<w.v?d:w);
+    tips.push({ico:'📅',txt:`${bd.n} es tu mejor día. ${wd.n!==bd.n?`El ${wd.n} es más flojo — buen momento para reabastecer y acomodar.`:''}`});}
+  // Tendencia mensual
+  if(mes.length>=2){
+    const l=mes[mes.length-1],p=mes[mes.length-2];
+    if(p.ventas>0){const chg=((l.ventas-p.ventas)/p.ventas*100);
+      if(chg>10)tips.push({ico:'📈',txt:`Tus ventas subieron ${chg.toFixed(0)}% este mes vs el anterior. ¡Buen ritmo — sigue así!`});
+      else if(chg<-10)tips.push({ico:'📉',txt:`Tus ventas bajaron ${Math.abs(chg).toFixed(0)}% vs el mes anterior. Revisa precios, horarios o promociones.`});}}
+  // Pocos clientes
+  const nc=(state.clientes||[]).filter(c=>!c.deleted).length;
+  if(nc<5)tips.push({ico:'👤',txt:`Solo tienes ${nc} cliente${nc===1?'':'s'} registrado${nc===1?'':'s'}. Pide el número de WhatsApp al vender — los clientes frecuentes son tu mejor negocio.`});
+  // Bajo margen
+  const bm=productos().filter(p=>p.activo&&margenPct(p)<15&&margenPct(p)>0).slice(0,1);
+  if(bm.length)tips.push({ico:'💡',txt:`${bm[0].nombre} tiene un margen de solo ${margenPct(bm[0]).toFixed(0)}%. Intenta subir el precio o negociar mejor el costo con tu proveedor.`});
+  return tips.slice(0,4);}
+
+function progressBar(val,max,color){
+  const pct=max>0?Math.max(4,val/max*100):4;
+  return `<div style="flex:1;background:var(--surface-2);border-radius:4px;height:8px">
+    <div style="width:${pct.toFixed(0)}%;background:${color};border-radius:4px;height:8px;transition:width .4s"></div></div>`;}
+
+/* ============================ VISTA: RESUMEN (DASHBOARD) ============================ */
 function vInteligencia(){
   const hoy=rangeStats(startOfDay(new Date()));
   const s7=rangeStats(daysAgo(7));
   const s30=rangeStats(daysAgo(30));
-  const invVal = productos().reduce((a,p)=>a+p.stock*p.costo,0);
-  const top = Object.values(s30.byProd).sort((a,b)=>b.ganancia-a.ganancia).slice(0,5);
-  const mermaPct = s7.total>0 ? s7.merma/s7.total*100 : 0;
+  const horaAgg=aggHora();
+  const diaAgg=aggDia();
+  const mes=aggMes(6);
+  const tGanancia=topByGanancia(5);
+  const tMerma=topByMerma(5);
+  const tClientes=topClientes(5);
+  const tips=dashTips(mes,horaAgg,diaAgg,s30);
+  const maxHora=Math.max(...horaAgg.map(h=>h.v));
+  const bestHour=horaAgg.reduce((b,h)=>h.v>b.v?h:b,horaAgg[0]);
+  const bestDay=diaAgg.reduce((b,d)=>d.v>b.v?d:b,diaAgg[0]);
 
-  // sugerencias
-  const comprar = productos().filter(p=>p.activo && (p.stock<=p.stock_min || diasInventario(p)<2))
-      .sort((a,b)=>diasInventario(a)-diasInventario(b)).slice(0,6);
-  const riesgo = productos().filter(enRiesgo).sort((a,b)=>b.stock*b.costo-a.stock*a.costo).slice(0,6);
-  const bajoMargen = productos().filter(p=>p.activo&&margenPct(p)<15&&margenPct(p)>0).slice(0,5);
+  const togBtn=(k)=>{const m=DASH_M[k];const on=dashSelected.has(k);
+    return `<button onclick="window._dashToggle('${k}')"
+      style="padding:5px 11px;border-radius:20px;border:1.5px solid ${on?m.color:'var(--line)'};
+      font-size:12px;font-weight:700;cursor:pointer;background:${on?m.color+'18':'transparent'};
+      color:${on?m.color:'var(--muted)'};display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:50%;background:${on?m.color:'var(--line)'}"></span>${m.lbl}</button>`;};
 
-  const greet = (()=>{const h=new Date().getHours();return h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches';})();
+  const tGananciaMax=tGanancia[0]?.g||1;
+  const tMermaMax=tMerma[0]?.v||1;
 
   return `
+  <!-- HERO -->
   <div class="stat-hero">
     <span class="emj">🍉</span>
     <div class="lbl">Ganancia de hoy</div>
@@ -465,52 +621,108 @@ function vInteligencia(){
     <div class="sub">Vendiste ${money0(hoy.total)} en ${hoy.n} ticket${hoy.n===1?'':'s'} · ticket prom. ${money0(hoy.ticket)}</div>
   </div>
 
+  <!-- KPIs -->
   <div class="kpis">
     <div class="kpi"><div class="k-lbl">Ventas 7 días</div><div class="k-val money">${money0(s7.total)}</div>
       <div class="k-sub pos">+${money0(s7.ganancia)} ganancia</div></div>
     <div class="kpi"><div class="k-lbl">Merma 7 días</div><div class="k-val money neg">${money0(s7.merma)}</div>
-      <div class="k-sub ${mermaPct>8?'neg':'muted'}">${mermaPct.toFixed(1)}% de tus ventas</div></div>
-    <div class="kpi"><div class="k-lbl">Valor inventario</div><div class="k-val money">${money0(invVal)}</div>
-      <div class="k-sub muted">${productos().length} productos</div></div>
+      <div class="k-sub ${s7.total>0&&s7.merma/s7.total>0.08?'neg':'muted'}">${s7.total>0?(s7.merma/s7.total*100).toFixed(1):0}% de ventas</div></div>
     <div class="kpi"><div class="k-lbl">Ventas 30 días</div><div class="k-val money">${money0(s30.total)}</div>
       <div class="k-sub pos">+${money0(s30.ganancia)} ganancia</div></div>
+    <div class="kpi"><div class="k-lbl">Valor inventario</div><div class="k-val money">${money0(productos().reduce((a,p)=>a+p.stock*p.costo,0))}</div>
+      <div class="k-sub muted">${productos().length} productos</div></div>
   </div>
 
-  ${comprar.length?`<div class="sec-title">🛒 Comprar pronto</div>
-    <div class="card pad"><p class="tiny muted" style="margin:-4px 0 10px">Se están agotando o rotan rápido</p>
-    ${comprar.map(p=>{const d=diasInventario(p);return `<div class="lrow">
-      <span class="l-emj">${p.emoji}</span>
-      <div class="l-main"><div class="l-n">${p.nombre}</div>
-      <div class="l-s">Quedan ${qty(p.stock,p.unidad)} · ${d>900?'sin rotación':'~'+Math.max(0,Math.floor(d))+' días'}</div></div>
-      <div class="l-r"><span class="chip ${p.stock<=p.stock_min?'r':'m'}">${p.stock<=p.stock_min?'Bajo stock':'Se acaba'}</span></div>
-    </div>`;}).join('')}
-    <button class="btn block sm" style="margin-top:12px" onclick="go('compras')">Registrar compra</button></div>`:''}
+  <!-- COMPORTAMIENTO -->
+  <div class="sec-title">Comportamiento de ventas</div>
+  <div class="card pad">
+    <div class="b" style="font-size:13px;margin-bottom:10px">Por hora del día
+      ${maxHora>0?`<span class="chip g" style="font-size:11px;margin-left:6px">Pico: ${bestHour.h}:00h</span>`:''}</div>
+    ${svgBars(horaAgg.map(h=>h.v),horaAgg.map(h=>h.h%6===0?h.h+'h':''),{color:'#1f9d55',h:72,active:bestHour.h})}
+    <div class="b" style="font-size:13px;margin:14px 0 10px">Por día de la semana
+      ${diaAgg.some(d=>d.v>0)?`<span class="chip g" style="font-size:11px;margin-left:6px">Mejor: ${bestDay.n}</span>`:''}</div>
+    ${svgBars(diaAgg.map(d=>d.v),diaAgg.map(d=>d.n),{color:'#0891b2',h:72,active:diaAgg.reduce((b,d,i)=>d.v>diaAgg[b].v?i:b,0)})}
+  </div>
 
-  ${riesgo.length?`<div class="sec-title">⚠️ En riesgo de merma</div>
-    <div class="card pad"><p class="tiny muted" style="margin:-4px 0 10px">Mucho stock, poca salida. Pon oferta o úsalo ya.</p>
-    ${riesgo.map(p=>`<div class="lrow"><span class="l-emj">${p.emoji}</span>
-      <div class="l-main"><div class="l-n">${p.nombre}</div>
-      <div class="l-s">${qty(p.stock,p.unidad)} parados · valen ${money0(p.stock*p.costo)}</div></div>
-      <div class="l-r"><span class="chip r">${Math.floor(diasInventario(p))>900?'sin venta':Math.floor(diasInventario(p))+'d'}</span></div></div>`).join('')}
-    </div>`:''}
+  <!-- TENDENCIA MENSUAL -->
+  <div class="sec-title">Tendencia mensual</div>
+  <div class="card pad">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+      ${Object.keys(DASH_M).map(k=>togBtn(k)).join('')}
+    </div>
+    <div id="dashSvgWrap">${svgLines(buildSeries(mes),mes.map(m=>m.lbl))}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+      ${mes.slice(-1).map(m=>[
+        ['Ventas',money0(m.ventas),'#1f9d55'],
+        ['Ganancia',money0(m.ganancia),'#0891b2'],
+        ['Merma',money0(m.merma),'#e11d48'],
+        ['Gastos',money0(m.gastos),'#f59e0b']
+      ].map(([l,v,c])=>`<div style="flex:1;min-width:70px;padding:8px;background:var(--surface-2);border-radius:10px">
+        <div style="font-size:10px;color:${c};font-weight:700">${l}</div>
+        <div style="font-size:14px;font-weight:800">${v}</div></div>`).join('')).join('')}
+    </div>
+  </div>
 
-  ${top.length?`<div class="sec-title">⭐ Lo que más te deja (30 días)</div>
-    <div class="card pad">${top.map((t,i)=>{const max=top[0].ganancia||1;return `<div class="lrow">
-      <span class="l-emj">${t.emoji}</span>
-      <div class="l-main"><div class="l-n">${t.nombre}</div>
-        <div class="bar"><span style="width:${Math.max(6,t.ganancia/max*100)}%"></span></div></div>
-      <div class="l-r"><div class="bb money pos">${money0(t.ganancia)}</div><div class="tiny faint">${money0(t.ingreso)} vendido</div></div>
-    </div>`;}).join('')}</div>`:''}
+  <!-- TOP PRODUCTOS -->
+  <div class="sec-title">Top productos</div>
+  <div class="card pad">
+    <div class="b" style="font-size:13px;margin-bottom:10px">⭐ Por ganancia</div>
+    ${tGanancia.length?tGanancia.map(p=>`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:18px;flex-shrink:0">${p.emoji}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          ${progressBar(p.g,tGananciaMax,'#1f9d55')}
+        </div>
+        <span style="font-size:13px;font-weight:800;color:var(--green-d);flex-shrink:0">${money0(p.g)}</span>
+      </div>`).join(''):'<div class="tiny muted">Sin ventas registradas aún</div>'}
+    <div class="divider"></div>
+    <div class="b" style="font-size:13px;margin:10px 0">🗑️ Mayor merma (pérdida $)</div>
+    ${tMerma.length?tMerma.map(p=>`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:18px;flex-shrink:0">🗑️</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          ${progressBar(p.v,tMermaMax,'#e11d48')}
+        </div>
+        <span style="font-size:13px;font-weight:800;color:var(--rose);flex-shrink:0">-${money0(p.v)}</span>
+      </div>`).join(''):'<div class="tiny muted">Sin merma registrada</div>'}
+  </div>
 
-  ${bajoMargen.length?`<div class="sec-title">📉 Margen bajo (revisa precio o costo)</div>
-    <div class="card pad">${bajoMargen.map(p=>`<div class="lrow"><span class="l-emj">${p.emoji}</span>
-      <div class="l-main"><div class="l-n">${p.nombre}</div>
-      <div class="l-s">Cuesta ${money0(p.costo)} · vendes a ${money0(p.precio_venta)}</div></div>
-      <div class="l-r"><span class="chip m">${margenPct(p).toFixed(0)}%</span></div></div>`).join('')}</div>`:''}
+  <!-- TOP CLIENTES -->
+  ${tClientes.length?`
+  <div class="sec-title">Top clientes recurrentes</div>
+  <div class="card pad">
+    ${tClientes.map((c,i)=>`
+      <div class="between" style="padding:8px 0;${i<tClientes.length-1?'border-bottom:1px solid var(--line)':''}">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--green);display:grid;place-items:center;
+            color:#fff;font-size:12px;font-weight:800;flex-shrink:0">${i+1}</div>
+          <div>
+            <div style="font-weight:700;font-size:14px">${c.nombre||'Sin nombre'} <span class="chip" style="font-size:10px">#${c.num_cliente}</span></div>
+            <div class="tiny muted">${c.num_visitas||0} visitas · ${c.telefono}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:800;font-size:14px;color:var(--green-d)">${money0(c.total_compras||0)}</div>
+          <div class="tiny muted">total</div>
+        </div>
+      </div>`).join('')}
+    <button class="btn block sm" style="margin-top:10px" onclick="go('clientes')">Ver todos los clientes</button>
+  </div>`:''}
 
-  <div style="height:14px"></div>
-  <button class="btn block" onclick="go('historial')">📜 Ver historial de ventas</button>
-  `;
+  <!-- TIPS -->
+  ${tips.length?`
+  <div class="sec-title">Tips de negocio</div>
+  <div class="card pad">
+    ${tips.map((t,i)=>`
+      <div style="display:flex;gap:10px;${i<tips.length-1?'padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line)':''}">
+        <span style="font-size:22px;flex-shrink:0;line-height:1.3">${t.ico}</span>
+        <div style="font-size:13px;line-height:1.5;color:var(--ink)">${t.txt}</div>
+      </div>`).join('')}
+  </div>`:''}
+
+  <div style="height:14px"></div>`;
 }
 
 /* ============================ VISTA: VENDER (POS) ============================ */
@@ -665,26 +877,39 @@ function finalizarVenta(){
 
 /* ============================ VISTA: INVENTARIO ============================ */
 let invSort='alpha'; // 'alpha' | 'mas' | 'menos'
+let invSearch='';
+let dashSelected=new Set(['ventas','ganancia']); // métricas activas en la gráfica de tendencia
+
+function _invRows(ps){
+  return ps.length
+    ? ps.map(p=>{const low=p.stock<=p.stock_min;const risk=enRiesgo(p);
+        return `<div class="lrow" onclick="openProd('${p.id}')">
+          <span class="l-emj">${p.emoji}</span>
+          <div class="l-main"><div class="l-n">${p.nombre}
+            ${low?'<span class="chip r">bajo</span>':''}${risk?'<span class="chip m">riesgo</span>':''}</div>
+            <div class="l-s">Costo ${money0(p.costo)} · vende ${money0(p.precio_venta)} · margen ${margenPct(p).toFixed(0)}%</div></div>
+          <div class="l-r"><div class="bb num">${qty(p.stock,p.unidad)}</div>
+            <div class="tiny faint">${money0(p.stock*p.costo)}</div></div>
+        </div>`;}).join('')
+    : '<div class="empty" style="padding:20px 0"><span class="e-ico">🔍</span>Sin resultados</div>';
+}
+
+window._invSearch=()=>{
+  invSearch=(document.getElementById('invQ')||{value:''}).value.toLowerCase().trim();
+  const sortFns={alpha:(a,b)=>a.nombre.localeCompare(b.nombre),mas:(a,b)=>b.stock*b.costo-a.stock*a.costo,menos:(a,b)=>a.stock*a.costo-b.stock*b.costo};
+  let ps=productos().filter(p=>p.activo).sort(sortFns[invSort]||sortFns.alpha);
+  if(invSearch)ps=ps.filter(p=>p.nombre.toLowerCase().includes(invSearch)||p.categoria.toLowerCase().includes(invSearch));
+  const el=document.getElementById('invList');
+  if(el)el.innerHTML=_invRows(ps);
+};
 
 function vInventario(){
-  const sortFns={
-    alpha:(a,b)=>a.nombre.localeCompare(b.nombre),
-    mas:(a,b)=>b.stock*b.costo - a.stock*a.costo,
-    menos:(a,b)=>a.stock*a.costo - b.stock*b.costo
-  };
-  const ps=productos().filter(p=>p.activo).sort(sortFns[invSort]||sortFns.alpha);
+  const sortFns={alpha:(a,b)=>a.nombre.localeCompare(b.nombre),mas:(a,b)=>b.stock*b.costo-a.stock*a.costo,menos:(a,b)=>a.stock*a.costo-b.stock*b.costo};
+  let ps=productos().filter(p=>p.activo).sort(sortFns[invSort]||sortFns.alpha);
   const val=ps.reduce((a,p)=>a+p.stock*p.costo,0);
   const bajos=ps.filter(p=>p.stock<=p.stock_min);
   const riesgo=ps.filter(enRiesgo);
-  const row=p=>{const low=p.stock<=p.stock_min;const risk=enRiesgo(p);
-    return `<div class="lrow" onclick="openProd('${p.id}')">
-      <span class="l-emj">${p.emoji}</span>
-      <div class="l-main"><div class="l-n">${p.nombre}
-        ${low?'<span class="chip r">bajo</span>':''}${risk?'<span class="chip m">riesgo</span>':''}</div>
-        <div class="l-s">Costo ${money0(p.costo)} · vende ${money0(p.precio_venta)} · margen ${margenPct(p).toFixed(0)}%</div></div>
-      <div class="l-r"><div class="bb num">${qty(p.stock,p.unidad)}</div>
-        <div class="tiny faint">${money0(p.stock*p.costo)}</div></div>
-    </div>`;};
+  const filtered=invSearch?ps.filter(p=>p.nombre.toLowerCase().includes(invSearch)||p.categoria.toLowerCase().includes(invSearch)):ps;
   const btn=(v,lbl)=>`<button onclick="invSort='${v}';render()"
     style="padding:5px 13px;border-radius:20px;border:1.5px solid ${invSort===v?'var(--green)':'var(--line)'};
     font-size:12px;font-weight:700;cursor:pointer;background:${invSort===v?'var(--green)':'transparent'};
@@ -700,15 +925,24 @@ function vInventario(){
     <button class="btn" style="flex:1" onclick="go('merma')">🗑️ Merma</button>
     <button class="btn" style="flex:1" onclick="openProd()">＋ Producto</button>
   </div>
+  <div class="search" style="margin-bottom:12px">
+    <span style="color:var(--muted)">🔍</span>
+    <input id="invQ" placeholder="Buscar producto..." value="${invSearch}"
+      autocomplete="off" autocorrect="off" spellcheck="false"
+      oninput="window._invSearch()"
+      style="border:none;background:none;outline:none;flex:1;font-size:15px">
+    ${invSearch?`<button onclick="invSearch='';render()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px">&#x2715;</button>`:''}
+  </div>
   <div style="display:flex;gap:6px;margin-bottom:14px">
-    ${btn('alpha','A–Z')}
+    ${btn('alpha','A\u2013Z')}
     ${btn('mas','Mayor valor')}
     ${btn('menos','Menor valor')}
   </div>
-  ${bajos.length?`<div class="sec-title">🔴 Stock bajo</div><div class="card pad">${bajos.map(row).join('')}</div>`:''}
-  <div class="sec-title">Todos los productos</div>
-  <div class="card pad">${ps.length?ps.map(row).join(''):'<div class="empty"><span class="e-ico">📦</span>Aún no hay productos</div>'}</div>
+  ${!invSearch&&bajos.length?`<div class="sec-title">&#x1F534; Stock bajo</div><div class="card pad">${_invRows(bajos)}</div>`:''}
+  <div class="sec-title">${invSearch?`Resultados para "${invSearch}" (${filtered.length})`:'Todos los productos'}</div>
+  <div class="card pad" id="invList">${_invRows(filtered)}</div>
 `;}
+
 
 function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),business_id:state.business.id,
   nombre:'',emoji:'🍎',categoria:'Fruta',unidad:'kg',precio_venta:0,costo:0,stock:0,stock_min:0,
