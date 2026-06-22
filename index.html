@@ -364,11 +364,16 @@ function blank(){return {
   config:{folio:1, lowAlert:true, nextNumCliente:1},
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
-function load(){try{const r=localStorage.getItem(LS);if(r)return JSON.parse(r);}catch(e){}
-  const s=blank(); s.productos=seed(s.business.id);
-  seedDemo(s);
-  try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}  // guarda el demo inmediatamente
-  return s;}
+function load(){
+  let s;
+  try{const r=localStorage.getItem(LS);if(r)s=JSON.parse(r);}catch(e){}
+  if(!s){s=blank();s.productos=seed(s.business.id);}
+  if(!s.productos||!s.productos.length)s.productos=seed(s.business.id);
+  // Siembra datos demo si no hay ventas (primera vez O usuario existente sin historial)
+  if(!s.ventas||s.ventas.length<5){seedDemo(s);}
+  try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}
+  return s;
+}
 function save(){state._t=now();try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
 
 function seed(bid){const P=(nombre,categoria,unidad,costo,precio,stock,stock_min,perecedero,vida)=>(
