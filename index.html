@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -848,7 +848,7 @@ function vInteligencia(){
     <div class="b" style="font-size:13px;margin:10px 0">📉 Mayor merma (pérdida $)</div>
     ${tMerma.length?tMerma.map(p=>`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:18px;flex-shrink:0">🗑️</span>
+        <span style="font-size:18px;flex-shrink:0">${p.emoji}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
           ${progressBar(p.v,tMermaMax,'#e11d48')}
