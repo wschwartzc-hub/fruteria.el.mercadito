@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.1.1';
+const APP_VERSION = '2.1.2';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -606,35 +606,40 @@ function aggMes(nm=6){
 
 window._barTap=function(id,lbl,val){
   const el=document.getElementById(id+'_hdr');
-  if(el){el.textContent=lbl+' → '+val;el.style.opacity='1';}};
+  if(el){el.textContent=lbl+' · '+val;el.style.opacity='1';}};
 
 function svgBars(vals,lbls,opts={}){
   const {color='#1f9d55',h=80,active=-1,chartId='chart'}=opts;
   const max=Math.max(...vals,1);
   const n=vals.length;
-  const W=360,PB=16,PT=22; // PT bigger: room for tap-info text at top
+  const W=360,PB=16,PT=10;
   const gap=W/n,bW=Math.max(4,gap*0.55);
+  // Lineas guia punteadas semi-transparentes en 25/50/75/100%
+  const guides=[0.25,0.5,0.75,1].map(f=>{
+    const y=(PT+h-f*h).toFixed(1);
+    const dash=f<1?'stroke-dasharray="4,3" opacity="0.4"':'opacity="0.25"';
+    return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#aaa" stroke-width="${f===1?'1':'0.6'}" ${dash}/>`;}).join('');
   const bars=vals.map((v,i)=>{
     const bh=Math.max(0,(v/max)*h);
     const x=i*gap+(gap-bW)/2;
     const y=PT+h-bh;
     const isActive=active===i;
     const fill=isActive?'#f59e0b':color;
-    const opacity=v>0?1:0.15;
-    // Only the peak bar always shows its label; others show on tap via _barTap
-    const lbl=isActive&&v>0?`<text x="${(x+bW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle"
-      font-size="11" fill="#f59e0b" font-weight="800">${moneyK(v)}</text>`:'';
-    return `<g opacity="${opacity}" onclick="window._barTap('${chartId}','${lbls[i]||i}','${money0(v)}')" style="cursor:pointer">
-      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}" rx="3"/>
+    const opacity=v>0?1:0.12;
+    const lbl=isActive&&v>0?`<text x="${(x+bW/2).toFixed(1)}" y="${(y-5).toFixed(1)}"
+      text-anchor="middle" font-size="11" fill="#f59e0b" font-weight="800">${moneyK(v)}</text>`:'';
+    return `<g opacity="${opacity}" onclick="window._barTap('${chartId}','${lbls[i]||i+'h'}','${money0(v)}')" style="cursor:pointer">
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}" rx="2"/>
       ${lbl}
     </g>`;}).join('');
   const xlbls=lbls.map((l,i)=>l?
     `<text x="${(i*gap+gap/2).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="middle"
-     font-size="9" fill="${active===i?'#f59e0b':'#aaa'}" font-weight="${active===i?'700':'400'}">${l}</text>`:'').join('');
-  // Tap-info text at top center (hidden until user taps)
-  const hdr=`<text id="${chartId}_hdr" x="${(W/2).toFixed(1)}" y="14" text-anchor="middle"
-    font-size="11" fill="${color}" font-weight="700" opacity="0">Toca una barra para ver el valor</text>`;
-  return `<svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${hdr}${bars}${xlbls}</svg>`;}
+     font-size="9" fill="${active===i?'#f59e0b':'#bbb'}" font-weight="${active===i?'700':'400'}">${l}</text>`:'').join('');
+  return `<div>
+    <div id="${chartId}_hdr" style="text-align:center;font-size:12px;font-weight:700;color:${color};
+      height:16px;margin-bottom:2px;opacity:0;transition:opacity .2s"></div>
+    <svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${guides}${bars}${xlbls}</svg>
+  </div>`;}
 
 function svgLines(series,lbls,h=120){
   const W=380,PL=44,PR=8,PT=8,PB=18;
@@ -787,7 +792,7 @@ function vInteligencia(){
     <div class="kpi"><div class="k-lbl">Valor inventario</div><div class="k-val money">${money0(productos().reduce((a,p)=>a+p.stock*p.costo,0))}</div>
       <div class="k-sub muted">${productos().length} productos</div></div>
   </div>
-  <button class="btn block" style="margin:-4px 0 14px;font-size:13px" onclick="go('rentabilidad')">
+  <button class="btn block" style="margin:8px 0 14px;font-size:13px" onclick="go('rentabilidad')">
     📊 Ver análisis de rentabilidad →
   </button>
   <div class="sec-title">Comportamiento de ventas</div>
