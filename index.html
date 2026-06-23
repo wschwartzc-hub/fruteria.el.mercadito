@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.2.3';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1765,11 +1765,34 @@ Pago: ${venta.metodo_pago}
 }
 
 function enviarWA(tel, venta){
-  // Normalizar número mexicano → 521XXXXXXXXXX
   let n=tel.replace(/\D/g,'');
   if(n.startsWith('1')&&n.length===11)n='52'+n;
   else if(!n.startsWith('52'))n='52'+n;
-  window.open('https://wa.me/'+n+'?text='+formatTicketWA(venta),'_blank');
+  const url='https://wa.me/'+n+'?text='+formatTicketWA(venta);
+  const nombre=venta.cliente_nombre||findCliente(tel)?.nombre||tel;
+  // Mostrar hoja de confirmación — NO navegar automáticamente
+  openSheet(`
+    <div style="text-align:center;padding:8px 0 20px">
+      <div style="font-size:52px;margin-bottom:10px">✅</div>
+      <div style="font-size:22px;font-weight:900;margin-bottom:4px">¡Venta registrada!</div>
+      <div style="color:var(--muted);font-size:14px">Ticket #${venta.folio} · ${nombre}</div>
+    </div>
+    <div class="card pad" style="margin-bottom:16px">
+      ${(venta.items||[]).map(i=>`<div class="between" style="padding:4px 0;font-size:13px">
+        <span>${i.nombre} ${qty(i.cantidad,i.unidad)}</span>
+        <span style="font-weight:600">${money(i.subtotal)}</span></div>`).join('')}
+      <div class="between" style="padding:8px 0 0;font-weight:900;border-top:1px solid var(--line);margin-top:6px">
+        <span>Total</span><span class="money pos">${money(venta.total)}</span></div>
+    </div>
+    <a href="${url}" target="_blank" rel="noopener noreferrer"
+      onclick="setTimeout(()=>{closeSheet();go('vender');},800)"
+      style="display:block;background:var(--green);color:#fff;text-align:center;padding:15px;
+      border-radius:14px;font-weight:800;font-size:16px;text-decoration:none;margin-bottom:10px">
+      📱 Enviar ticket por WhatsApp
+    </a>
+    <button class="btn ghost block" onclick="closeSheet();go('vender')">
+      ✓ Ok, no enviar WhatsApp
+    </button>`);
 }
 
 function findCliente(tel){
@@ -1869,9 +1892,7 @@ window._waSeleccionar=function(clienteId,ventaId){
   c.ultima_visita=now();c.total_compras=(c.total_compras||0)+v.total;
   c.num_visitas=(c.num_visitas||0)+1;c.updated_at=now();
   save();push('ventas',v);push('clientes',c);
-  closeSheet();go('vender');
-  enviarWA(c.telefono,v);
-  toast('\u2197 Ticket enviado a '+(c.nombre||c.telefono),'ok');
+  enviarWA(c.telefono,v); // abre hoja de confirmación directo (reemplaza la hoja actual)
 };
 
 window._waNuevo=function(ventaId){
@@ -1887,9 +1908,7 @@ window._waNuevo=function(ventaId){
   state.clientes=state.clientes||[];state.clientes.push(c);
   v.cliente_id=c.id;v.cliente_nombre=nombre||tel;v.updated_at=now();
   save();push('clientes',c);push('ventas',v);
-  closeSheet();go('vender');
-  enviarWA(tel,v);
-  toast('Cliente #'+num+' guardado \u2713 Ticket enviado','ok');
+  enviarWA(tel,v); // abre hoja de confirmación directo
 };
 
 window.nuevoClienteWA=window._waNuevo;
