@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.1.2';
+const APP_VERSION = '2.2.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -612,13 +612,13 @@ function svgBars(vals,lbls,opts={}){
   const {color='#1f9d55',h=80,active=-1,chartId='chart'}=opts;
   const max=Math.max(...vals,1);
   const n=vals.length;
-  const W=360,PB=16,PT=10;
+  const W=360,PB=16,PT=8;
   const gap=W/n,bW=Math.max(4,gap*0.55);
-  // Lineas guia punteadas semi-transparentes en 25/50/75/100%
+  // Lineas guia punteadas en 25/50/75 y linea base en 100%
   const guides=[0.25,0.5,0.75,1].map(f=>{
     const y=(PT+h-f*h).toFixed(1);
-    const dash=f<1?'stroke-dasharray="4,3" opacity="0.4"':'opacity="0.25"';
-    return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#aaa" stroke-width="${f===1?'1':'0.6'}" ${dash}/>`;}).join('');
+    const dash=f<1?'stroke-dasharray="4,3" opacity="0.35"':'opacity="0.2"';
+    return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#888" stroke-width="${f===1?'1':'0.6'}" ${dash}/>`;}).join('');
   const bars=vals.map((v,i)=>{
     const bh=Math.max(0,(v/max)*h);
     const x=i*gap+(gap-bW)/2;
@@ -626,20 +626,21 @@ function svgBars(vals,lbls,opts={}){
     const isActive=active===i;
     const fill=isActive?'#f59e0b':color;
     const opacity=v>0?1:0.12;
-    const lbl=isActive&&v>0?`<text x="${(x+bW/2).toFixed(1)}" y="${(y-5).toFixed(1)}"
-      text-anchor="middle" font-size="11" fill="#f59e0b" font-weight="800">${moneyK(v)}</text>`:'';
+    // Sin labels dentro del SVG — se muestran en el hdr div externo
     return `<g opacity="${opacity}" onclick="window._barTap('${chartId}','${lbls[i]||i+'h'}','${money0(v)}')" style="cursor:pointer">
       <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}" rx="2"/>
-      ${lbl}
     </g>`;}).join('');
   const xlbls=lbls.map((l,i)=>l?
     `<text x="${(i*gap+gap/2).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="middle"
      font-size="9" fill="${active===i?'#f59e0b':'#bbb'}" font-weight="${active===i?'700':'400'}">${l}</text>`:'').join('');
+  // Hdr muestra el pico por defecto
+  const peakLbl=active>=0&&vals[active]>0?`${lbls[active]||active+'h'} \u00B7 ${money0(vals[active])}`:'';
   return `<div>
     <div id="${chartId}_hdr" style="text-align:center;font-size:12px;font-weight:700;color:${color};
-      height:16px;margin-bottom:2px;opacity:0;transition:opacity .2s"></div>
+      height:16px;margin-bottom:4px;opacity:${peakLbl?'1':'0'}">${peakLbl}</div>
     <svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${guides}${bars}${xlbls}</svg>
-  </div>`;}
+  </div>`;
+}
 
 function svgLines(series,lbls,h=120){
   const W=380,PL=44,PR=8,PT=8,PB=18;
@@ -1053,6 +1054,8 @@ let invSort='alpha'; // 'alpha' | 'mas' | 'menos'
 let invSearch='';
 let dashSelected=new Set(['ventas','ganancia']);
 let rentPreset='30d'; // 'hoy'|'7d'|'30d'|'mes'|'custom'
+let rentDesde=''; // guardadas para sobrevivir re-renders
+let rentHasta='';
 
 function _invRows(ps){
   return ps.length
@@ -1790,19 +1793,21 @@ function openWASheet(venta){
   window._waRender=()=>{
     const q=(document.getElementById('waSearch')||{value:''}).value.trim();
     const cs=(state.clientes||[]).filter(c=>!c.deleted);
-    const matches=q.length>=2?cs.filter(c=>
+    const matches=q.length>=1?cs.filter(c=>
       c.telefono.replace(/\D/g,'').includes(q.replace(/\D/g,''))||
       c.nombre.toLowerCase().includes(q.toLowerCase())).slice(0,5):[];
     const rows=matches.map(c=>`
       <button class="lrow" style="width:100%;text-align:left;padding:10px 0"
-        onclick="window._waSeleccionar('${c.id}','${venta.id}')">
+        id="waRow_${c.id}" onclick="window._waMarcar('${c.id}','${venta.id}')">
         <span class="l-emj">\u{1F464}</span>
         <div class="l-main">
           <div class="l-n">${c.nombre||'Sin nombre'} <span class="chip" style="font-size:10px">#${c.num_cliente}</span></div>
           <div class="l-s">${c.telefono} &middot; ${c.num_visitas||0} visitas &middot; ${money(c.total_compras||0)} total</div>
-        </div><span style="color:var(--green);font-weight:700;font-size:13px">\u2197 WA</span></button>`).join('');
+        </div>
+        <span class="tiny muted" style="font-size:11px">Seleccionar</span>
+      </button>`).join('');
     const wrap=document.getElementById('waMatches');
-    if(wrap)wrap.innerHTML=rows||(q.length>=2?'<div class="tiny muted" style="padding:6px 0">No encontrado &mdash; reg\u00EDstralo abajo \u2193</div>':'');
+    if(wrap)wrap.innerHTML=rows||(q.length>=1?'<div class="tiny muted" style="padding:6px 0">No encontrado \u2014 reg\u00EDstralo abajo \u2193</div>':'');
   };
 
   openSheet(`<h2>\u00BFTicket por WhatsApp?</h2>
@@ -1813,6 +1818,7 @@ function openWASheet(venta){
       style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px;margin-bottom:6px"
       oninput="window._waRender()">
     <div id="waMatches"></div>
+    <div id="waConfirm"></div>
   </div>
   <div style="border-radius:14px;border:1.5px solid var(--green);padding:14px;margin-bottom:14px">
     <div class="b" style="margin-bottom:8px">\u2795 Dar de alta cliente nuevo</div>
@@ -1832,6 +1838,20 @@ function openWASheet(venta){
   </div>
   <button class="btn ghost block" onclick="closeSheet();go('vender')">Ahora no</button>`);
 }
+
+window._waMarcar=function(clienteId,ventaId){
+  // Marcar visualmente el cliente seleccionado (sin enviar nada aún)
+  document.querySelectorAll('#waMatches .lrow').forEach(b=>{
+    b.style.background='';b.style.borderRadius='';});
+  const row=document.getElementById('waRow_'+clienteId);
+  if(row){row.style.background='#f0fdf4';row.style.borderRadius='10px';}
+  // Mostrar botón de confirmar
+  const conf=document.getElementById('waConfirm');
+  const c=(state.clientes||[]).find(x=>x.id===clienteId);
+  if(conf&&c)conf.innerHTML=`<button class="btn primary block" style="margin-top:10px"
+    onclick="window._waSeleccionar('${clienteId}','${ventaId}')">
+    \u{1F4F1} Enviar ticket a ${c.nombre||c.telefono} por WhatsApp
+  </button>`;};
 
 window._waSeleccionar=function(clienteId,ventaId){
   const c=(state.clientes||[]).find(x=>x.id===clienteId);
@@ -1875,12 +1895,20 @@ function rentRange(){
   if(rentPreset==='7d') return{d:daysAgo(7),h:hoy};
   if(rentPreset==='30d')return{d:daysAgo(30),h:hoy};
   if(rentPreset==='mes')return{d:new Date(hoy.getFullYear(),hoy.getMonth(),1),h:hoy};
-  // custom
-  const di=document.getElementById('rentD');const hi=document.getElementById('rentH');
-  if(!di||!hi||!di.value||!hi.value)return{d:daysAgo(30),h:hoy};
-  let d=new Date(di.value+'T00:00:00');let h=new Date(hi.value+'T23:59:59');
+  // custom: usa variables de estado, no DOM
+  if(!rentDesde||!rentHasta)return{d:daysAgo(30),h:hoy};
+  let d=new Date(rentDesde+'T00:00:00');let h=new Date(rentHasta+'T23:59:59');
   if(d>h){const tmp=d;d=h;h=tmp;}
   return{d,h};}
+
+window._rentCalc=()=>{
+  const di=document.getElementById('rentD');const hi=document.getElementById('rentH');
+  if(di&&di.value)rentDesde=di.value;
+  if(hi&&hi.value)rentHasta=hi.value;
+  if(rentDesde&&rentHasta){
+    const el=document.getElementById('rentResultados');
+    if(el)el.innerHTML=_rentResultsHtml();}};
+
 
 function calcRent(d,h){
   const inR=t=>{const dt=new Date(t);return dt>=d&&dt<=h;};
@@ -1899,51 +1927,31 @@ window._rentCalc=()=>{
   const di=document.getElementById('rentD');const hi=document.getElementById('rentH');
   if(di&&hi&&di.value&&hi.value)render();};
 
-function vRentabilidad(){
-  const{d,h}=rentRange();
-  const r=calcRent(d,h);
-  const rentable=r.un>=0;
-  const chip=(k,lbl)=>`<button onclick="rentPreset='${k}';render()"
-    style="padding:5px 13px;border-radius:20px;border:1.5px solid ${rentPreset===k?'var(--green)':'var(--line)'};
-    font-size:12px;font-weight:700;cursor:pointer;background:${rentPreset===k?'var(--green)':'transparent'};
-    color:${rentPreset===k?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
-  const minibar=(v,tot,color)=>{const p=tot>0?Math.min(100,Math.max(0,v/tot*100)):0;
+function _rentResultsHtml(){
+  const{d,h}=rentRange();const r=calcRent(d,h);const rentable=r.un>=0;
+  const fmtP=`${d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})} \u2013 ${h.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}`;
+  // Escala de barras: max de todos los valores para que sean proporcionales entre si
+  const barMax=Math.max(r.tv,1);
+  const minibar=(v,color)=>{const p=barMax>0?Math.min(100,Math.max(0.5,Math.abs(v)/barMax*100)):0;
     return `<div style="flex:1;background:var(--surface-2);border-radius:4px;height:8px;overflow:hidden">
-      <div style="width:${p.toFixed(0)}%;background:${color};height:8px;border-radius:4px"></div></div>`;};
-  const fila=(label,val,tot,color,indent,bold)=>`
+      <div style="width:${p.toFixed(1)}%;background:${color};height:8px;border-radius:4px;min-width:4px"></div></div>`;};
+  const fila=(lbl,val,color,indent,bold)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)">
       <div style="flex:0 0 130px;font-size:${bold?'14px':'13px'};font-weight:${bold?'800':'400'};
-        color:var(--${bold?'ink':'muted'});padding-left:${indent?'10px':'0'}">${label}</div>
-      ${tot>0?minibar(Math.abs(val),tot,color):'<div style="flex:1"></div>'}
+        color:var(--${bold?'ink':'muted'});padding-left:${indent?'10px':'0'}">${lbl}</div>
+      ${minibar(val,color)}
       <div style="font-size:${bold?'15px':'14px'};font-weight:${bold?'800':'600'};
         color:${color};min-width:72px;text-align:right">${money0(val)}</div>
     </div>`;
-  const fmtPeriodo=`${d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})} – ${h.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}`;
-  return `<button class="link" onclick="go('inteligencia')">← Resumen</button>
-  <div class="sec-title">Rentabilidad</div>
-  <div class="card pad" style="margin-bottom:0">
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${chip('hoy','Hoy')}${chip('7d','7 días')}${chip('30d','30 días')}${chip('mes','Este mes')}${chip('custom','Personalizado')}
-    </div>
-    ${rentPreset==='custom'?`<div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end">
-      <div style="flex:1"><div class="tiny muted" style="margin-bottom:4px">Desde</div>
-        <input type="date" id="rentD" onchange="window._rentCalc()"
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px"></div>
-      <div style="color:var(--muted);padding-bottom:12px">→</div>
-      <div style="flex:1"><div class="tiny muted" style="margin-bottom:4px">Hasta</div>
-        <input type="date" id="rentH" onchange="window._rentCalc()"
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px"></div>
-    </div>`:''}
-  </div>
-  <div class="tiny muted" style="text-align:center;padding:6px 0 10px">${fmtPeriodo} · ${r.nv} venta${r.nv===1?'':'s'}</div>
-
+  return `
+  <div class="tiny muted" style="text-align:center;padding:6px 0 10px">${fmtP} \u00B7 ${r.nv} venta${r.nv===1?'':'s'}</div>
   <div class="card pad">
-    ${fila('Ventas (ingresos)',r.tv,r.tv,'var(--green-d)',false,false)}
-    ${fila('− Costo mercancía',r.cm,r.tv,'#94a3b8',true,false)}
-    ${fila('= Utilidad bruta',r.ub,r.tv,r.ub>=0?'#0891b2':'var(--rose)',false,true)}
+    ${fila('Ventas (ingresos)',r.tv,'var(--green-d)',false,false)}
+    ${fila('&minus; Costo mercanc\u00eda',r.cm,'#94a3b8',true,false)}
+    ${fila('= Utilidad bruta',r.ub,r.ub>=0?'#0891b2':'var(--rose)',false,true)}
     <div class="tiny muted" style="text-align:right;padding:2px 0 8px;border-bottom:1px solid var(--line)">Margen bruto: ${r.mbr.toFixed(1)}%</div>
-    ${fila('− Merma',r.tm,r.tv,'var(--rose)',true,false)}
-    ${fila('− Gastos / Egresos',r.te,r.tv,'#f59e0b',true,false)}
+    ${fila('&minus; Merma',r.tm,'var(--rose)',true,false)}
+    ${fila('&minus; Gastos / Egresos',r.te,'#f59e0b',true,false)}
     <div style="padding:14px 0 4px;border-top:2px solid var(--ink);margin-top:6px">
       <div class="between">
         <span style="font-size:16px;font-weight:900">= Utilidad neta</span>
@@ -1951,16 +1959,15 @@ function vRentabilidad(){
           <span style="font-size:20px;font-weight:900;color:${rentable?'var(--green-d)':'var(--rose)'}">${money0(r.un)}</span>
           <span style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:800;
             background:${rentable?'#dcfce7':'#fee2e2'};color:${rentable?'#16a34a':'#dc2626'}">
-            ${rentable?'✓ Rentable':'✗ En pérdida'}</span>
+            ${rentable?'\u2713 Rentable':'\u2717 En p\u00e9rdida'}</span>
         </div>
       </div>
       <div class="tiny muted" style="text-align:right;margin-top:4px">Margen neto: <b>${r.mnr.toFixed(1)}%</b></div>
     </div>
   </div>
-
   ${r.tv>0?`<div class="card pad" style="margin-top:0">
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px">💡 ¿Dónde va cada peso que entra?</div>
-    ${[['Costo mercancía',r.cm/r.tv*100,'#94a3b8'],
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px">\u{1F4A1} \u00BFD\u00F3nde va cada peso que entra?</div>
+    ${[['Costo mercanc\u00eda',r.cm/r.tv*100,'#94a3b8'],
        ['Utilidad bruta',r.ub/r.tv*100,'#0891b2'],
        ['Merma',r.tm/r.tv*100,'var(--rose)'],
        ['Gastos',r.te/r.tv*100,'#f59e0b'],
@@ -1968,12 +1975,40 @@ function vRentabilidad(){
       ].map(([l,p,c])=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
         <span style="width:130px;font-size:12px;color:var(--muted);flex-shrink:0">${l}</span>
         <div style="flex:1;background:var(--surface-2);border-radius:4px;height:10px;overflow:hidden">
-          <div style="width:${Math.max(0,p).toFixed(0)}%;background:${c};height:10px;border-radius:4px"></div></div>
+          <div style="width:${Math.max(0,p).toFixed(0)}%;background:${c};height:10px;border-radius:4px;min-width:${p>0?'4px':'0'}"
+          ></div></div>
         <span style="font-size:12px;font-weight:700;color:${c};width:40px;text-align:right">${p.toFixed(1)}%</span>
       </div>`).join('')}
   </div>`:''}
-  <div style="height:14px"></div>`;
-}
+  <div style="height:14px"></div>`;}
+
+function vRentabilidad(){
+  const chip=(k,lbl)=>`<button onclick="rentPreset='${k}';render()"
+    style="padding:5px 13px;border-radius:20px;border:1.5px solid ${rentPreset===k?'var(--green)':'var(--line)'};
+    font-size:12px;font-weight:700;cursor:pointer;background:${rentPreset===k?'var(--green)':'transparent'};
+    color:${rentPreset===k?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
+  return `
+  <button class="link" onclick="go('inteligencia')">\u2190 Resumen</button>
+  <div class="sec-title">Rentabilidad</div>
+  <div class="card pad" style="margin-bottom:0">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${chip('hoy','Hoy')}${chip('7d','7 d\u00edas')}${chip('30d','30 d\u00edas')}${chip('mes','Este mes')}${chip('custom','Personalizado')}
+    </div>
+    ${rentPreset==='custom'?`<div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end">
+      <div style="flex:1">
+        <div class="tiny muted" style="margin-bottom:4px">Desde</div>
+        <input type="date" id="rentD" value="${rentDesde}" onchange="window._rentCalc()"
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;
+          padding:8px 10px;font-size:14px;background:#fff;color:var(--ink)"></div>
+      <div style="color:var(--muted);padding-bottom:12px">\u2192</div>
+      <div style="flex:1">
+        <div class="tiny muted" style="margin-bottom:4px">Hasta</div>
+        <input type="date" id="rentH" value="${rentHasta}" onchange="window._rentCalc()"
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;
+          padding:8px 10px;font-size:14px;background:#fff;color:var(--ink)"></div>
+    </div>`:''}
+  </div>
+  <div id="rentResultados">${_rentResultsHtml()}</div>`;}
 
 
 function vClientes(){
