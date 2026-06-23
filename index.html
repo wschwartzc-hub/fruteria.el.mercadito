@@ -60,8 +60,9 @@ main{flex:1;padding:16px 16px calc(96px + var(--safe-b));}
 .nav{
   position:fixed;left:0;right:0;bottom:0;z-index:40;
   max-width:560px;margin:0 auto;padding:8px 8px calc(8px + var(--safe-b));
-  background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);gap:2px;
+  -webkit-transform:translateZ(0);transform:translateZ(0);will-change:transform;
 }
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border-radius:12px;
   color:var(--faint);font-size:10.5px;font-weight:700;letter-spacing:.01em}
@@ -317,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -494,7 +495,7 @@ function seedDemo(s){
     const cant=p.unidad==='kg'?rndF(0.5,3):rnd(1,6);
     const valPerdido=Math.round(cant*p.costo*100)/100;
     s.mermas.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(8,18)),
-      producto_id:p.id,nombre:p.nombre,unidad:p.unidad,cantidad:cant,costo:p.costo,
+      producto_id:p.id,nombre:p.nombre,emoji:p.emoji||'🍎',unidad:p.unidad,cantidad:cant,costo:p.costo,
       valor_perdido:valPerdido,motivo:motivos[rnd(0,motivos.length-1)],
       usuario:'Dueño',deleted:false,updated_at:now()});
     // ajustar stock por merma
@@ -641,12 +642,16 @@ function svgLines(series,lbls,h=120){
   if(n<2)return `<div style="padding:24px 0;text-align:center;color:var(--muted);font-size:13px">Registra ventas para ver la tendencia mensual</div>`;
   const allV=series.flatMap(s=>s.values.filter(v=>isFinite(v)));
   const maxV=Math.max(...allV,1);
+  // Detectar si hay métricas de conteo (clientes) vs dinero
+  const hasCount=series.some(s=>s.isMoney===false);
+  const hasOnlyCount=series.every(s=>s.isMoney===false);
+  const yFmt=v=>hasOnlyCount?Math.round(v).toString():moneyK(v);
   const xp=i=>PL+i*(cW/(n-1));
   const yp=v=>PT+h-Math.max(0,Math.min(v/maxV,1))*h;
   const grid=[0,0.5,1].map(f=>{
     const y=(PT+h-f*h).toFixed(1);
     return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#f0f0f0" stroke-width="1"/>
-      <text x="${(PL-4).toFixed(1)}" y="${(parseFloat(y)+3.5).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#ccc">${money0(maxV*f)}</text>`;}).join('');
+      <text x="${(PL-4).toFixed(1)}" y="${(parseFloat(y)+3.5).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#ccc">${yFmt(maxV*f)}</text>`;}).join('');
   const lines=series.map(s=>{
     const pts=s.values.map((v,i)=>`${xp(i).toFixed(1)},${yp(v).toFixed(1)}`).join(' ');
     const a=`M ${xp(0).toFixed(1)},${yp(s.values[0]).toFixed(1)} ${s.values.slice(1).map((v,i)=>`L ${xp(i+1).toFixed(1)},${yp(v).toFixed(1)}`).join(' ')} L ${xp(n-1).toFixed(1)},${(PT+h).toFixed(1)} L ${PL},${(PT+h).toFixed(1)} Z`;
@@ -655,7 +660,9 @@ function svgLines(series,lbls,h=120){
       <polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
       ${dots}`;}).join('');
   const xlbls=lbls.map((l,i)=>`<text x="${xp(i).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" font-size="9" fill="#aaa">${l}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${grid}${lines}${xlbls}</svg>`;}
+  // Nota si hay mezcla de tipos
+  const nota=hasCount&&!hasOnlyCount?`<text x="${(W/2).toFixed(1)}" y="${(PT-2).toFixed(1)}" text-anchor="middle" font-size="8" fill="#aaa">* Clientes en conteo, resto en $</text>`:'';
+  return `<svg viewBox="0 0 ${W} ${PT+h+PB}" width="100%" style="display:block">${nota}${grid}${lines}${xlbls}</svg>`;}
 
 const DASH_M={
   ventas:{lbl:'Ventas',color:'#1f9d55',key:'ventas'},
@@ -673,7 +680,8 @@ function togBtn(k){const m=DASH_M[k];const on=dashSelected.has(k);
 
 function buildSeries(mes){
   return Object.values(DASH_M).filter(m=>dashSelected.has(m.key)).map(m=>({
-    name:m.lbl,color:m.color,values:mes.map(mo=>mo[m.key]||0)}));}
+    name:m.lbl,color:m.color,isMoney:m.key!=='clientes',
+    values:mes.map(mo=>mo[m.key]||0)}));}
 
 window._dashToggle=function(k){
   if(dashSelected.has(k)){if(dashSelected.size>1)dashSelected.delete(k);}
@@ -694,8 +702,8 @@ function topByGanancia(n=5){
 function topByMerma(n=5){
   const map={};
   mermas().forEach(m=>{const k=m.producto_id||m.nombre;
-    const prod=m.producto_id?findP(m.producto_id):null;
-    if(!map[k])map[k]={nombre:m.nombre,emoji:prod?.emoji||'🍎',v:0};
+    const emoji=m.emoji||(m.producto_id?findP(m.producto_id)?.emoji:null)||emojiFor(m.nombre)||'🍎';
+    if(!map[k])map[k]={nombre:m.nombre,emoji,v:0};
     map[k].v+=m.valor_perdido;});
   return Object.values(map).sort((a,b)=>b.v-a.v).slice(0,n);}
 
@@ -1277,7 +1285,8 @@ function openMerma(pid){const p=findP(pid);let cant=0;let motivo='podrido';
 }
 function saveMerma(pid){const p=findP(pid);const cant=parseFloat($('#mCant').value)||0;
   if(cant<=0){toast('Pon la cantidad','bad');return;}
-  const m={id:uid(),business_id:state.business.id,fecha:now(),producto_id:pid,nombre:p.nombre,unidad:p.unidad,
+  const m={id:uid(),business_id:state.business.id,fecha:now(),producto_id:pid,nombre:p.nombre,
+    emoji:p.emoji||emojiFor(p.nombre),unidad:p.unidad,
     cantidad:cant,costo:p.costo,valor_perdido:Math.round(cant*p.costo*100)/100,motivo:$('#mMot').value,
     usuario:state.member.nombre,deleted:false,updated_at:now()};
   p.stock=Math.round((p.stock-cant)*1000)/1000;p.updated_at=now();
@@ -1905,7 +1914,7 @@ function vRentabilidad(){
         color:${color};min-width:72px;text-align:right">${money0(val)}</div>
     </div>`;
   const fmtPeriodo=`${d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})} – ${h.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}`;
-  return `
+  return `<button class="link" onclick="go('inteligencia')">← Resumen</button>
   <div class="sec-title">Rentabilidad</div>
   <div class="card pad" style="margin-bottom:0">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1984,7 +1993,7 @@ function vClientes(){
           style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">✏️</button>
       </div></button>`;
   };
-  return `
+  return `<button class="link" onclick="go('mas')">← Más</button>
   <div class="between" style="margin-bottom:4px">
     <div class="sec-title" style="margin:0">Clientes · ${cs.length}</div>
     <button class="btn sm" style="font-size:13px" onclick="openClienteForm(null)">+ Nuevo cliente</button>
@@ -2100,7 +2109,7 @@ function vGastos(){
         <div class="tiny muted">${d} ${hora} · ${g.usuario||'—'}</div></div>
       <span style="font-weight:800;color:var(--rose);font-size:15px">-${money(g.monto)}</span>
     </div>`;};
-  return `
+  return `<button class="link" onclick="go('movimientos')">← Movimientos</button>
   <div class="kpis" style="margin-top:0">
     <div class="kpi"><div class="k-lbl">Gastos hoy</div><div class="k-val money neg">${money0(hoyG)}</div></div>
     <div class="kpi"><div class="k-lbl">Total registrado</div><div class="k-val money neg">${money0(total)}</div></div>
