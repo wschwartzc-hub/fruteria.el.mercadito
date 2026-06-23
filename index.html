@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.2.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1793,8 +1793,9 @@ function openWASheet(venta){
   window._waRender=()=>{
     const q=(document.getElementById('waSearch')||{value:''}).value.trim();
     const cs=(state.clientes||[]).filter(c=>!c.deleted);
+    const qTel=q.replace(/\D/g,'');
     const matches=q.length>=1?cs.filter(c=>
-      c.telefono.replace(/\D/g,'').includes(q.replace(/\D/g,''))||
+      (qTel.length>0&&c.telefono.replace(/\D/g,'').includes(qTel))||
       c.nombre.toLowerCase().includes(q.toLowerCase())).slice(0,5):[];
     const rows=matches.map(c=>`
       <button class="lrow" style="width:100%;text-align:left;padding:10px 0"
@@ -1840,18 +1841,25 @@ function openWASheet(venta){
 }
 
 window._waMarcar=function(clienteId,ventaId){
-  // Marcar visualmente el cliente seleccionado (sin enviar nada aún)
-  document.querySelectorAll('#waMatches .lrow').forEach(b=>{
-    b.style.background='';b.style.borderRadius='';});
-  const row=document.getElementById('waRow_'+clienteId);
-  if(row){row.style.background='#f0fdf4';row.style.borderRadius='10px';}
-  // Mostrar botón de confirmar
+  const c=(state.clientes||[]).find(x=>x.id===clienteId);if(!c)return;
+  // Cerrar lista y mostrar nombre en el campo
+  const wrap=document.getElementById('waMatches');if(wrap)wrap.innerHTML='';
+  const srch=document.getElementById('waSearch');if(srch)srch.value=c.nombre||c.telefono;
+  // Mostrar tarjeta de confirmación
   const conf=document.getElementById('waConfirm');
-  const c=(state.clientes||[]).find(x=>x.id===clienteId);
-  if(conf&&c)conf.innerHTML=`<button class="btn primary block" style="margin-top:10px"
-    onclick="window._waSeleccionar('${clienteId}','${ventaId}')">
-    \u{1F4F1} Enviar ticket a ${c.nombre||c.telefono} por WhatsApp
-  </button>`;};
+  if(conf)conf.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;padding:12px;background:#f0fdf4;
+      border-radius:12px;border:1.5px solid #bbf7d0;margin-top:8px">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--green);display:grid;
+        place-items:center;color:#fff;font-weight:800;flex-shrink:0">${(c.nombre||'?')[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${c.nombre||'Sin nombre'}</div>
+        <div class="tiny muted">${c.telefono} &middot; ${c.num_visitas||0} visitas</div>
+      </div>
+      <button class="btn sm primary" onclick="window._waSeleccionar('${clienteId}','${ventaId}')">
+        &#x1F4F1; Enviar
+      </button>
+    </div>`;};
 
 window._waSeleccionar=function(clienteId,ventaId){
   const c=(state.clientes||[]).find(x=>x.id===clienteId);
@@ -1902,12 +1910,14 @@ function rentRange(){
   return{d,h};}
 
 window._rentCalc=()=>{
+  // Leer valores actuales del DOM también (por si acaso)
   const di=document.getElementById('rentD');const hi=document.getElementById('rentH');
   if(di&&di.value)rentDesde=di.value;
   if(hi&&hi.value)rentHasta=hi.value;
-  if(rentDesde&&rentHasta){
-    const el=document.getElementById('rentResultados');
-    if(el)el.innerHTML=_rentResultsHtml();}};
+  if(!rentDesde||!rentHasta){toast('Selecciona ambas fechas','bad');return;}
+  const el=document.getElementById('rentResultados');
+  if(el)el.innerHTML=_rentResultsHtml();
+  toast('Período actualizado \u2713','ok');};
 
 
 function calcRent(d,h){
@@ -1994,18 +2004,26 @@ function vRentabilidad(){
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       ${chip('hoy','Hoy')}${chip('7d','7 d\u00edas')}${chip('30d','30 d\u00edas')}${chip('mes','Este mes')}${chip('custom','Personalizado')}
     </div>
-    ${rentPreset==='custom'?`<div style="display:flex;gap:10px;margin-top:12px;align-items:flex-end">
-      <div style="flex:1">
-        <div class="tiny muted" style="margin-bottom:4px">Desde</div>
-        <input type="date" id="rentD" value="${rentDesde}" onchange="window._rentCalc()"
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;
-          padding:8px 10px;font-size:14px;background:#fff;color:var(--ink)"></div>
-      <div style="color:var(--muted);padding-bottom:12px">\u2192</div>
-      <div style="flex:1">
-        <div class="tiny muted" style="margin-bottom:4px">Hasta</div>
-        <input type="date" id="rentH" value="${rentHasta}" onchange="window._rentCalc()"
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;
-          padding:8px 10px;font-size:14px;background:#fff;color:var(--ink)"></div>
+    ${rentPreset==='custom'?`<div style="margin-top:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div class="tiny muted" style="margin-bottom:4px">Desde</div>
+          <input type="date" id="rentD" value="${rentDesde}"
+            onchange="rentDesde=this.value"
+            style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);
+            border-radius:10px;padding:8px 10px;font-size:15px;background:#fff;color:var(--ink);
+            -webkit-appearance:none;appearance:none"></div>
+        <div>
+          <div class="tiny muted" style="margin-bottom:4px">Hasta</div>
+          <input type="date" id="rentH" value="${rentHasta}"
+            onchange="rentHasta=this.value"
+            style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);
+            border-radius:10px;padding:8px 10px;font-size:15px;background:#fff;color:var(--ink);
+            -webkit-appearance:none;appearance:none"></div>
+      </div>
+      <button class="btn primary block" onclick="window._rentCalc()">
+        Calcular período &#x2192;
+      </button>
     </div>`:''}
   </div>
   <div id="rentResultados">${_rentResultsHtml()}</div>`;}
