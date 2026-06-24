@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -340,14 +340,20 @@ function startOfDay(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
 function daysAgo(n){const x=new Date();x.setHours(0,0,0,0);x.setDate(x.getDate()-n);return x;}
 function toast(msg,kind=''){const t=$('#toast');t.textContent=msg;t.className='show '+kind;
   clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200);}
-function emojiFor(name){const n=(name||'').toLowerCase();
+function emojiFor(name){const n=(name||'').toLowerCase().trim();
   const map={plátano:'🍌',platano:'🍌',manzana:'🍎',naranja:'🍊',mandarina:'🍊',limón:'🍋',limon:'🍋',
     uva:'🍇',fresa:'🍓',sandía:'🍉',sandia:'🍉',melón:'🍈',melon:'🍈',piña:'🍍',pina:'🍍',mango:'🥭',
     durazno:'🍑',pera:'🍐',cereza:'🍒',kiwi:'🥝',coco:'🥥',aguacate:'🥑',jitomate:'🍅',tomate:'🍅',
-    papa:'🥔',zanahoria:'🥕',elote:'🌽',maíz:'🌽',chile:'🌶️',pepino:'🥒',brócoli:'🥦',brocoli:'🥦',
-    cebolla:'🧅',ajo:'🧄',lechuga:'🥬',espinaca:'🥬',cilantro:'🌿',perejil:'🌿',hierba:'🌿',
-    papaya:'🫐',betabel:'🥕',calabaza:'🎃',champiñón:'🍄',champinon:'🍄',nuez:'🌰'};
-  for(const k in map) if(n.includes(k)) return map[k];
+    zanahoria:'🥕',elote:'🌽',maíz:'🌽',maiz:'🌽',chile:'🌶️',serrano:'🌶️',jalapeño:'🌶️',jalapeno:'🌶️',
+    habanero:'🌶️',pepino:'🥒',brócoli:'🥦',brocoli:'🥦',cebollín:'🧅',cebollin:'🧅',cebolla:'🧅',
+    ajo:'🧄',lechuga:'🥬',espinaca:'🥬',acelga:'🥬',cilantro:'🌿',perejil:'🌿',hierba:'🌿',epazote:'🌿',
+    papaya:'🥭',betabel:'🥬',calabaza:'🎃',calabacita:'🥒',champiñón:'🍄',champinon:'🍄',hongo:'🍄',
+    nuez:'🌰',fresas:'🍓',guayaba:'🍈',toronja:'🍊',lima:'🍋',granada:'🍎',tuna:'🌵',nopal:'🌵',
+    papa:'🥔',camote:'🍠',jícama:'🥔',jicama:'🥔',rábano:'🥬',rabano:'🥬',ejote:'🫛',chícharo:'🫛',
+    chicharo:'🫛',apio:'🥬',berenjena:'🍆',pimiento:'🫑',morrón:'🫑',morron:'🫑'};
+  // Ordenar llaves por longitud (más larga primero) para evitar que "papa" haga match en "papaya"
+  const keys=Object.keys(map).sort((a,b)=>b.length-a.length);
+  for(const k of keys) if(n.includes(k)) return map[k];
   return '🍎';}
 
 /* ============================ ESTADO ============================ */
@@ -378,8 +384,8 @@ function load(){
 }
 function save(){state._t=now();try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
 
-function seed(bid){const P=(nombre,categoria,unidad,costo,precio,stock,stock_min,perecedero,vida)=>(
-  {id:uid(),business_id:bid,nombre,emoji:emojiFor(nombre),categoria,unidad,
+function seed(bid){let _i=0;const P=(nombre,categoria,unidad,costo,precio,stock,stock_min,perecedero,vida)=>(
+  {id:'demo-prod-'+(++_i),business_id:bid,nombre,emoji:emojiFor(nombre),categoria,unidad,
    precio_venta:precio,costo,stock,stock_min,perecedero,vida_util_dias:vida,activo:true,deleted:false,updated_at:now()});
  return [
   P('Plátano','Fruta','kg',14,22,38,8,true,5),
@@ -418,7 +424,7 @@ function seedDemo(s){
     {nombre:'Juan Martínez',  tel:'8118765432'},
     {nombre:'Lupita Flores',  tel:'8114567890'},
   ];
-  const cls=clientesSeed.map((c,i)=>({id:uid(),business_id:bid,num_cliente:i+1,nombre:c.nombre,
+  const cls=clientesSeed.map((c,i)=>({id:'demo-cli-'+(i+1),business_id:bid,num_cliente:i+1,nombre:c.nombre,
     telefono:c.tel,num_visitas:0,total_compras:0,ultima_visita:null,notas:'',deleted:false,updated_at:now()}));
   s.clientes=cls;
   s.config.nextNumCliente=cls.length+1;
@@ -556,7 +562,7 @@ function render(){
   const views={inteligencia:vInteligencia,inventario:vInventario,vender:vVender,
                movimientos:vMovimientos,mas:vMas,productos:vProductos,compras:vCompras,
                merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes,
-               gastos:vGastos,rentabilidad:vRentabilidad,
+               gastos:vGastos,rentabilidad:vRentabilidad,asesor:vAsesor,
                mpSettings:()=>{openMpSettings();return vMas();}};
   m.innerHTML=`<div class="view">${(views[currentView]||vInteligencia)()}</div>`;
   renderTicketBar();
@@ -582,7 +588,7 @@ function aggHora(){
   return h;}
 
 function aggDia(){
-  const D=['\u0044om','\u004cun','\u004dar','\u004di\u00e9','\u004aue','\u0056ie','\u0053\u00e1b'];
+  const D=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const d=D.map((n,i)=>({n,v:0,g:0,cnt:0}));
   ventas().forEach(v=>{const di=new Date(v.fecha).getDay();d[di].v+=v.total;d[di].g+=(v.total-(v.costo_total||0));d[di].cnt++;});
   return d;}
@@ -635,7 +641,7 @@ function svgBars(vals,lbls,opts={}){
     `<text x="${(i*gap+gap/2).toFixed(1)}" y="${(PT+h+PB-1).toFixed(1)}" text-anchor="middle"
      font-size="9" fill="${active===i?'#f59e0b':'#bbb'}" font-weight="${active===i?'700':'400'}">${l}</text>`:'').join('');
   // Hdr muestra el pico por defecto
-  const peakLbl=active>=0&&vals[active]>0?`${lbls[active]||active+'h'} \u00B7 ${money0(vals[active])}`:'';
+  const peakLbl=active>=0&&vals[active]>0?`${lbls[active]||active+'h'} · ${money0(vals[active])}`:'';
   return `<div>
     <div id="${chartId}_hdr" style="text-align:center;font-size:12px;font-weight:700;color:${color};
       height:16px;margin-bottom:4px;opacity:${peakLbl?'1':'0'}">${peakLbl}</div>
@@ -756,6 +762,260 @@ function progressBar(val,max,color){
     <div style="width:${pct.toFixed(0)}%;background:${color};border-radius:4px;height:8px;transition:width .4s"></div></div>`;}
 
 /* ============================ VISTA: RESUMEN (DASHBOARD) ============================ */
+/* ============================ MOTOR DE INSIGHTS INTELIGENTES ============================ */
+const DIAS_FULL=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const DIAS_SHORT=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+// Análisis profundo por producto: demanda por día de semana + hora pico
+function analizarProducto(pid, dias=42){
+  const desde=daysAgo(dias);
+  const porDia=Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)}));
+  let totalUnid=0, totalVentas=0;
+  ventas().forEach(v=>{
+    const f=new Date(v.fecha); if(f<desde)return;
+    (v.items||[]).forEach(i=>{
+      if(i.producto_id!==pid)return;
+      const dia=f.getDay(), hr=f.getHours();
+      porDia[dia].unid+=+i.cantidad||0;
+      porDia[dia].ventas++;
+      porDia[dia].horas[hr]+=+i.cantidad||0;
+      totalUnid+=+i.cantidad||0; totalVentas++;
+    });
+  });
+  // Cuántas semanas de datos hay
+  const semanas=Math.max(1,Math.ceil(dias/7));
+  // Promedio por día de semana
+  const promDia=porDia.map((d,i)=>({
+    dia:i, unidPorSemana:d.unid/semanas, ventas:d.ventas,
+    horaPico:d.horas.indexOf(Math.max(...d.horas)),
+    pico:Math.max(...d.horas)
+  }));
+  const avgDiario=totalUnid/dias;
+  return {pid, totalUnid, totalVentas, avgDiario, promDia, semanas};
+}
+
+// Detecta el día más fuerte de un producto vs su promedio
+function diaFuerteProducto(analisis){
+  const {promDia}=analisis;
+  const avg=promDia.reduce((a,d)=>a+d.unidPorSemana,0)/7;
+  if(avg<=0)return null;
+  const mejor=promDia.reduce((b,d)=>d.unidPorSemana>b.unidPorSemana?d:b,promDia[0]);
+  const ratio=mejor.unidPorSemana/avg;
+  // Solo es "fuerte" si vende al menos 50% más que el promedio y tiene datos
+  if(ratio<1.5||mejor.ventas<2)return null;
+  return {dia:mejor.dia, unidPorSemana:mejor.unidPorSemana, ratio, horaPico:mejor.horaPico, pico:mejor.pico};
+}
+
+// Genera todos los insights accionables, ordenados por urgencia
+function generarInsights(){
+  const out=[];
+  const ps=productos().filter(p=>p.activo);
+  const hoy=new Date().getDay();
+  const manana=(hoy+1)%7;
+
+  // ── 1. PATRONES DE DEMANDA POR DÍA (preventivo de stock) ──────────────
+  ps.forEach(p=>{
+    const a=analizarProducto(p.id);
+    if(a.totalVentas<5)return; // pocos datos
+    const df=diaFuerteProducto(a);
+    if(!df)return;
+    const stockNecesario=Math.ceil(df.unidPorSemana*1.15); // 15% buffer
+    const esHoy=df.dia===hoy, esManana=df.dia===manana;
+    const horaTxt=df.horaPico>0?` (pico ${df.horaPico}:00h)`:'';
+    out.push({
+      tipo:'demanda',
+      urgencia: esHoy?100 : esManana?90 : 40,
+      emoji:p.emoji,
+      titulo:`${DIAS_FULL[df.dia]}: día fuerte de ${p.nombre}`,
+      texto:`Vendes ${df.unidPorSemana.toFixed(1)} ${p.unidad} los ${DIAS_SHORT[df.dia].toLowerCase()}${horaTxt} — ${df.ratio.toFixed(1)}× tu promedio. Asegura ≥${stockNecesario} ${p.unidad} ese día.${esHoy?' ⚠️ ES HOY':esManana?' 📅 Es mañana':''}`,
+      stockNecesario, stockActual:p.stock
+    });
+  });
+
+  // ── 2. RIESGO DE MERMA (sobre-stock perecedero) ───────────────────────
+  ps.forEach(p=>{
+    if(!p.perecedero||p.stock<=0)return;
+    const a=analizarProducto(p.id);
+    if(a.avgDiario<=0){
+      // Perecedero con stock pero SIN ventas recientes = riesgo alto
+      if(p.stock>0)out.push({
+        tipo:'merma_sin_venta', urgencia:85, emoji:p.emoji,
+        titulo:`${p.nombre}: sin ventas pero con stock`,
+        texto:`Tienes ${qty(p.stock,p.unidad)} de ${p.nombre} (perecedero, vida ${p.vida_util_dias||5}d) pero no se ha vendido en 2 semanas. Riesgo de pérdida: ${money(p.stock*p.costo)}. Considera promoción o bajar precio.`
+      });
+      return;
+    }
+    const diasParaVender=p.stock/a.avgDiario;
+    const vida=p.vida_util_dias||5;
+    if(diasParaVender>vida){
+      const seVencera=p.stock-(a.avgDiario*vida);
+      const perdida=seVencera*p.costo;
+      out.push({
+        tipo:'merma', urgencia:75, emoji:p.emoji,
+        titulo:`${p.nombre}: vas a perder producto`,
+        texto:`Tienes ${qty(p.stock,p.unidad)} pero solo vendes ${a.avgDiario.toFixed(1)} ${p.unidad}/día. Al ritmo actual ~${qty(seVencera,p.unidad)} se van a echar a perder antes de venderse (≈${money(perdida)}). Baja el precio o haz combo.`
+      });
+    }
+  });
+
+  // ── 3. PREDICCIÓN DE AGOTAMIENTO (quedarse sin stock) ─────────────────
+  ps.forEach(p=>{
+    const a=analizarProducto(p.id);
+    if(a.avgDiario<=0||p.stock<=0)return;
+    const diasRestantes=p.stock/a.avgDiario;
+    if(diasRestantes<=2 && p.stock>0){
+      out.push({
+        tipo:'agotamiento', urgencia:70, emoji:p.emoji,
+        titulo:`${p.nombre}: se agota pronto`,
+        texto:`Te queda ${qty(p.stock,p.unidad)} (~${diasRestantes.toFixed(1)} días al ritmo actual). Reabastece pronto para no perder ventas.`
+      });
+    }
+  });
+
+  // ── 4. PRODUCTOS LENTOS (capital estancado) ───────────────────────────
+  const lentos=ps.filter(p=>{
+    const a=analizarProducto(p.id);
+    return a.totalVentas>0 && a.avgDiario<0.3 && p.stock>0 && (p.stock*p.costo)>100;
+  }).map(p=>{const a=analizarProducto(p.id);return {p,a};})
+    .sort((x,y)=>(y.p.stock*y.p.costo)-(x.p.stock*x.p.costo)).slice(0,2);
+  lentos.forEach(({p,a})=>{
+    out.push({
+      tipo:'lento', urgencia:30, emoji:p.emoji,
+      titulo:`${p.nombre}: rotación lenta`,
+      texto:`Tienes ${money(p.stock*p.costo)} en stock de ${p.nombre} pero se vende lento (${a.avgDiario.toFixed(1)} ${p.unidad}/día). Considera reducir cuánto compras o promocionarlo.`
+    });
+  });
+
+  // ── 5. PRODUCTO ESTRELLA (reforzar lo que funciona) ───────────────────
+  const conVentas=ps.map(p=>({p,a:analizarProducto(p.id)})).filter(x=>x.a.totalVentas>=5);
+  if(conVentas.length){
+    const estrella=conVentas.reduce((b,x)=>x.a.totalUnid>b.a.totalUnid?x:b,conVentas[0]);
+    out.push({
+      tipo:'estrella', urgencia:20, emoji:estrella.p.emoji,
+      titulo:`${estrella.p.nombre} es tu producto estrella`,
+      texto:`Vendiste ${estrella.a.totalUnid.toFixed(0)} ${estrella.p.unidad} en 6 semanas. Nunca lo dejes faltar — es lo que más mueve tu negocio.`
+    });
+  }
+
+  return out.sort((a,b)=>b.urgencia-a.urgencia);
+}
+
+
+/* ============================ VISTA: ASESOR INTELIGENTE ============================ */
+function vAsesor(){
+  const insights=generarInsights();
+  const hoy=DIAS_FULL[new Date().getDay()];
+  // Agrupar por tipo
+  const grupos={
+    demanda:{titulo:'📅 Prepárate por día',sub:'Asegura stock en tus días fuertes',items:[]},
+    merma:{titulo:'🗑️ Evita perder producto',sub:'Stock que no alcanzarás a vender',items:[]},
+    merma_sin_venta:{titulo:'🗑️ Evita perder producto',sub:'',items:[]},
+    agotamiento:{titulo:'⚠️ Reabastece pronto',sub:'Productos por agotarse',items:[]},
+    lento:{titulo:'🐌 Rotación lenta',sub:'Capital estancado',items:[]},
+    estrella:{titulo:'⭐ Tus ganadores',sub:'Lo que más mueve tu negocio',items:[]}
+  };
+  insights.forEach(i=>{
+    const g=i.tipo==='merma_sin_venta'?'merma':i.tipo;
+    if(grupos[g])grupos[g].items.push(i);
+  });
+
+  const card=i=>{
+    const color=i.urgencia>=90?'#dc2626':i.urgencia>=70?'#f59e0b':i.urgencia>=40?'#0891b2':'#16a34a';
+    const bg=i.urgencia>=90?'#fef2f2':i.urgencia>=70?'#fffbeb':i.urgencia>=40?'#f0f9ff':'#f0fdf4';
+    return `<div style="display:flex;gap:11px;padding:13px;background:${bg};border-radius:12px;
+      margin-bottom:8px;border-left:3px solid ${color}">
+      <span style="font-size:24px;flex-shrink:0">${i.emoji}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px;margin-bottom:3px;color:${color}">${i.titulo}</div>
+        <div style="font-size:13px;line-height:1.4;color:var(--ink)">${i.texto}</div>
+      </div>
+    </div>`;};
+
+  let body='';
+
+  // ── DEMANDA: tabla semanal agrupada por día (más útil que 12 tarjetas) ──
+  if(grupos.demanda.items.length){
+    const hoyIdx=new Date().getDay();
+    const porDia={};
+    grupos.demanda.items.forEach(i=>{
+      const dia=DIAS_FULL.findIndex(df=>i.titulo.includes(df));
+      if(dia>=0){porDia[dia]=porDia[dia]||[];porDia[dia].push(i);}
+    });
+    body+=`<div class="sec-title" style="margin-top:18px">📅 Plan semanal de stock</div>
+      <div class="tiny muted" style="margin:-4px 0 8px 2px">Asegura estos productos en tus días fuertes</div>`;
+    const ordenDias=[];
+    for(let off=0;off<7;off++)ordenDias.push((hoyIdx+off)%7);
+    ordenDias.forEach(dia=>{
+      if(!porDia[dia]||!porDia[dia].length)return;
+      const esHoy=dia===hoyIdx, esManana=dia===(hoyIdx+1)%7;
+      const tag=esHoy?'<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;margin-left:6px">HOY</span>':
+                esManana?'<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;margin-left:6px">MAÑANA</span>':'';
+      const bg=esHoy?'#fef2f2':esManana?'#fffbeb':'#fff';
+      const border=esHoy?'#dc2626':esManana?'#f59e0b':'var(--line)';
+      const rows=porDia[dia].map(i=>{
+        const m=i.texto.match(/Asegura ≥(\d+) (\w+)/);
+        const stock=m?`${m[1]} ${m[2]}`:'';
+        const horaM=i.texto.match(/pico (\d+):00h/);
+        const hora=horaM?`${horaM[1]}:00h`:'';
+        const nombre=i.titulo.split(': día fuerte de ')[1]||i.titulo;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">
+          <span style="font-size:20px">${i.emoji}</span>
+          <div style="flex:1;font-size:13px;font-weight:600">${nombre}</div>
+          ${hora?`<span class="tiny muted">${hora}</span>`:''}
+          <span style="font-weight:800;font-size:13px;color:var(--green-d)">≥${stock}</span>
+        </div>`;}).join('');
+      body+=`<div style="background:${bg};border:1.5px solid ${border};border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="font-weight:800;font-size:14px">${DIAS_FULL[dia]}${tag}</div>
+        ${rows}
+      </div>`;
+    });
+  }
+
+  // ── Resto de grupos como tarjetas individuales ──
+  ['merma','agotamiento','lento','estrella'].forEach(key=>{
+    const g=grupos[key];
+    if(!g.items.length)return;
+    body+=`<div class="sec-title" style="margin-top:18px">${g.titulo}</div>
+      ${g.sub?`<div class="tiny muted" style="margin:-4px 0 8px 2px">${g.sub}</div>`:''}
+      ${g.items.map(card).join('')}`;
+  });
+
+  if(!insights.length){
+    body=`<div class="empty" style="padding:40px 20px">
+      <span class="e-ico">🔮</span>
+      <div style="font-weight:700;margin-bottom:6px">Aún reuniendo datos</div>
+      <div class="tiny muted">Registra más ventas durante unos días y aquí verás patrones,
+      predicciones de stock y consejos para reducir merma.</div></div>`;
+  }
+
+  return `<button class="link" onclick="go('inteligencia')">← Resumen</button>
+  <div class="sec-title" style="margin-bottom:2px">Asesor inteligente</div>
+  <div class="tiny muted" style="margin:0 0 4px 2px">Análisis de tus patrones de venta · ${hoy}</div>
+  ${body}
+  <div style="height:20px"></div>`;
+}
+
+// Versión compacta para el dashboard (top 3 insights más urgentes)
+function asesorResumenHTML(){
+  const insights=generarInsights().filter(i=>i.urgencia>=40).slice(0,3);
+  if(!insights.length)return '';
+  const card=i=>{
+    const color=i.urgencia>=90?'#dc2626':i.urgencia>=70?'#f59e0b':'#0891b2';
+    return `<div style="display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)">
+      <span style="font-size:20px;flex-shrink:0">${i.emoji}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:2px">${i.titulo}</div>
+        <div style="font-size:12px;line-height:1.35;color:var(--muted)">${i.texto}</div>
+      </div></div>`;};
+  return `<div class="sec-title">🔮 Asesor inteligente</div>
+  <div class="card pad">
+    ${insights.map(card).join('')}
+    <button class="btn block sm" style="margin-top:10px" onclick="go('asesor')">
+      Ver todos los consejos →</button>
+  </div>`;
+}
+
+
 function vInteligencia(){
   const hoy=rangeStats(startOfDay(new Date()));
   const s7=rangeStats(daysAgo(7));
@@ -797,6 +1057,7 @@ function vInteligencia(){
   <button class="btn block" style="margin:8px 0 14px;font-size:13px" onclick="go('rentabilidad')">
     📊 Ver análisis de rentabilidad →
   </button>
+  ${asesorResumenHTML()}
   <div class="sec-title">Comportamiento de ventas</div>
   <div class="card pad">
     <div class="between" style="margin-bottom:10px">
@@ -1021,11 +1282,11 @@ function openCobro(){payMethod='efectivo';cartDiscount=0;
    </div>
    <button class="btn primary block" style="margin-top:14px;font-size:17px;padding:16px" onclick="finalizarVenta()">
      Cobrar ${money(tot)}</button>
-   ${state.config.mpToken&&state.config.mpDeviceId?`
-   <button id="mpBtn" onclick="window._mpCobrar()" style="margin-top:8px;width:100%;background:#ffe600;
-     color:#333;border:none;border-radius:14px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;display:block">
-     🟡 Cobrar con terminal Mercado Pago
-   </button>`:''}
+   <button id="mpBtn" onclick="window._mpCobrar()"
+     style="margin-top:8px;width:100%;background:#ffe600;color:#333;border:none;border-radius:14px;
+     padding:14px;font-weight:800;font-size:15px;cursor:pointer;display:block">
+     🟡 Cobrar con terminal Mercado Pago${!(state.config.mpToken&&state.config.mpDeviceId)?' (configurar →)':''}
+   </button>
    `;
    openSheet(html);
    window._cobroUpd=()=>{const t=Math.max(0,cartTotal()-cartDiscount);const e=$('#cobroTot');if(e)e.textContent=money(t);
@@ -1126,7 +1387,7 @@ function vInventario(){
     ${invSearch?`<button onclick="invSearch='';render()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px">&#x2715;</button>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-bottom:14px">
-    ${btn('alpha','A\u2013Z')}
+    ${btn('alpha','A–Z')}
     ${btn('mas','Mayor valor')}
     ${btn('menos','Menor valor')}
   </div>
@@ -1331,6 +1592,8 @@ function vMovimientos(){
     ${acc('💵','Caja','Corte y control de efectivo','caja','#fffbe8')}
     <div class="divider"></div>
     ${acc('💸','Gastos','Bolsas, servicios, personal...','gastos','#fdf4ff')}
+    <div class="divider"></div>
+    ${acc('🔮','Asesor inteligente','Consejos para optimizar y reducir merma','asesor','#f3e8ff')}
     <div class="divider"></div>
     ${acc('🟡','Terminal Mercado Pago','Cobrar directo a tu terminal Point','mpSettings','#fffde7')}
     <div class="divider"></div>
@@ -1782,9 +2045,9 @@ function enviarWA(tel, venta){
   const nombre=venta.cliente_nombre||findCliente(tel)?.nombre||tel;
   openSheet(`
     <div style="text-align:center;padding:8px 0 20px">
-      <div style="font-size:52px;margin-bottom:10px">\u2705</div>
-      <div style="font-size:22px;font-weight:900;margin-bottom:4px">\u00a1Venta registrada!</div>
-      <div style="color:var(--muted);font-size:14px">Ticket #${venta.folio} \u00b7 ${nombre}</div>
+      <div style="font-size:52px;margin-bottom:10px">✅</div>
+      <div style="font-size:22px;font-weight:900;margin-bottom:4px">¡Venta registrada!</div>
+      <div style="color:var(--muted);font-size:14px">Ticket #${venta.folio} · ${nombre}</div>
     </div>
     <div class="card pad" style="margin-bottom:16px">
       ${(venta.items||[]).map(i=>`<div class="between" style="padding:4px 0;font-size:13px">
@@ -1795,10 +2058,10 @@ function enviarWA(tel, venta){
     </div>
     <button id="pdfBtn" class="btn primary block" style="font-size:16px;padding:15px"
       onclick="window._compartirTicketPDF('${venta.id}')">
-      \U0001F4C4 Compartir ticket PDF por WhatsApp
+      📄 Compartir ticket PDF por WhatsApp
     </button>
     <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet();go('vender')">
-      \u2713 Ok, continuar sin enviar
+      ✓ Ok, continuar sin enviar
     </button>`);
 }
 
@@ -1863,7 +2126,7 @@ async function generarTicketPDF(venta){
 window._compartirTicketPDF=async function(ventaId){
   const venta=state.ventas.find(v=>v.id===ventaId);if(!venta)return;
   const btn=document.getElementById('pdfBtn');
-  if(btn){btn.textContent='\u23f3 Generando PDF...';btn.disabled=true;}
+  if(btn){btn.textContent='⏳ Generando PDF...';btn.disabled=true;}
   try{
     const file=await generarTicketPDF(venta);
     if(navigator.share&&navigator.canShare({files:[file]})){
@@ -1874,12 +2137,12 @@ window._compartirTicketPDF=async function(ventaId){
       const url=URL.createObjectURL(file);
       const a=document.createElement('a');a.href=url;a.download=file.name;a.click();
       URL.revokeObjectURL(url);
-      toast('PDF descargado \u2713','ok');
+      toast('PDF descargado ✓','ok');
     }
   }catch(e){
     if(e.name!=='AbortError')toast('Error: '+e.message.substring(0,50),'bad');
   }
-  if(btn){btn.textContent='\U0001F4C4 Compartir ticket PDF por WhatsApp';btn.disabled=false;}
+  if(btn){btn.textContent='📄 Compartir ticket PDF por WhatsApp';btn.disabled=false;}
 };
 
 
@@ -1911,7 +2174,7 @@ function openWASheet(venta){
     const rows=matches.map(c=>`
       <button class="lrow" style="width:100%;text-align:left;padding:10px 0"
         id="waRow_${c.id}" onclick="window._waMarcar('${c.id}','${venta.id}')">
-        <span class="l-emj">\u{1F464}</span>
+        <span class="l-emj">👤</span>
         <div class="l-main">
           <div class="l-n">${c.nombre||'Sin nombre'} <span class="chip" style="font-size:10px">#${c.num_cliente}</span></div>
           <div class="l-s">${c.telefono} &middot; ${c.num_visitas||0} visitas &middot; ${money(c.total_compras||0)} total</div>
@@ -1919,33 +2182,33 @@ function openWASheet(venta){
         <span class="tiny muted" style="font-size:11px">Seleccionar</span>
       </button>`).join('');
     const wrap=document.getElementById('waMatches');
-    if(wrap)wrap.innerHTML=rows||(q.length>=1?'<div class="tiny muted" style="padding:6px 0">No encontrado \u2014 reg\u00EDstralo abajo \u2193</div>':'');
+    if(wrap)wrap.innerHTML=rows||(q.length>=1?'<div class="tiny muted" style="padding:6px 0">No encontrado — regístralo abajo ↓</div>':'');
   };
 
-  openSheet(`<h2>\u00BFTicket por WhatsApp?</h2>
+  openSheet(`<h2>¿Ticket por WhatsApp?</h2>
   ${resumen}
   <div style="border-radius:14px;border:1.5px solid var(--line);padding:14px;margin-bottom:12px">
     <div class="b" style="margin-bottom:8px">Cliente existente</div>
-    <input id="waSearch" placeholder="Nombre o tel\u00E9fono..." autocomplete="off" autocorrect="off"
+    <input id="waSearch" placeholder="Nombre o teléfono..." autocomplete="off" autocorrect="off"
       style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px;margin-bottom:6px"
       oninput="window._waRender()">
     <div id="waMatches"></div>
     <div id="waConfirm"></div>
   </div>
   <div style="border-radius:14px;border:1.5px solid var(--green);padding:14px;margin-bottom:14px">
-    <div class="b" style="margin-bottom:8px">\u2795 Dar de alta cliente nuevo</div>
+    <div class="b" style="margin-bottom:8px">➕ Dar de alta cliente nuevo</div>
     <div class="field" style="margin-bottom:10px">
-      <label>Tel\u00E9fono WhatsApp</label>
+      <label>Teléfono WhatsApp</label>
       <input id="waTel" type="tel" inputmode="numeric" placeholder="Ej: 8112345678" autocomplete="off"
         style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px">
     </div>
     <div class="field" style="margin-bottom:12px">
       <label>Nombre (opcional)</label>
-      <input id="waNombre" placeholder="Ej: Mar\u00EDa Gonz\u00E1lez" autocomplete="off"
+      <input id="waNombre" placeholder="Ej: María González" autocomplete="off"
         style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px">
     </div>
     <button class="btn primary block" onclick="window._waNuevo('${venta.id}')">
-      \u{1F4BE} Guardar como cliente #${state.config.nextNumCliente||1} y enviar WhatsApp
+      💾 Guardar como cliente #${state.config.nextNumCliente||1} y enviar WhatsApp
     </button>
   </div>
   <button class="btn ghost block" onclick="closeSheet();go('vender')">Ahora no</button>`);
@@ -1986,7 +2249,7 @@ window._waSeleccionar=function(clienteId,ventaId){
 window._waNuevo=function(ventaId){
   const tel=(document.getElementById('waTel')||{value:''}).value.trim();
   const nombre=(document.getElementById('waNombre')||{value:''}).value.trim();
-  if(!tel){toast('Pon el n\u00FAmero de WhatsApp','bad');return;}
+  if(!tel){toast('Pon el número de WhatsApp','bad');return;}
   const v=state.ventas.find(x=>x.id===ventaId);if(!v)return;
   const num=state.config.nextNumCliente||1;
   state.config.nextNumCliente=num+1;
@@ -2024,7 +2287,7 @@ window._rentCalc=()=>{
   if(!rentDesde||!rentHasta){toast('Selecciona ambas fechas','bad');return;}
   const el=document.getElementById('rentResultados');
   if(el)el.innerHTML=_rentResultsHtml();
-  toast('Período actualizado \u2713','ok');};
+  toast('Período actualizado ✓','ok');};
 
 
 function calcRent(d,h){
@@ -2046,7 +2309,7 @@ window._rentCalc=()=>{
 
 function _rentResultsHtml(){
   const{d,h}=rentRange();const r=calcRent(d,h);const rentable=r.un>=0;
-  const fmtP=`${d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})} \u2013 ${h.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}`;
+  const fmtP=`${d.toLocaleDateString('es-MX',{day:'numeric',month:'short'})} – ${h.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}`;
   // Escala de barras: max de todos los valores para que sean proporcionales entre si
   const barMax=Math.max(r.tv,1);
   const minibar=(v,color)=>{const p=barMax>0?Math.min(100,Math.max(0.5,Math.abs(v)/barMax*100)):0;
@@ -2061,10 +2324,10 @@ function _rentResultsHtml(){
         color:${color};min-width:72px;text-align:right">${money0(val)}</div>
     </div>`;
   return `
-  <div class="tiny muted" style="text-align:center;padding:6px 0 10px">${fmtP} \u00B7 ${r.nv} venta${r.nv===1?'':'s'}</div>
+  <div class="tiny muted" style="text-align:center;padding:6px 0 10px">${fmtP} · ${r.nv} venta${r.nv===1?'':'s'}</div>
   <div class="card pad">
     ${fila('Ventas (ingresos)',r.tv,'var(--green-d)',false,false)}
-    ${fila('&minus; Costo mercanc\u00eda',r.cm,'#94a3b8',true,false)}
+    ${fila('&minus; Costo mercancía',r.cm,'#94a3b8',true,false)}
     ${fila('= Utilidad bruta',r.ub,r.ub>=0?'#0891b2':'var(--rose)',false,true)}
     <div class="tiny muted" style="text-align:right;padding:2px 0 8px;border-bottom:1px solid var(--line)">Margen bruto: ${r.mbr.toFixed(1)}%</div>
     ${fila('&minus; Merma',r.tm,'var(--rose)',true,false)}
@@ -2076,15 +2339,15 @@ function _rentResultsHtml(){
           <span style="font-size:20px;font-weight:900;color:${rentable?'var(--green-d)':'var(--rose)'}">${money0(r.un)}</span>
           <span style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:800;
             background:${rentable?'#dcfce7':'#fee2e2'};color:${rentable?'#16a34a':'#dc2626'}">
-            ${rentable?'\u2713 Rentable':'\u2717 En p\u00e9rdida'}</span>
+            ${rentable?'✓ Rentable':'✗ En pérdida'}</span>
         </div>
       </div>
       <div class="tiny muted" style="text-align:right;margin-top:4px">Margen neto: <b>${r.mnr.toFixed(1)}%</b></div>
     </div>
   </div>
   ${r.tv>0?`<div class="card pad" style="margin-top:0">
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px">\u{1F4A1} \u00BFD\u00F3nde va cada peso que entra?</div>
-    ${[['Costo mercanc\u00eda',r.cm/r.tv*100,'#94a3b8'],
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px">💡 ¿Dónde va cada peso que entra?</div>
+    ${[['Costo mercancía',r.cm/r.tv*100,'#94a3b8'],
        ['Utilidad bruta',r.ub/r.tv*100,'#0891b2'],
        ['Merma',r.tm/r.tv*100,'var(--rose)'],
        ['Gastos',r.te/r.tv*100,'#f59e0b'],
@@ -2105,11 +2368,11 @@ function vRentabilidad(){
     font-size:12px;font-weight:700;cursor:pointer;background:${rentPreset===k?'var(--green)':'transparent'};
     color:${rentPreset===k?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
   return `
-  <button class="link" onclick="go('inteligencia')">\u2190 Resumen</button>
+  <button class="link" onclick="go('inteligencia')">← Resumen</button>
   <div class="sec-title">Rentabilidad</div>
   <div class="card pad" style="margin-bottom:0">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${chip('hoy','Hoy')}${chip('7d','7 d\u00edas')}${chip('30d','30 d\u00edas')}${chip('mes','Este mes')}${chip('custom','Personalizado')}
+      ${chip('hoy','Hoy')}${chip('7d','7 días')}${chip('30d','30 días')}${chip('mes','Este mes')}${chip('custom','Personalizado')}
     </div>
     ${rentPreset==='custom'?`<div style="margin-top:12px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -2334,7 +2597,7 @@ window._mpCobrar=async function(){
   const token=state.config.mpToken;const devId=state.config.mpDeviceId;
   if(!token||!devId){openMpSettings();return;}
   const btn=document.getElementById('mpBtn');
-  if(btn){btn.textContent='\u23f3 Enviando a terminal...';btn.disabled=true;}
+  if(btn){btn.textContent='⏳ Enviando a terminal...';btn.disabled=true;}
   try{
     const r=await fetch(
       `https://api.mercadopago.com/point/integration-api/devices/${devId}/payment-intents`,
@@ -2346,17 +2609,17 @@ window._mpCobrar=async function(){
     const data=await r.json();
     if(data.id||data.payment_intent_id){
       payMethod='tarjeta';window._payUpd();
-      toast('\u2713 Cobro enviado \u00b7 Esperando pago en terminal','ok');
-      if(btn){btn.textContent='\u23f3 Esperando pago...';btn.style.background='#d4edda';}
+      toast('✓ Cobro enviado · Esperando pago en terminal','ok');
+      if(btn){btn.textContent='⏳ Esperando pago...';btn.style.background='#d4edda';}
     }else{throw new Error(data.message||data.error||JSON.stringify(data).substring(0,80));}
   }catch(e){
     toast('Error terminal: '+e.message.substring(0,60),'bad');
-    if(btn){btn.textContent='\U0001F7E1 Terminal Mercado Pago';btn.disabled=false;}}
+    if(btn){btn.textContent='🟡 Terminal Mercado Pago';btn.disabled=false;}}
 };
 
 function openMpSettings(){
   const t=state.config.mpToken||'';const d=state.config.mpDeviceId||'';
-  openSheet(`<h2>\U0001F7E1 Terminal Mercado Pago</h2>
+  openSheet(`<h2>🟡 Terminal Mercado Pago</h2>
   <p class="sub">Configura tu terminal Point para cobrar directamente</p>
   <div class="field"><label>Access Token (de tu cuenta MP)</label>
     <input id="mpTok" placeholder="APP_USR-..." value="${t}"
@@ -2364,16 +2627,16 @@ function openMpSettings(){
   <div class="field"><label>Device ID de la terminal</label>
     <input id="mpDev" placeholder="PAX_A910..." value="${d}"></div>
   <button class="btn block" style="margin-bottom:8px" onclick="window._mpDetectar()">
-    \U0001F50D Detectar terminal autom\u00e1ticamente</button>
+    🔍 Detectar terminal automáticamente</button>
   <div id="mpDevList" style="margin-bottom:10px"></div>
-  <button class="btn primary block" onclick="window._mpGuardar()">Guardar configuraci\u00f3n</button>
+  <button class="btn primary block" onclick="window._mpGuardar()">Guardar configuración</button>
   <p class="tiny muted" style="margin-top:10px;text-align:center">
-    Obtén tu Access Token en<br><b>mercadopago.com.mx \u2192 Tu negocio \u2192 Credenciales</b></p>`);}
+    Obtén tu Access Token en<br><b>mercadopago.com.mx → Tu negocio → Credenciales</b></p>`);}
 
 window._mpGuardar=function(){
   state.config.mpToken=(document.getElementById('mpTok')||{value:''}).value.trim();
   state.config.mpDeviceId=(document.getElementById('mpDev')||{value:''}).value.trim();
-  save();closeSheet();toast('Terminal configurada \u2713','ok');};
+  save();closeSheet();toast('Terminal configurada ✓','ok');};
 
 window._mpDetectar=async function(){
   const token=(document.getElementById('mpTok')||{value:''}).value.trim();
@@ -2385,12 +2648,12 @@ window._mpDetectar=async function(){
       {headers:{'Authorization':'Bearer '+token}});
     const data=await r.json();
     const devs=(data.devices||[]);
-    if(!devs.length){if(list)list.innerHTML='<div class="tiny muted">Sin terminales. \u00bfEst\u00e1 en modo integraci\u00f3n?</div>';return;}
+    if(!devs.length){if(list)list.innerHTML='<div class="tiny muted">Sin terminales. ¿Está en modo integración?</div>';return;}
     if(list)list.innerHTML=devs.map(d=>`
       <button onclick="document.getElementById('mpDev').value='${d.id}';this.style.background='var(--green)';this.style.color='#fff'"
         style="display:block;width:100%;text-align:left;padding:8px 12px;border-radius:10px;
         background:var(--surface-2);border:none;margin-bottom:6px;font-size:13px;cursor:pointer">
-        \U0001F4F1 ${d.id}<br><span class="tiny muted">${d.status||''} ${d.operating_mode||''}</span>
+        📱 ${d.id}<br><span class="tiny muted">${d.status||''} ${d.operating_mode||''}</span>
       </button>`).join('');
   }catch(e){if(list)list.innerHTML='<div class="tiny muted">Error: '+e.message+'</div>';}};
 
