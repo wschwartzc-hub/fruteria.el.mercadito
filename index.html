@@ -318,7 +318,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.2.4';
+const APP_VERSION = '2.3.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -363,7 +363,7 @@ function blank(){return {
   business:{id:uid(),nombre:'Frutería El Mercadito'},
   member:{nombre:'Dueño',rol:'dueno'},
   productos:[], ventas:[], compras:[], mermas:[], caja:[], clientes:[],
-  config:{folio:1, lowAlert:true, nextNumCliente:1},
+  config:{folio:1, lowAlert:true, nextNumCliente:1, mpToken:'', mpDeviceId:''},
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
 function load(){
@@ -556,7 +556,8 @@ function render(){
   const views={inteligencia:vInteligencia,inventario:vInventario,vender:vVender,
                movimientos:vMovimientos,mas:vMas,productos:vProductos,compras:vCompras,
                merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes,
-               gastos:vGastos,rentabilidad:vRentabilidad};
+               gastos:vGastos,rentabilidad:vRentabilidad,
+               mpSettings:()=>{openMpSettings();return vMas();}};
   m.innerHTML=`<div class="view">${(views[currentView]||vInteligencia)()}</div>`;
   renderTicketBar();
 }
@@ -1019,7 +1020,13 @@ function openCobro(){payMethod='efectivo';cartDiscount=0;
      <button class="${payMethod==='tarjeta'?'on':''}" onclick="payMethod='tarjeta';window._payUpd()"><span class="pico">💳</span>Tarjeta</button>
    </div>
    <button class="btn primary block" style="margin-top:14px;font-size:17px;padding:16px" onclick="finalizarVenta()">
-     Cobrar ${money(tot)}</button>`;
+     Cobrar ${money(tot)}</button>
+   ${state.config.mpToken&&state.config.mpDeviceId?`
+   <button id="mpBtn" onclick="window._mpCobrar()" style="margin-top:8px;width:100%;background:#ffe600;
+     color:#333;border:none;border-radius:14px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;display:block">
+     🟡 Cobrar con terminal Mercado Pago
+   </button>`:''}
+   `;
    openSheet(html);
    window._cobroUpd=()=>{const t=Math.max(0,cartTotal()-cartDiscount);const e=$('#cobroTot');if(e)e.textContent=money(t);
      const btn=document.querySelector('.sheet .btn.primary');if(btn)btn.textContent='Cobrar '+money(t);};
@@ -1325,7 +1332,7 @@ function vMovimientos(){
     <div class="divider"></div>
     ${acc('💸','Gastos','Bolsas, servicios, personal...','gastos','#fdf4ff')}
     <div class="divider"></div>
-    ${acc('📊','Rentabilidad','¿Cuánto ganás de verdad?','rentabilidad','#f0fdf4')}
+    ${acc('🟡','Terminal Mercado Pago','Cobrar directo a tu terminal Point','mpSettings','#fffde7')}
     <div class="divider"></div>
     ${acc('📜','Ventas','Historial de tickets','historial','#f0f4ff')}
   </div>
@@ -1746,36 +1753,38 @@ function confirmarReset(){
 
 function formatTicketWA(venta){
   const d=new Date(venta.fecha);
-  const fecha=d.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'});
-  const lines=venta.items.map(i=>{
-    const cant=i.unidad==='kg'?i.cantidad+'kg':i.cantidad+' '+i.unidad;
-    return `• ${i.nombre} ${cant} → ${money(i.subtotal)}`;
+  const fecha=d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const hora=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const negocio=(state.business.nombre||'FRUTERIA EL MERCADITO').toUpperCase();
+  const W=28;
+  const center=s=>{const sp=Math.max(0,Math.floor((W-s.length)/2));return ' '.repeat(sp)+s;};
+  const col=(l,r)=>{const sp=Math.max(1,W-l.length-r.length);return l+' '.repeat(sp)+r;};
+  const line='='.repeat(W);const dash='-'.repeat(W);
+  const items=venta.items.map(i=>{
+    const cant=qty(i.cantidad,i.unidad);const sub=money0(i.subtotal);
+    const n=i.nombre.substring(0,W-1);
+    if(n.length+cant.length+sub.length+2<=W)return col(n+' '+cant,sub);
+    return n+'\n'+col('  '+cant,sub);
   }).join('\n');
-  const negocio=state.business.nombre||'Frutería El Mercadito';
-  return encodeURIComponent(
-`🍉 *${negocio}*
-Ticket #${venta.folio} · ${fecha}
-
-${lines}
-──────────────
-*Total: ${money(venta.total)}*
-Pago: ${venta.metodo_pago}
-
-¡Gracias por su compra! 🛒`);
+  const metodo=venta.metodo_pago==='efectivo'?'Efectivo':venta.metodo_pago==='tarjeta'?'Tarjeta':'Transferencia';
+  const ticket=[
+    center(negocio),fecha+'  '+hora+'h',
+    'Folio: '+String(venta.folio).padStart(6,'0'),
+    line,items,dash,
+    col('TOTAL:',money0(venta.total)),
+    line,'Pago: '+metodo,'',
+    center('GRACIAS POR SU PREFERENCIA'),
+  ].join('\n');
+  return encodeURIComponent('```\n'+ticket+'\n```');
 }
 
 function enviarWA(tel, venta){
-  let n=tel.replace(/\D/g,'');
-  if(n.startsWith('1')&&n.length===11)n='52'+n;
-  else if(!n.startsWith('52'))n='52'+n;
-  const url='https://wa.me/'+n+'?text='+formatTicketWA(venta);
   const nombre=venta.cliente_nombre||findCliente(tel)?.nombre||tel;
-  // Mostrar hoja de confirmación — NO navegar automáticamente
   openSheet(`
     <div style="text-align:center;padding:8px 0 20px">
-      <div style="font-size:52px;margin-bottom:10px">✅</div>
-      <div style="font-size:22px;font-weight:900;margin-bottom:4px">¡Venta registrada!</div>
-      <div style="color:var(--muted);font-size:14px">Ticket #${venta.folio} · ${nombre}</div>
+      <div style="font-size:52px;margin-bottom:10px">\u2705</div>
+      <div style="font-size:22px;font-weight:900;margin-bottom:4px">\u00a1Venta registrada!</div>
+      <div style="color:var(--muted);font-size:14px">Ticket #${venta.folio} \u00b7 ${nombre}</div>
     </div>
     <div class="card pad" style="margin-bottom:16px">
       ${(venta.items||[]).map(i=>`<div class="between" style="padding:4px 0;font-size:13px">
@@ -1784,16 +1793,95 @@ function enviarWA(tel, venta){
       <div class="between" style="padding:8px 0 0;font-weight:900;border-top:1px solid var(--line);margin-top:6px">
         <span>Total</span><span class="money pos">${money(venta.total)}</span></div>
     </div>
-    <a href="${url}" target="_blank" rel="noopener noreferrer"
-      onclick="setTimeout(()=>{closeSheet();go('vender');},800)"
-      style="display:block;background:var(--green);color:#fff;text-align:center;padding:15px;
-      border-radius:14px;font-weight:800;font-size:16px;text-decoration:none;margin-bottom:10px">
-      📱 Enviar ticket por WhatsApp
-    </a>
-    <button class="btn ghost block" onclick="closeSheet();go('vender')">
-      ✓ Ok, no enviar WhatsApp
+    <button id="pdfBtn" class="btn primary block" style="font-size:16px;padding:15px"
+      onclick="window._compartirTicketPDF('${venta.id}')">
+      \U0001F4C4 Compartir ticket PDF por WhatsApp
+    </button>
+    <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet();go('vender')">
+      \u2713 Ok, continuar sin enviar
     </button>`);
 }
+
+async function _cargarJsPDF(){
+  if(window.jspdf)return window.jspdf;
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload=()=>res(window.jspdf);s.onerror=rej;document.head.appendChild(s);});
+}
+
+async function generarTicketPDF(venta){
+  const {jsPDF}=await _cargarJsPDF();
+  const W=80,M=5,cx=W/2;
+  const negocio=(state.business.nombre||'FRUTERIA EL MERCADITO').toUpperCase();
+  const d=new Date(venta.fecha);
+  const fecha=d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const hora=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
+  // Altura dinamica
+  const itemLines=venta.items.reduce((a,i)=>a+(i.nombre.length>18?2:1),0);
+  const H=Math.max(130,60+itemLines*7+60);
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:[W,H]});
+  let y=8;
+  // Header
+  doc.setFont('Courier','bold');doc.setFontSize(11);
+  doc.text(negocio,cx,y,{align:'center'});y+=5;
+  doc.setFont('Courier','normal');doc.setFontSize(8);
+  doc.text(fecha+'  '+hora+'h',cx,y,{align:'center'});y+=4;
+  doc.text('Folio: '+String(venta.folio).padStart(6,'0'),cx,y,{align:'center'});y+=4;
+  // Line
+  doc.setLineWidth(0.3);doc.line(M,y,W-M,y);y+=5;
+  // Items
+  doc.setFontSize(9);
+  (venta.items||[]).forEach(i=>{
+    const n=i.nombre.substring(0,20);
+    const cant=qty(i.cantidad,i.unidad);
+    const sub=money0(i.subtotal);
+    doc.setFont('Courier','bold');doc.text(n,M,y);
+    doc.text(sub,W-M,y,{align:'right'});y+=4;
+    doc.setFont('Courier','normal');doc.setFontSize(8);
+    doc.text('  '+cant+' x '+money0(i.precio),M,y);y+=4;
+    doc.setFontSize(9);
+  });
+  // Dashed line
+  doc.setLineDashPattern([1.5,1],0);doc.line(M,y,W-M,y);y+=5;
+  doc.setLineDashPattern([],0);
+  // Total
+  doc.setFont('Courier','bold');doc.setFontSize(13);
+  doc.text('TOTAL:',M,y);doc.text(money0(venta.total),W-M,y,{align:'right'});y+=6;
+  doc.setLineWidth(0.5);doc.line(M,y,W-M,y);y+=5;
+  // Payment
+  doc.setFont('Courier','normal');doc.setFontSize(8);
+  const met=venta.metodo_pago==='efectivo'?'Efectivo':venta.metodo_pago==='tarjeta'?'Tarjeta':'Transferencia';
+  doc.text('Pago: '+met,M,y);y+=8;
+  // Footer
+  doc.setFont('Courier','bold');doc.setFontSize(8);
+  doc.text('GRACIAS POR SU PREFERENCIA',cx,y,{align:'center'});
+  const blob=doc.output('blob');
+  return new File([blob],'ticket-'+venta.folio+'.pdf',{type:'application/pdf'});
+}
+
+window._compartirTicketPDF=async function(ventaId){
+  const venta=state.ventas.find(v=>v.id===ventaId);if(!venta)return;
+  const btn=document.getElementById('pdfBtn');
+  if(btn){btn.textContent='\u23f3 Generando PDF...';btn.disabled=true;}
+  try{
+    const file=await generarTicketPDF(venta);
+    if(navigator.share&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Ticket #'+venta.folio,
+        text:'Ticket de '+( state.business.nombre||'Fruteria El Mercadito')});
+    }else{
+      // Fallback: descargar
+      const url=URL.createObjectURL(file);
+      const a=document.createElement('a');a.href=url;a.download=file.name;a.click();
+      URL.revokeObjectURL(url);
+      toast('PDF descargado \u2713','ok');
+    }
+  }catch(e){
+    if(e.name!=='AbortError')toast('Error: '+e.message.substring(0,50),'bad');
+  }
+  if(btn){btn.textContent='\U0001F4C4 Compartir ticket PDF por WhatsApp';btn.disabled=false;}
+};
+
 
 function findCliente(tel){
   const n=tel.replace(/\D/g,'');
@@ -2058,7 +2146,7 @@ function vClientes(){
   const row=c=>{
     const v=c.num_visitas||0;
     const ult=c.ultima_visita?new Date(c.ultima_visita).toLocaleDateString('es-MX',{day:'numeric',month:'short'}):'—';
-    return `<button class="lrow" style="width:100%;text-align:left" onclick="openClienteDetalle('${c.id}')">
+    return `<div class="lrow" onclick="openClienteDetalle('${c.id}')" style="cursor:pointer">
       <span class="l-emj" style="background:var(--surface-2);width:38px;height:38px;display:grid;place-items:center;border-radius:50%;flex-shrink:0;font-size:20px">👤</span>
       <div class="l-main">
         <div class="l-n">${c.nombre||'Sin nombre'} <span class="chip" style="font-size:10px">#${c.num_cliente}</span></div>
@@ -2068,7 +2156,8 @@ function vClientes(){
         <span style="font-size:11px;color:var(--muted)">${ult}</span>
         <button onclick="event.stopPropagation();openClienteForm('${c.id}')"
           style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">✏️</button>
-      </div></button>`;
+      </div>
+    </div>`;
   };
   return `<button class="link" onclick="go('mas')">← Más</button>
   <div class="between" style="margin-bottom:4px">
@@ -2230,9 +2319,81 @@ window._guardarGasto=function(){
   closeSheet();render();toast('Gasto registrado -'+money(monto),'ok');};
 
 
-function openSheet(html){$('#modalRoot').innerHTML=`<div class="scrim" onclick="if(event.target===this)closeSheet()">
-  <div class="sheet"><div class="grab"></div>${html}</div></div>`;}
+function openSheet(html){
+  const xBtn=`<button onclick="closeSheet()" aria-label="Cerrar"
+    style="position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:16px;
+    background:var(--surface-2);border:none;font-size:17px;cursor:pointer;
+    display:grid;place-items:center;z-index:1;color:var(--muted)">✕</button>`;
+  $('#modalRoot').innerHTML=`<div class="scrim" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet" style="position:relative;padding-right:52px">${xBtn}<div class="grab"></div>${html}</div></div>`;}
 function closeSheet(){$('#modalRoot').innerHTML='';}
+
+/* ============================ MERCADO PAGO TERMINAL ============================ */
+window._mpCobrar=async function(){
+  const tot=Math.max(0,cartTotal()-cartDiscount);
+  const token=state.config.mpToken;const devId=state.config.mpDeviceId;
+  if(!token||!devId){openMpSettings();return;}
+  const btn=document.getElementById('mpBtn');
+  if(btn){btn.textContent='\u23f3 Enviando a terminal...';btn.disabled=true;}
+  try{
+    const r=await fetch(
+      `https://api.mercadopago.com/point/integration-api/devices/${devId}/payment-intents`,
+      {method:'POST',
+       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json',
+         'X-Idempotency-Key':uid()},
+       body:JSON.stringify({amount:tot,additional_info:{description:'Ticket #'+state.config.folio,
+         external_reference:'frt-'+state.config.folio}})});
+    const data=await r.json();
+    if(data.id||data.payment_intent_id){
+      payMethod='tarjeta';window._payUpd();
+      toast('\u2713 Cobro enviado \u00b7 Esperando pago en terminal','ok');
+      if(btn){btn.textContent='\u23f3 Esperando pago...';btn.style.background='#d4edda';}
+    }else{throw new Error(data.message||data.error||JSON.stringify(data).substring(0,80));}
+  }catch(e){
+    toast('Error terminal: '+e.message.substring(0,60),'bad');
+    if(btn){btn.textContent='\U0001F7E1 Terminal Mercado Pago';btn.disabled=false;}}
+};
+
+function openMpSettings(){
+  const t=state.config.mpToken||'';const d=state.config.mpDeviceId||'';
+  openSheet(`<h2>\U0001F7E1 Terminal Mercado Pago</h2>
+  <p class="sub">Configura tu terminal Point para cobrar directamente</p>
+  <div class="field"><label>Access Token (de tu cuenta MP)</label>
+    <input id="mpTok" placeholder="APP_USR-..." value="${t}"
+      style="font-size:12px;font-family:monospace"></div>
+  <div class="field"><label>Device ID de la terminal</label>
+    <input id="mpDev" placeholder="PAX_A910..." value="${d}"></div>
+  <button class="btn block" style="margin-bottom:8px" onclick="window._mpDetectar()">
+    \U0001F50D Detectar terminal autom\u00e1ticamente</button>
+  <div id="mpDevList" style="margin-bottom:10px"></div>
+  <button class="btn primary block" onclick="window._mpGuardar()">Guardar configuraci\u00f3n</button>
+  <p class="tiny muted" style="margin-top:10px;text-align:center">
+    Obtén tu Access Token en<br><b>mercadopago.com.mx \u2192 Tu negocio \u2192 Credenciales</b></p>`);}
+
+window._mpGuardar=function(){
+  state.config.mpToken=(document.getElementById('mpTok')||{value:''}).value.trim();
+  state.config.mpDeviceId=(document.getElementById('mpDev')||{value:''}).value.trim();
+  save();closeSheet();toast('Terminal configurada \u2713','ok');};
+
+window._mpDetectar=async function(){
+  const token=(document.getElementById('mpTok')||{value:''}).value.trim();
+  if(!token){toast('Primero ingresa el Access Token','bad');return;}
+  const list=document.getElementById('mpDevList');
+  if(list)list.innerHTML='<div class="tiny muted">Buscando terminales...</div>';
+  try{
+    const r=await fetch('https://api.mercadopago.com/point/integration-api/devices',
+      {headers:{'Authorization':'Bearer '+token}});
+    const data=await r.json();
+    const devs=(data.devices||[]);
+    if(!devs.length){if(list)list.innerHTML='<div class="tiny muted">Sin terminales. \u00bfEst\u00e1 en modo integraci\u00f3n?</div>';return;}
+    if(list)list.innerHTML=devs.map(d=>`
+      <button onclick="document.getElementById('mpDev').value='${d.id}';this.style.background='var(--green)';this.style.color='#fff'"
+        style="display:block;width:100%;text-align:left;padding:8px 12px;border-radius:10px;
+        background:var(--surface-2);border:none;margin-bottom:6px;font-size:13px;cursor:pointer">
+        \U0001F4F1 ${d.id}<br><span class="tiny muted">${d.status||''} ${d.operating_mode||''}</span>
+      </button>`).join('');
+  }catch(e){if(list)list.innerHTML='<div class="tiny muted">Error: '+e.message+'</div>';}};
+
 
 /* ============================ NUBE (SUPABASE) ============================ */
 let sb=null, sbUser=null, realtimeChans=[];
