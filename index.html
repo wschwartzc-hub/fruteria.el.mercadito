@@ -182,14 +182,19 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 /* ============================ MODAL / SHEET ============================ */
 .scrim{position:fixed;inset:0;z-index:90;background:rgba(15,30,20,.5);backdrop-filter:blur(2px);
   display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
-.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;
-  padding:8px 18px calc(20px + var(--safe-b));animation:up .26s cubic-bezier(.16,1,.3,1);box-shadow:var(--sh-lg)}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+  animation:up .26s cubic-bezier(.16,1,.3,1);box-shadow:var(--sh-lg)}
+.sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 18px calc(20px + var(--safe-b))}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
-.sheet .grab{width:42px;height:5px;border-radius:99px;background:var(--line-2);margin:8px auto 14px}
-.sheet h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:2px}
+.sheet .grab{width:42px;height:5px;border-radius:99px;background:var(--line-2);margin:8px auto 18px}
+.sheet h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:2px;padding-right:38px}
 .sheet .sub{color:var(--muted);font-size:13.5px;margin-bottom:16px}
 .modal-center{align-items:center;padding:18px}
 .modal-center .sheet{border-radius:22px;max-width:440px}
+.sheet-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:18px;
+  background:var(--surface-2);border:none;font-size:17px;cursor:pointer;z-index:5;
+  display:grid;place-items:center;color:var(--muted)}
 
 /* qty entry */
 .qty-display{text-align:center;padding:14px;background:var(--surface-2);border-radius:16px;margin-bottom:14px}
@@ -318,7 +323,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '2.4.1';
+const APP_VERSION = '3.0.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -334,27 +339,16 @@ function unitShort(u,n){const p=(Math.round(+n||0)!==1);
   const m={pieza:p?'pzas':'pza',manojo:p?'manojos':'manojo',malla:p?'mallas':'malla',
            costal:p?'costales':'costal',atado:p?'atados':'atado',caja:p?'cajas':'caja'};return m[u]||u;}
 const UNITS=['kg','pieza','manojo','malla','costal','atado','caja'];
-const CATS=['Fruta','Verdura','Hierbas','Abarrote','Otros'];
+const CATS=['Fruta','Verdura','Abarrote','Lácteo','Otros'];
+const CAT_COLOR={Fruta:'#f59e0b',Verdura:'#16a34a',Abarrote:'#92703f',Lácteo:'#2563eb',Otros:'#8b5cf6'};
+const catBadge=c=>{const col=CAT_COLOR[c]||'#6b7280';
+  return `<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:800;background:${col}1f;color:${col};white-space:nowrap;flex-shrink:0">${c||'—'}</span>`;};
 const todayKey = d => new Date(d).toLocaleDateString('en-CA'); // YYYY-MM-DD local
 function startOfDay(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
 function daysAgo(n){const x=new Date();x.setHours(0,0,0,0);x.setDate(x.getDate()-n);return x;}
 function toast(msg,kind=''){const t=$('#toast');t.textContent=msg;t.className='show '+kind;
   clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200);}
-function emojiFor(name){const n=(name||'').toLowerCase().trim();
-  const map={plátano:'🍌',platano:'🍌',manzana:'🍎',naranja:'🍊',mandarina:'🍊',limón:'🍋',limon:'🍋',
-    uva:'🍇',fresa:'🍓',sandía:'🍉',sandia:'🍉',melón:'🍈',melon:'🍈',piña:'🍍',pina:'🍍',mango:'🥭',
-    durazno:'🍑',pera:'🍐',cereza:'🍒',kiwi:'🥝',coco:'🥥',aguacate:'🥑',jitomate:'🍅',tomate:'🍅',
-    zanahoria:'🥕',elote:'🌽',maíz:'🌽',maiz:'🌽',chile:'🌶️',serrano:'🌶️',jalapeño:'🌶️',jalapeno:'🌶️',
-    habanero:'🌶️',pepino:'🥒',brócoli:'🥦',brocoli:'🥦',cebollín:'🧅',cebollin:'🧅',cebolla:'🧅',
-    ajo:'🧄',lechuga:'🥬',espinaca:'🥬',acelga:'🥬',cilantro:'🌿',perejil:'🌿',hierba:'🌿',epazote:'🌿',
-    papaya:'🥭',betabel:'🥬',calabaza:'🎃',calabacita:'🥒',champiñón:'🍄',champinon:'🍄',hongo:'🍄',
-    nuez:'🌰',fresas:'🍓',guayaba:'🍈',toronja:'🍊',lima:'🍋',granada:'🍎',tuna:'🌵',nopal:'🌵',
-    papa:'🥔',camote:'🍠',jícama:'🥔',jicama:'🥔',rábano:'🥬',rabano:'🥬',ejote:'🫛',chícharo:'🫛',
-    chicharo:'🫛',apio:'🥬',berenjena:'🍆',pimiento:'🫑',morrón:'🫑',morron:'🫑'};
-  // Ordenar llaves por longitud (más larga primero) para evitar que "papa" haga match en "papaya"
-  const keys=Object.keys(map).sort((a,b)=>b.length-a.length);
-  for(const k of keys) if(n.includes(k)) return map[k];
-  return '🍎';}
+
 
 /* ============================ ESTADO ============================ */
 const LS='fruteria_db_v1';
@@ -377,178 +371,96 @@ function load(){
   try{const r=localStorage.getItem(LS);if(r)s=JSON.parse(r);}catch(e){}
   if(!s){s=blank();s.productos=seed(s.business.id);}
   if(!s.productos||!s.productos.length)s.productos=seed(s.business.id);
-  // Siembra datos demo si no hay ventas (primera vez O usuario existente sin historial)
-  if(!s.ventas||s.ventas.length<5){seedDemo(s);}
   try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}
   return s;
 }
 function save(){state._t=now();try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
 
-function seed(bid){let _i=0;const P=(nombre,categoria,unidad,costo,precio,stock,stock_min,perecedero,vida)=>(
-  {id:'demo-prod-'+(++_i),business_id:bid,nombre,emoji:emojiFor(nombre),categoria,unidad,
-   precio_venta:precio,costo,stock,stock_min,perecedero,vida_util_dias:vida,activo:true,deleted:false,updated_at:now()});
+function seed(bid){let _i=0;const P=(nombre,categoria,unidad,perecedero,vida)=>(
+  {id:'prod-'+(++_i),business_id:bid,nombre,categoria,unidad,
+   precio_venta:0,costo:0,stock:0,stock_min:0,perecedero,vida_util_dias:vida,activo:true,deleted:false,updated_at:now()});
  return [
-  P('Plátano','Fruta','kg',14,22,38,8,true,5),
-  P('Manzana','Fruta','kg',26,42,24,6,true,12),
-  P('Naranja','Fruta','kg',12,20,55,10,true,10),
-  P('Limón','Fruta','kg',16,28,30,8,true,8),
-  P('Aguacate','Fruta','pieza',9,16,40,12,true,6),
-  P('Mango','Fruta','pieza',6,12,50,15,true,5),
-  P('Sandía','Fruta','kg',9,16,20,4,true,7),
-  P('Papaya','Fruta','kg',14,24,12,3,true,5),
-  P('Fresa','Fruta','caja',28,48,9,3,true,3),
-  P('Uva','Fruta','kg',38,62,7,2,true,6),
-  P('Jitomate','Verdura','kg',16,26,28,8,true,7),
-  P('Cebolla','Verdura','kg',13,22,40,10,true,20),
-  P('Papa','Verdura','kg',18,28,45,12,true,25),
-  P('Zanahoria','Verdura','kg',12,20,22,6,true,15),
-  P('Chile serrano','Verdura','kg',24,40,9,3,true,8),
-  P('Lechuga','Verdura','pieza',11,20,18,5,true,5),
-  P('Cilantro','Hierbas','manojo',5,10,25,8,true,4),
-  P('Cebollín','Hierbas','manojo',6,12,14,5,true,4),
+  // ── FRUTA ──
+  P('Sandía','Fruta','kg',true,7), P('Jícama','Fruta','kg',true,10), P('Pera','Fruta','kg',true,8),
+  P('Fresa','Fruta','caja',true,3), P('Naranja','Fruta','kg',true,10), P('Plátano','Fruta','kg',true,5),
+  P('Melón','Fruta','kg',true,7), P('Mango','Fruta','pieza',true,5), P('Manzana','Fruta','kg',true,12),
+  P('Mora','Fruta','caja',true,3), P('Uva','Fruta','kg',true,6), P('Plátano Macho','Fruta','kg',true,6),
+  P('Papaya','Fruta','kg',true,5), P('Guayaba','Fruta','kg',true,6), P('Manzana Roja','Fruta','kg',true,12),
+  P('Frambuesa','Fruta','caja',true,3), P('Kiwi','Fruta','pieza',true,8), P('Piña','Fruta','pieza',true,6),
+  P('Durazno','Fruta','kg',true,5), P('Camote','Fruta','kg',true,20), P('Toronja','Fruta','kg',true,10),
+  P('Lima','Fruta','kg',true,10),
+  // ── VERDURA ──
+  P('Tomate','Verdura','kg',true,7), P('Cebolla','Verdura','kg',true,20), P('Brócoli','Verdura','pieza',true,7),
+  P('Jalapeño','Verdura','kg',true,10), P('Cebolla Morada','Verdura','kg',true,20), P('Pepino','Verdura','kg',true,7),
+  P('Apio','Verdura','pieza',true,10), P('Espinaca','Verdura','manojo',true,4), P('Acelga','Verdura','manojo',true,4),
+  P('Elote','Verdura','pieza',true,5), P('Tomatillo','Verdura','kg',true,8), P('Papa','Verdura','kg',true,25),
+  P('Poblano','Verdura','kg',true,8), P('Pimiento Morrón','Verdura','kg',true,8), P('Limón','Verdura','kg',true,8),
+  P('Habanero','Verdura','kg',true,10), P('Cilantro','Verdura','manojo',true,4), P('Perejil','Verdura','manojo',true,4),
+  P('Ajo','Verdura','kg',false,30), P('Aguacate','Verdura','pieza',true,6), P('Chayote','Verdura','pieza',true,10),
+  P('Chile Serrano','Verdura','kg',true,8), P('Zanahoria','Verdura','kg',true,15), P('Lechuga','Verdura','pieza',true,5),
+  P('Nopal','Verdura','kg',true,6), P('Epazote','Verdura','manojo',true,4), P('Yerba Buena','Verdura','manojo',true,4),
+  P('Calabaza','Verdura','kg',true,6),
+  // ── ABARROTES (chiles secos, especias, granos) ──
+  P('Chile Cascabel','Abarrote','kg',false,180), P('Chile Pasilla','Abarrote','kg',false,180),
+  P('Chile Ancho','Abarrote','kg',false,180), P('Chile Puya','Abarrote','kg',false,180),
+  P('Chile Chipotle','Abarrote','kg',false,180), P('Chile de Árbol','Abarrote','kg',false,180),
+  P('Chile Morita','Abarrote','kg',false,180), P('Cúrcuma','Abarrote','kg',false,365),
+  P('Coco Rallado','Abarrote','kg',false,180), P('Chía','Abarrote','kg',false,365),
+  P('Maíz Palomero','Abarrote','kg',false,365), P('Laurel','Abarrote','kg',false,365),
+  P('Canela','Abarrote','kg',false,365), P('Arándano','Abarrote','kg',true,10),
+  P('Pasas','Abarrote','kg',false,180), P('Mole','Abarrote','kg',false,180),
+  P('Amaranto','Abarrote','kg',false,180), P('Jengibre','Abarrote','kg',true,20),
+  P('Pimienta','Abarrote','kg',false,365), P('Comino','Abarrote','kg',false,365),
+  P('Clavo','Abarrote','kg',false,365), P('Paprika','Abarrote','kg',false,365),
+  P('Frijol','Abarrote','kg',false,180), P('Arroz','Abarrote','kg',false,180),
+  P('Granola','Abarrote','kg',false,90), P('Machacado de Res','Abarrote','kg',false,60),
+  P('Aceitunas','Abarrote','kg',false,60), P('Cereal','Abarrote','pieza',false,180),
+  P('Pastas','Abarrote','pieza',false,365), P('Aceite','Abarrote','pieza',false,365),
+  // ── LÁCTEOS ──
+  P('Leche','Lácteo','pieza',true,7), P('Queso Philadelphia','Lácteo','pieza',true,20),
+  P('Queso Mantequilla','Lácteo','pieza',true,20), P('Queso Fresco','Lácteo','pieza',true,10),
+  P('Queso Asadero','Lácteo','pieza',true,20), P('Crema','Lácteo','pieza',true,15),
+  // ── OTROS (preparados / abarrotes varios) ──
+  P('Salsa Casera','Otros','pieza',true,5), P('Frijoles Caseros','Otros','pieza',true,5),
+  P('Jugo','Otros','pieza',true,3), P('Vaso de Fruta','Otros','pieza',true,2),
+  P('Salsa Valentina','Otros','pieza',false,365), P('Salsa Botanera','Otros','pieza',true,10),
+  P('Chocolate','Otros','pieza',false,180), P('Huevo','Otros','pieza',true,21),
+  P('Tortilla','Otros','pieza',true,3),
  ];}
 
-/* ============================ DATOS DE DEMO ============================ */
-function seedDemo(s){
-  const bid=s.business.id;
-  const ps=s.productos;
-  const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1)+a);
-  const rndF=(a,b)=>Math.round((Math.random()*(b-a)+a)*10)/10;
-  const dateAgo=(days,h,m=0)=>{const d=new Date();d.setDate(d.getDate()-days);d.setHours(h,m,0,0);return d.toISOString();};
-
-  // ── CLIENTES ──────────────────────────────────────────────────────────
-  const clientesSeed=[
-    {nombre:'María Garza',    tel:'8112345678'},
-    {nombre:'Roberto Sánchez',tel:'8119876543'},
-    {nombre:'Carmen López',   tel:'8113456789'},
-    {nombre:'Juan Martínez',  tel:'8118765432'},
-    {nombre:'Lupita Flores',  tel:'8114567890'},
-  ];
-  const cls=clientesSeed.map((c,i)=>({id:'demo-cli-'+(i+1),business_id:bid,num_cliente:i+1,nombre:c.nombre,
-    telefono:c.tel,num_visitas:0,total_compras:0,ultima_visita:null,notas:'',deleted:false,updated_at:now()}));
-  s.clientes=cls;
-  s.config.nextNumCliente=cls.length+1;
-
-  // ── COMPRAS (1 por semana, 6 semanas) ────────────────────────────────
-  const proveedores=['Central de Abastos','Mercado Juárez','Proveedor del Valle'];
-  for(let w=6;w>=0;w--){
-    const dia=w*7+rnd(0,2);
-    const items=ps.filter((_,i)=>i%3!==w%3).slice(0,rnd(6,10)).map(p=>{
-      const cant=rnd(20,80);const costo=p.costo*rndF(0.9,1.1);
-      return {producto_id:p.id,nombre:p.nombre,unidad:p.unidad,cantidad:cant,costo,subtotal:Math.round(cant*costo*100)/100};});
-    const total=items.reduce((a,i)=>a+i.subtotal,0);
-    s.compras.push({id:uid(),business_id:bid,fecha:dateAgo(dia,7,rnd(0,59)),
-      proveedor:proveedores[w%3],items,total:Math.round(total),usuario:'Dueño',deleted:false,updated_at:now()});
-  }
-
-  // ── VENTAS (últimos 45 días) ─────────────────────────────────────────
-  // Peso por hora (pico 10-12h y 17-19h)
-  const horaW=[0,0,0,0,0,0,1,2,3,5,7,7,5,4,3,3,4,6,7,5,3,2,1,0];
-  // Peso por día semana (0=dom,1=lun...) — mejor vie/sab/mar
-  const diaW=[3,5,6,4,4,7,8];
-  let folio=s.config.folio;
-  const clientIds=cls.map(c=>c.id);
-  const productList=ps.filter(p=>p.activo);
-
-  for(let d=44;d>=0;d--){
-    const dayOfWeek=new Date(Date.now()-d*86400000).getDay();
-    const nVentas=Math.max(0,Math.round(diaW[dayOfWeek]*rndF(0.7,1.4)));
-    for(let v=0;v<nVentas;v++){
-      // hora con peso
-      let hr=0; const r=Math.random()*horaW.reduce((a,b)=>a+b,0); let cum=0;
-      for(let h=0;h<24;h++){cum+=horaW[h];if(r<cum){hr=h;break;}}
-      const nProds=rnd(1,4);
-      const prods=productList.sort(()=>Math.random()-0.5).slice(0,nProds);
-      const items=prods.map(p=>{
-        const cant=p.unidad==='kg'?rndF(0.5,3):rnd(1,5);
-        return {producto_id:p.id,nombre:p.nombre,emoji:p.emoji,unidad:p.unidad,
-          cantidad:cant,precio:p.precio_venta,costo:p.costo,
-          subtotal:Math.round(cant*p.precio_venta*100)/100};});
-      const subtotal=items.reduce((a,i)=>a+i.subtotal,0);
-      const descuento=Math.random()<0.05?rnd(5,20):0;
-      const total=Math.max(0,subtotal-descuento);
-      const costoTotal=items.reduce((a,i)=>a+i.costo*i.cantidad,0);
-      const metodo=Math.random()<0.8?'efectivo':'tarjeta';
-      // asignar cliente en ~30% de ventas
-      const conCliente=Math.random()<0.30;
-      const clienteIdx=conCliente?rnd(0,cls.length-1):-1;
-      const venta={id:uid(),business_id:bid,folio:folio++,
-        fecha:dateAgo(d,hr,rnd(0,59)),items,subtotal:Math.round(subtotal*100)/100,
-        descuento,total:Math.round(total*100)/100,costo_total:Math.round(costoTotal*100)/100,
-        metodo_pago:metodo,usuario:'Dueño',
-        cliente_id:clienteIdx>=0?clientIds[clienteIdx]:null,
-        cliente_nombre:clienteIdx>=0?cls[clienteIdx].nombre:null,
-        deleted:false,updated_at:now()};
-      s.ventas.push(venta);
-      // actualizar stats del cliente
-      if(clienteIdx>=0){
-        cls[clienteIdx].num_visitas=(cls[clienteIdx].num_visitas||0)+1;
-        cls[clienteIdx].total_compras=(cls[clienteIdx].total_compras||0)+total;
-        cls[clienteIdx].ultima_visita=venta.fecha;
-        cls[clienteIdx].updated_at=now();}
-      // ajustar stock del producto (baja con ventas)
-      items.forEach(i=>{const p=ps.find(x=>x.id===i.producto_id);
-        if(p)p.stock=Math.max(0,Math.round((p.stock-i.cantidad*0.3)*10)/10);});
-    }
-  }
-  s.config.folio=folio;
-
-  // ── MERMAS (últimos 45 días, ~1-2 por semana) ───────────────────────
-  const motivos=['podrido','golpeado','vencido','aplastado','temperatura'];
-  const perecederos=ps.filter(p=>p.perecedero);
-  for(let d=44;d>=0;d-=rnd(2,5)){
-    const p=perecederos[rnd(0,perecederos.length-1)];
-    const cant=p.unidad==='kg'?rndF(0.5,3):rnd(1,6);
-    const valPerdido=Math.round(cant*p.costo*100)/100;
-    s.mermas.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(8,18)),
-      producto_id:p.id,nombre:p.nombre,emoji:p.emoji||'🍎',unidad:p.unidad,cantidad:cant,costo:p.costo,
-      valor_perdido:valPerdido,motivo:motivos[rnd(0,motivos.length-1)],
-      usuario:'Dueño',deleted:false,updated_at:now()});
-    // ajustar stock por merma
-    p.stock=Math.max(0,Math.round((p.stock-cant*0.5)*10)/10);
-  }
-
-  // ── CAJA (apertura + cierre diario, últimos 15 días) ─────────────────
-  for(let d=14;d>=0;d--){
-    const dayOfWeek=new Date(Date.now()-d*86400000).getDay();
-    if(dayOfWeek===0&&d>2)continue; // domingos solo recientes
-    const fondo=rnd(400,600);
-    s.caja.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(9,10),rnd(0,30)),
-      tipo:'apertura',monto:fondo,concepto:'Fondo inicial del día',usuario:'Dueño',deleted:false,updated_at:now()});
-    if(d>0){// cierre solo para días pasados
-      const ventasDelDia=s.ventas.filter(v=>new Date(v.fecha).toDateString()===new Date(Date.now()-d*86400000).toDateString()&&v.metodo_pago==='efectivo');
-      const totalEf=ventasDelDia.reduce((a,v)=>a+v.total,0);
-      s.caja.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(19,20),rnd(0,30)),
-        tipo:'cierre',monto:fondo+totalEf,concepto:'Corte del día',usuario:'Dueño',deleted:false,updated_at:now()});
-    }
-    // gastos pequeños algunos días
-    if(Math.random()<0.3){
-      s.caja.push({id:uid(),business_id:bid,fecha:dateAgo(d,rnd(14,17)),
-        tipo:'salida',monto:rnd(50,200),concepto:['Bolsas','Hielo','Limpieza','Caja chica'][rnd(0,3)],
-        usuario:'Dueño',deleted:false,updated_at:now()});
-    }
-  }
-}
+/* ============================ ACCESORES DE ESTADO ============================ */
 const productos = ()=> state.productos.filter(p=>!p.deleted);
 const ventas    = ()=> state.ventas.filter(v=>!v.deleted);
 const compras   = ()=> state.compras.filter(c=>!c.deleted);
 const mermas    = ()=> state.mermas.filter(m=>!m.deleted);
-const cajaMovs  = ()=> state.caja.filter(c=>!c.deleted);
-const findP = id => state.productos.find(p=>p.id===id);
+const clientes  = ()=> (state.clientes||[]).filter(c=>!c.deleted);
+const cajaMovs  = ()=> (state.caja||[]).filter(c=>!c.deleted);
+const findP     = id => state.productos.find(p=>p.id===id);
+
+/* ============================ UTILIDADES DE NEGOCIO ============================ */
 const margenPct = p => p.precio_venta>0 ? (p.precio_venta-p.costo)/p.precio_venta*100 : 0;
 
-// unidades vendidas de un producto entre dos fechas
-function soldUnits(pid, fromDate){let s=0;
-  ventas().forEach(v=>{ if(new Date(v.fecha)>=fromDate) (v.items||[]).forEach(i=>{if(i.producto_id===pid)s+=+i.cantidad||0;});});
-  return s;}
-// días de inventario restantes según ritmo de venta (últimos 14 días)
-function diasInventario(p){const u=soldUnits(p.id,daysAgo(14));const diario=u/14;
-  if(diario<=0) return Infinity; return p.stock/diario;}
-// Solo es "riesgo" si hay historial de ventas Y el ritmo no alcanza para liquidar el stock antes de que expire
-function enRiesgo(p){ if(!p.perecedero||p.stock<=0) return false;
-  const vendidos=soldUnits(p.id,daysAgo(14));
-  if(vendidos===0) return false;  // sin ventas = sin ritmo = no podemos calcular riesgo
-  const dias=diasInventario(p); return isFinite(dias)&&dias>(p.vida_util_dias||5);}
+function soldUnits(pid, sinceDate){
+  let u=0;
+  ventas().forEach(v=>{if(new Date(v.fecha)<sinceDate)return;
+    (v.items||[]).forEach(i=>{if(i.producto_id===pid)u+=+i.cantidad||0;});});
+  return u;
+}
+
+function diasInventario(p){
+  const u=soldUnits(p.id,daysAgo(14));const diario=u/14;
+  if(diario<=0)return Infinity;
+  return p.stock/diario;
+}
+
+function enRiesgo(p){
+  const u=soldUnits(p.id,daysAgo(14));
+  if(u<=0)return false; // sin ventas recientes no se marca "vender pronto"
+  const dias=diasInventario(p);
+  return isFinite(dias)&&dias>(p.vida_util_dias||5);
+}
+
+
 
 /* ============================ ROUTING / RENDER ============================ */
 let currentView='inteligencia';
@@ -573,7 +485,7 @@ function rangeStats(fromDate){
   let total=0,costo=0,n=0;const byProd={};
   ventas().forEach(v=>{ if(new Date(v.fecha)>=fromDate){ total+=+v.total||0; costo+=+v.costo_total||0; n++;
     (v.items||[]).forEach(i=>{const k=i.producto_id||i.nombre;
-      byProd[k]=byProd[k]||{nombre:i.nombre,emoji:(findP(i.producto_id)||{}).emoji||'🍎',ingreso:0,ganancia:0,unid:0,unidad:i.unidad};
+      byProd[k]=byProd[k]||{nombre:i.nombre,ingreso:0,ganancia:0,unid:0,unidad:i.unidad};
       byProd[k].ingreso+=+i.subtotal||0; byProd[k].ganancia+=(+i.subtotal||0)-((+i.costo||0)*(+i.cantidad||0));
       byProd[k].unid+=+i.cantidad||0;});}});
   let merma=0; mermas().forEach(x=>{if(new Date(x.fecha)>=fromDate)merma+=+x.valor_perdido||0;});
@@ -708,15 +620,17 @@ window._dashToggle=function(k){
 
 function topByGanancia(n=5){
   const map={};
-  ventas().forEach(v=>(v.items||[]).forEach(i=>{if(!map[i.producto_id])map[i.producto_id]={nombre:i.nombre,emoji:i.emoji||'🍎',g:0,u:0};
+  ventas().forEach(v=>(v.items||[]).forEach(i=>{if(!map[i.producto_id]){
+    const cat=findP(i.producto_id)?.categoria||'Otros';
+    map[i.producto_id]={nombre:i.nombre,categoria:cat,g:0,u:0};}
     map[i.producto_id].g+=(i.precio-i.costo)*i.cantidad; map[i.producto_id].u+=i.cantidad;}));
   return Object.values(map).sort((a,b)=>b.g-a.g).slice(0,n);}
 
 function topByMerma(n=5){
   const map={};
   mermas().forEach(m=>{const k=m.producto_id||m.nombre;
-    const emoji=m.emoji||(m.producto_id?findP(m.producto_id)?.emoji:null)||emojiFor(m.nombre)||'🍎';
-    if(!map[k])map[k]={nombre:m.nombre,emoji,v:0};
+    const cat=m.producto_id?findP(m.producto_id)?.categoria:null;
+    if(!map[k])map[k]={nombre:m.nombre,categoria:cat||'Otros',v:0};
     map[k].v+=m.valor_perdido;});
   return Object.values(map).sort((a,b)=>b.v-a.v).slice(0,n);}
 
@@ -825,7 +739,7 @@ function generarInsights(){
     out.push({
       tipo:'demanda',
       urgencia: esHoy?100 : esManana?90 : 40,
-      emoji:p.emoji,
+      categoria:p.categoria,
       titulo:`${DIAS_FULL[df.dia]}: día fuerte de ${p.nombre}`,
       texto:`Vendes ${df.unidPorSemana.toFixed(1)} ${p.unidad} los ${DIAS_SHORT[df.dia].toLowerCase()}${horaTxt} — ${df.ratio.toFixed(1)}× tu promedio. Asegura ≥${stockNecesario} ${p.unidad} ese día.${esHoy?' ⚠️ ES HOY':esManana?' 📅 Es mañana':''}`,
       stockNecesario, stockActual:p.stock
@@ -839,8 +753,7 @@ function generarInsights(){
     if(a.avgDiario<=0){
       // Perecedero con stock pero SIN ventas recientes = riesgo alto
       if(p.stock>0)out.push({
-        tipo:'merma_sin_venta', urgencia:85, emoji:p.emoji,
-        titulo:`${p.nombre}: sin ventas pero con stock`,
+        tipo:'merma_sin_venta', urgencia:85, categoria:p.categoria, titulo:`${p.nombre}: sin ventas pero con stock`,
         texto:`Tienes ${qty(p.stock,p.unidad)} de ${p.nombre} (perecedero, vida ${p.vida_util_dias||5}d) pero no se ha vendido en 2 semanas. Riesgo de pérdida: ${money(p.stock*p.costo)}. Considera promoción o bajar precio.`
       });
       return;
@@ -851,8 +764,7 @@ function generarInsights(){
       const seVencera=p.stock-(a.avgDiario*vida);
       const perdida=seVencera*p.costo;
       out.push({
-        tipo:'merma', urgencia:75, emoji:p.emoji,
-        titulo:`${p.nombre}: vas a perder producto`,
+        tipo:'merma', urgencia:75, categoria:p.categoria, titulo:`${p.nombre}: vas a perder producto`,
         texto:`Tienes ${qty(p.stock,p.unidad)} pero solo vendes ${a.avgDiario.toFixed(1)} ${p.unidad}/día. Al ritmo actual ~${qty(seVencera,p.unidad)} se van a echar a perder antes de venderse (≈${money(perdida)}). Baja el precio o haz combo.`
       });
     }
@@ -865,8 +777,7 @@ function generarInsights(){
     const diasRestantes=p.stock/a.avgDiario;
     if(diasRestantes<=2 && p.stock>0){
       out.push({
-        tipo:'agotamiento', urgencia:70, emoji:p.emoji,
-        titulo:`${p.nombre}: se agota pronto`,
+        tipo:'agotamiento', urgencia:70, categoria:p.categoria, titulo:`${p.nombre}: se agota pronto`,
         texto:`Te queda ${qty(p.stock,p.unidad)} (~${diasRestantes.toFixed(1)} días al ritmo actual). Reabastece pronto para no perder ventas.`
       });
     }
@@ -880,8 +791,7 @@ function generarInsights(){
     .sort((x,y)=>(y.p.stock*y.p.costo)-(x.p.stock*x.p.costo)).slice(0,2);
   lentos.forEach(({p,a})=>{
     out.push({
-      tipo:'lento', urgencia:30, emoji:p.emoji,
-      titulo:`${p.nombre}: rotación lenta`,
+      tipo:'lento', urgencia:30, categoria:p.categoria, titulo:`${p.nombre}: rotación lenta`,
       texto:`Tienes ${money(p.stock*p.costo)} en stock de ${p.nombre} pero se vende lento (${a.avgDiario.toFixed(1)} ${p.unidad}/día). Considera reducir cuánto compras o promocionarlo.`
     });
   });
@@ -891,7 +801,7 @@ function generarInsights(){
   if(conVentas.length){
     const estrella=conVentas.reduce((b,x)=>x.a.totalUnid>b.a.totalUnid?x:b,conVentas[0]);
     out.push({
-      tipo:'estrella', urgencia:20, emoji:estrella.p.emoji,
+      tipo:'estrella', urgencia:20, categoria:estrella.p.categoria,
       titulo:`${estrella.p.nombre} es tu producto estrella`,
       texto:`Vendiste ${estrella.a.totalUnid.toFixed(0)} ${estrella.p.unidad} en 6 semanas. Nunca lo dejes faltar — es lo que más mueve tu negocio.`
     });
@@ -924,9 +834,11 @@ function vAsesor(){
     const bg=i.urgencia>=90?'#fef2f2':i.urgencia>=70?'#fffbeb':i.urgencia>=40?'#f0f9ff':'#f0fdf4';
     return `<div style="display:flex;gap:11px;padding:13px;background:${bg};border-radius:12px;
       margin-bottom:8px;border-left:3px solid ${color}">
-      <span style="font-size:24px;flex-shrink:0">${i.emoji}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:14px;margin-bottom:3px;color:${color}">${i.titulo}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+          <span style="font-weight:800;font-size:14px;color:${color}">${i.titulo}</span>
+          ${catBadge(i.categoria)}
+        </div>
         <div style="font-size:13px;line-height:1.4;color:var(--ink)">${i.texto}</div>
       </div>
     </div>`;};
@@ -959,8 +871,10 @@ function vAsesor(){
         const hora=horaM?`${horaM[1]}:00h`:'';
         const nombre=i.titulo.split(': día fuerte de ')[1]||i.titulo;
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">
-          <span style="font-size:20px">${i.emoji}</span>
-          <div style="flex:1;font-size:13px;font-weight:600">${nombre}</div>
+          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700">${nombre}</span>
+            ${catBadge(i.categoria)}
+          </div>
           ${hora?`<span class="tiny muted">${hora}</span>`:''}
           <span style="font-weight:800;font-size:13px;color:var(--green-d)">≥${stock}</span>
         </div>`;}).join('');
@@ -1001,12 +915,13 @@ function asesorResumenHTML(){
   if(!insights.length)return '';
   const card=i=>{
     const color=i.urgencia>=90?'#dc2626':i.urgencia>=70?'#f59e0b':'#0891b2';
-    return `<div style="display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)">
-      <span style="font-size:20px;flex-shrink:0">${i.emoji}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:2px">${i.titulo}</div>
-        <div style="font-size:12px;line-height:1.35;color:var(--muted)">${i.texto}</div>
-      </div></div>`;};
+    return `<div style="padding:11px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:13px;color:${color}">${i.titulo}</span>
+        ${catBadge(i.categoria)}
+      </div>
+      <div style="font-size:12px;line-height:1.35;color:var(--muted)">${i.texto}</div>
+    </div>`;};
   return `<div class="sec-title">🔮 Asesor inteligente</div>
   <div class="card pad">
     ${insights.map(card).join('')}
@@ -1105,9 +1020,11 @@ function vInteligencia(){
     <div class="b" style="font-size:13px;margin-bottom:10px">⭐ Por ganancia</div>
     ${tGanancia.length?tGanancia.map(p=>`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:18px;flex-shrink:0">${p.emoji}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+            <span style="font-size:13.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</span>
+            ${catBadge(p.categoria)}
+          </div>
           ${progressBar(p.g,tGananciaMax,'#1f9d55')}
         </div>
         <span style="font-size:13px;font-weight:800;color:var(--green-d);flex-shrink:0">${money0(p.g)}</span>
@@ -1116,9 +1033,11 @@ function vInteligencia(){
     <div class="b" style="font-size:13px;margin:10px 0">📉 Mayor merma (pérdida $)</div>
     ${tMerma.length?tMerma.map(p=>`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:18px;flex-shrink:0">${p.emoji}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+            <span style="font-size:13.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</span>
+            ${catBadge(p.categoria)}
+          </div>
           ${progressBar(p.v,tMermaMax,'#e11d48')}
         </div>
         <span style="font-size:13px;font-weight:800;color:var(--rose);flex-shrink:0">-${money0(p.v)}</span>
@@ -1180,8 +1099,8 @@ function vVender(){
 function posCards(list){return list.map(p=>{const out=p.stock<=0;const low=!out&&p.stock<=p.stock_min;
   return `<button class="pcard ${out?'out':''}" ${out?'':`onclick="openQty('${p.id}')"`}>
     ${out?'<span class="badge">Agotado</span>':low?'<span class="badge low">Poco</span>':''}
-    <span class="pemj">${p.emoji}</span>
-    <div class="pn">${p.nombre}</div>
+    ${catBadge(p.categoria)}
+    <div class="pn" style="margin-top:6px">${p.nombre}</div>
     <div class="pp money">${money0(p.precio_venta)}</div>
     <div class="pu">por ${p.unidad==='kg'?'kg':unitShort(p.unidad,1)}</div>
   </button>`;}).join('');}
@@ -1197,8 +1116,8 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'peso':'pieza'
     let cantidad = mode==='dinero' ? (p.precio_venta>0?val/p.precio_venta:0) : val;
     const html=`
     <div class="qty-display">
-      <div class="qd-emj">${p.emoji}</div>
-      <div class="qd-n">${p.nombre} · ${money0(p.precio_venta)}/${p.unidad==='kg'?'kg':unitShort(p.unidad,1)}</div>
+      ${catBadge(p.categoria)}
+      <div class="qd-n" style="margin-top:6px">${p.nombre} · ${money0(p.precio_venta)}/${p.unidad==='kg'?'kg':unitShort(p.unidad,1)}</div>
       <div class="qd-big money">${money(total)}</div>
       <div class="qd-sub">${qty(cantidad,p.unidad)} · quedan ${qty(p.stock,p.unidad)}</div>
     </div>
@@ -1237,7 +1156,7 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'peso':'pieza'
       const subtotal = mode==='dinero' ? val : cantidad*p.precio_venta;
       const ex=cart.find(c=>c.producto_id===p.id);
       if(ex){ex.cantidad+=cantidad;ex.subtotal=Math.round((ex.cantidad*p.precio_venta)*100)/100;}
-      else cart.push({producto_id:p.id,nombre:p.nombre,emoji:p.emoji,unidad:p.unidad,
+      else cart.push({producto_id:p.id,nombre:p.nombre,unidad:p.unidad,
         precio:p.precio_venta,costo:p.costo,cantidad,subtotal:Math.round(subtotal*100)/100});
       closeSheet();renderTicketBar();toast('Agregado 🛒','ok');};
   };
@@ -1260,7 +1179,6 @@ function openCobro(){payMethod='efectivo';cartDiscount=0;
    <h2>Cobrar</h2><p class="sub">Revisa el ticket y cobra</p>
    <div class="card pad" style="margin-bottom:14px">
      ${cart.map((c,i)=>`<div class="line-item">
-       <span class="li-emj">${c.emoji}</span>
        <div class="li-info"><div class="li-n">${c.nombre}</div>
          <div class="li-q">${qty(c.cantidad,c.unidad)} × ${money0(c.precio)}</div></div>
        <span class="li-sub money">${money(c.subtotal)}</span>
@@ -1335,8 +1253,7 @@ function _invRows(ps){
         const diasBar=dias&&isFinite(dias)?`<div style="margin-top:3px;background:var(--surface-2);border-radius:3px;height:4px;max-width:110px">
           <div style="width:${Math.min(100,dias/vidaU*100).toFixed(0)}%;background:${dc};border-radius:3px;height:4px"></div></div>`:'';
         return `<div class="lrow" onclick="openProd('${p.id}')">
-          <span class="l-emj">${p.emoji}</span>
-          <div class="l-main"><div class="l-n">${p.nombre}
+          <div class="l-main"><div class="l-n">${p.nombre} ${catBadge(p.categoria)}
             ${low?'<span class="chip r">Pedir más</span>':''}${risk?'<span class="chip m">Vender pronto</span>':''}</div>
             <div class="l-s">Costo ${money0(p.costo)} · vende ${money0(p.precio_venta)} · margen ${margenPct(p).toFixed(0)}%</div>
             ${diasTxt?`<div class="tiny" style="color:${dc};margin-top:1px">${diasTxt}</div>${diasBar}`:''}
@@ -1398,18 +1315,14 @@ function vInventario(){
 
 
 function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),business_id:state.business.id,
-  nombre:'',emoji:'🍎',categoria:'Fruta',unidad:'kg',precio_venta:0,costo:0,stock:0,stock_min:0,
+  nombre:'',categoria:'Fruta',unidad:'kg',precio_venta:0,costo:0,stock:0,stock_min:0,
   perecedero:true,vida_util_dias:5,activo:true,deleted:false};
   const html=`
   <h2>${p?'Editar producto':'Nuevo producto'}</h2>
   <p class="sub">${p?'Ajusta lo que necesites':'Llena lo básico, lo demás es opcional'}</p>
   <div class="field"><label>Nombre</label>
-    <input id="pNombre" placeholder="Ej. Plátano" value="${e.nombre}" oninput="document.getElementById('pEmj').textContent=window._emj(this.value)"></div>
-  <div class="grid2">
-    <div class="field"><label>Emoji <span id="pEmj" style="font-size:18px">${e.emoji}</span></label>
-      <input id="pEmoji" value="${e.emoji}" maxlength="4"></div>
-    <div class="field"><label>Categoría</label><select id="pCat">${CATS.map(c=>`<option ${c===e.categoria?'selected':''}>${c}</option>`).join('')}</select></div>
-  </div>
+    <input id="pNombre" placeholder="Ej. Plátano" value="${e.nombre}"></div>
+  <div class="field"><label>Categoría</label><select id="pCat">${CATS.map(c=>`<option ${c===e.categoria?'selected':''}>${c}</option>`).join('')}</select></div>
   <div class="field"><label>¿Cómo lo vendes?</label><select id="pUnidad">
     ${UNITS.map(u=>`<option value="${u}" ${u===e.unidad?'selected':''}>${u==='kg'?'Por kilo (peso)':'Por '+u}</option>`).join('')}</select></div>
   <div class="grid2">
@@ -1441,7 +1354,6 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
   <button class="btn primary block" onclick="saveProd('${e.id}',${!!p})">Guardar</button>
   ${p?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="delProd('${e.id}')">Eliminar producto</button>`:''}`;
   openSheet(html);
-  window._emj=v=>emojiFor(v);
   window.updateVidaBar=()=>{const v=parseInt(document.getElementById('pVida')?.value)||5;
     const bar=document.getElementById('pVidaBar');const lbl=document.getElementById('pVidaLabel');
     if(bar)bar.style.width=Math.min(100,v/30*100).toFixed(0)+'%';
@@ -1450,7 +1362,7 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
 }
 function saveProd(id,exists){
   const nombre=$('#pNombre').value.trim();if(!nombre){toast('Ponle nombre','bad');return;}
-  const data={nombre,emoji:$('#pEmoji').value||emojiFor(nombre),categoria:$('#pCat').value,unidad:$('#pUnidad').value,
+  const data={nombre,categoria:$('#pCat').value,unidad:$('#pUnidad').value,
     costo:parseFloat($('#pCosto').value)||0,precio_venta:parseFloat($('#pPrecio').value)||0,
     stock:parseFloat($('#pStock').value)||0,stock_min:parseFloat($('#pMin').value)||0,
     perecedero:$('#pPere').checked,vida_util_dias:parseInt($('#pVida')?.value)||5,updated_at:now()};
@@ -1483,7 +1395,6 @@ function vCompras(){
 }
 function compraItemsHtml(){if(!compraCart.length)return '<div class="empty" style="padding:24px"><span class="e-ico">🧾</span>Agrega lo que compraste</div>';
   return compraCart.map((c,i)=>`<div class="line-item">
-    <span class="li-emj">${c.emoji}</span>
     <div class="li-info"><div class="li-n">${c.nombre}</div>
       <div class="li-q">${qty(c.cantidad,c.unidad)} × ${money0(c.costo)} costo</div></div>
     <span class="li-sub money">${money(c.subtotal)}</span>
@@ -1498,11 +1409,10 @@ function openCompraPick(){const ps=productos().filter(p=>p.activo).sort((a,b)=>a
   window._cpFilter=v=>{const f=ps.filter(p=>p.nombre.toLowerCase().includes(v.toLowerCase()));
     $('#cpList').innerHTML=f.map(p=>cpRow(p)).join('')||'<div class="empty">Sin resultados</div>';};
 }
-function cpRow(p){return `<div class="lrow" onclick="compraQty('${p.id}')"><span class="l-emj">${p.emoji}</span>
-  <div class="l-main"><div class="l-n">${p.nombre}</div><div class="l-s">Costo actual ${money0(p.costo)} · stock ${qty(p.stock,p.unidad)}</div></div>
+function cpRow(p){return `<div class="lrow" onclick="compraQty('${p.id}')"><div class="l-main"><div class="l-n">${p.nombre} ${catBadge(p.categoria)}</div><div class="l-s">Costo actual ${money0(p.costo)} · stock ${qty(p.stock,p.unidad)}</div></div>
   <div class="l-r faint">＋</div></div>`;}
 function compraQty(pid){const p=findP(pid);let cant=p.unidad==='kg'?0:1;let costo=p.costo;
-  const html=`<h2>${p.emoji} ${p.nombre}</h2><p class="sub">¿Cuánto compraste y a qué costo?</p>
+  const html=`<h2>${p.nombre} <span style="font-size:11px">${catBadge(p.categoria)}</span></h2><p class="sub">¿Cuánto compraste y a qué costo?</p>
   <div class="grid2">
     <div class="field"><label>Cantidad (${p.unidad})</label><input id="ccCant" class="num bigin" style="font-size:24px" inputmode="decimal" value="${cant||''}" placeholder="0"></div>
     <div class="field"><label>Costo por ${p.unidad==='kg'?'kg':unitShort(p.unidad,1)}</label><input id="ccCosto" class="num bigin" style="font-size:24px" inputmode="decimal" value="${costo||''}" placeholder="$0"></div>
@@ -1513,7 +1423,7 @@ function compraQty(pid){const p=findP(pid);let cant=p.unidad==='kg'?0:1;let cost
 function addCompra(pid){const p=findP(pid);const cantidad=parseFloat($('#ccCant').value)||0;
   const costo=parseFloat($('#ccCosto').value)||0;
   if(cantidad<=0){toast('Pon la cantidad','bad');return;}
-  compraCart.push({producto_id:pid,nombre:p.nombre,emoji:p.emoji,unidad:p.unidad,cantidad,costo,
+  compraCart.push({producto_id:pid,nombre:p.nombre,unidad:p.unidad,cantidad,costo,
     subtotal:Math.round(cantidad*costo*100)/100});
   closeSheet();render();
 }
@@ -1543,14 +1453,14 @@ function vMerma(){const ps=productos().filter(p=>p.activo).sort((a,b)=>a.nombre.
     <span class="muted b">Merma últimos 7 días</span><span class="bb money neg" style="font-size:20px">${money0(m7)}</span></div></div>
   <div class="sec-title">Elige el producto</div>
   <div class="card pad">${ps.map(p=>`<div class="lrow" onclick="openMerma('${p.id}')">
-    <span class="l-emj">${p.emoji}</span><div class="l-main"><div class="l-n">${p.nombre}</div>
+    <div class="l-main"><div class="l-n">${p.nombre} ${catBadge(p.categoria)}</div>
     <div class="l-s">Stock ${qty(p.stock,p.unidad)} · costo ${money0(p.costo)}</div></div>
     <div class="l-r faint">›</div></div>`).join('')||'<div class="empty">Sin productos</div>'}</div>
   <div style="height:14px"></div>`;
 }
 function openMerma(pid){const p=findP(pid);let cant=0;let motivo='podrido';
   const motivos=[['podrido','Podrido'],['maduro','Muy maduro'],['golpeado','Golpeado'],['robo','Robo/extravío'],['error','Error de venta'],['otro','Otro']];
-  const html=`<h2>${p.emoji} Merma de ${p.nombre}</h2><p class="sub">Stock actual ${qty(p.stock,p.unidad)}</p>
+  const html=`<h2>Merma de ${p.nombre}</h2><p class="sub">Stock actual ${qty(p.stock,p.unidad)}</p>
   <div class="field"><label>Cantidad perdida (${p.unidad})</label>
     <input id="mCant" class="num bigin" inputmode="decimal" placeholder="0" oninput="window._mUpd(this.value)"></div>
   <p class="tiny muted" style="text-align:center;margin:-6px 0 14px">Pierdes <span id="mLoss" class="bb neg">$0</span></p>
@@ -1562,7 +1472,7 @@ function openMerma(pid){const p=findP(pid);let cant=0;let motivo='podrido';
 function saveMerma(pid){const p=findP(pid);const cant=parseFloat($('#mCant').value)||0;
   if(cant<=0){toast('Pon la cantidad','bad');return;}
   const m={id:uid(),business_id:state.business.id,fecha:now(),producto_id:pid,nombre:p.nombre,
-    emoji:p.emoji||emojiFor(p.nombre),unidad:p.unidad,
+    unidad:p.unidad,
     cantidad:cant,costo:p.costo,valor_perdido:Math.round(cant*p.costo*100)/100,motivo:$('#mMot').value,
     usuario:state.member.nombre,deleted:false,updated_at:now()};
   p.stock=Math.round((p.stock-cant)*1000)/1000;p.updated_at=now();
@@ -1740,10 +1650,9 @@ window._editSearchProd=function(id){
   const res=document.getElementById('etResultados');
   if(!res)return;
   if(q.length<1){res.innerHTML='';document.getElementById('etAddForm').style.display='none';return;}
-  const hits=productos().filter(p=>p.nombre.toLowerCase().includes(q)||p.emoji&&p.emoji.includes(q)).slice(0,5);
+  const hits=productos().filter(p=>p.nombre.toLowerCase().includes(q)).slice(0,5);
   res.innerHTML=hits.map(p=>`
     <button class="lrow" style="width:100%;text-align:left;padding:8px 0" onclick="_editSelProd('${p.id}','${id}')">
-      <span class="l-emj">${p.emoji}</span>
       <div class="l-main"><div class="l-n">${p.nombre}</div>
       <div class="l-s">${money(p.precio_venta)} / ${p.unidad} · stock: ${p.stock} ${p.unidad}</div></div>
     </button>`).join('');
@@ -1924,7 +1833,7 @@ function vMas(){const cl=state.cloud;
   <div class="sec-title">Catálogo</div>
   <div class="card pad">
     <button class="lrow" style="width:100%;text-align:left" onclick="go('productos')">
-      <span class="l-emj">🍎</span><div class="l-main"><div class="l-n">Productos</div>
+      <span class="l-emj">📦</span><div class="l-main"><div class="l-n">Productos</div>
       <div class="l-s">${productos().length} en catálogo</div></div><span class="l-r faint">›</span></button>
     <div class="divider"></div>
     <button class="lrow" style="width:100%;text-align:left" onclick="go('clientes')">
@@ -1967,10 +1876,10 @@ function vProductos(){const ps=productos().slice().sort((a,b)=>a.nombre.localeCo
   <div class="between" style="margin:8px 4px 14px"><h2 style="font-size:22px">Productos</h2>
     <button class="btn sm primary" onclick="openProd()">＋ Nuevo</button></div>
   <div class="card pad">${ps.map(p=>`<div class="lrow" onclick="openProd('${p.id}')">
-    <span class="l-emj">${p.emoji}</span><div class="l-main"><div class="l-n">${p.nombre}</div>
+    <div class="l-main"><div class="l-n">${p.nombre}</div>
     <div class="l-s">${p.categoria} · ${p.unidad} · margen ${margenPct(p).toFixed(0)}%</div></div>
     <div class="l-r"><div class="bb money">${money0(p.precio_venta)}</div><div class="tiny faint">stock ${qty(p.stock,p.unidad)}</div></div></div>`).join('')
-    ||'<div class="empty"><span class="e-ico">🍎</span>Sin productos</div>'}</div>
+    ||'<div class="empty"><span class="e-ico">📦</span>Sin productos</div>'}</div>
   <div style="height:14px"></div>`;
 }
 
@@ -2583,12 +2492,9 @@ window._guardarGasto=function(){
 
 
 function openSheet(html){
-  const xBtn=`<button onclick="closeSheet()" aria-label="Cerrar"
-    style="position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:16px;
-    background:var(--surface-2);border:none;font-size:17px;cursor:pointer;
-    display:grid;place-items:center;z-index:1;color:var(--muted)">✕</button>`;
+  const xBtn=`<button class="sheet-close" onclick="closeSheet()" aria-label="Cerrar">✕</button>`;
   $('#modalRoot').innerHTML=`<div class="scrim" onclick="if(event.target===this)closeSheet()">
-    <div class="sheet" style="position:relative;padding-right:52px">${xBtn}<div class="grab"></div>${html}</div></div>`;}
+    <div class="sheet">${xBtn}<div class="sheet-scroll"><div class="grab"></div>${html}</div></div></div>`;}
 function closeSheet(){$('#modalRoot').innerHTML='';}
 
 /* ============================ MERCADO PAGO TERMINAL ============================ */
