@@ -323,7 +323,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.0.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1913,12 +1913,26 @@ function resetDemo(){
     inp.oninput=()=>{const match=inp.value.trim().toLowerCase()===nombre.toLowerCase();
       btn.disabled=!match;btn.style.opacity=match?'1':'.5';btn.style.cursor=match?'pointer':'not-allowed';};},50);
 }
-function confirmarReset(){
+async function confirmarReset(){
   const nombre=state.business.nombre||'Frutería El Mercadito';
   const inp=document.getElementById('resetConfirmInput');
   if(!inp||inp.value.trim().toLowerCase()!==nombre.toLowerCase()){toast('El nombre no coincide','bad');return;}
+  const btn=document.getElementById('resetConfirmBtn');
+  const wasCloud=sb&&state.cloud&&state.cloud.connected&&state.cloud.businessId;
+  if(btn){btn.textContent='Borrando…';btn.disabled=true;}
+  // 1. Borrar filas remotas en Supabase PRIMERO — si esto no se hace, cloudPull()
+  //    vuelve a bajar los datos viejos en el próximo sync y "resucitan".
+  if(wasCloud){
+    const bid=state.cloud.businessId;
+    for(const t of TABLES){
+      try{await sb.from(frt(t)).delete().eq('business_id',bid);}
+      catch(e){console.warn('No se pudo borrar '+t+' en la nube:',e);}
+    }
+  }
+  // 2. Limpiar estado local
   const b=blank();b.business.nombre=nombre;b.member=state.member;b.cloud=state.cloud;b.productos=[];
-  state=b;save();closeSheet();render();go('vender');toast('Listo, empieza a cargar tus productos','ok');
+  state=b;save();closeSheet();render();go('vender');
+  toast(wasCloud?'Listo, borrado local y en la nube ✓':'Listo, empieza a cargar tus productos','ok');
 }
 
 /* ============================ WHATSAPP + CLIENTES ============================ */
