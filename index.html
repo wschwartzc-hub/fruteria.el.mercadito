@@ -227,6 +227,21 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.ok{background:var(--green-d)}#toast.bad{background:var(--rose)}
 
+/* barra de confirmación de venta — no bloquea, se puede ignorar */
+#saleBar{position:fixed;left:8px;right:8px;bottom:calc(72px + var(--safe-b));max-width:544px;margin:0 auto;
+  z-index:150;background:var(--surface);border-radius:16px;box-shadow:var(--sh-lg);border:1px solid var(--line);
+  padding:11px 12px;display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(12px);
+  transition:.25s;pointer-events:none}
+#saleBar.show{opacity:1;transform:translateY(0);pointer-events:auto}
+#saleBar .sb-info{flex:1;min-width:0}
+#saleBar .sb-title{font-weight:800;font-size:13.5px;color:var(--green-d)}
+#saleBar .sb-sub{font-size:11.5px;color:var(--muted)}
+#saleBar .sb-x{width:26px;height:26px;border-radius:13px;background:var(--surface-2);border:none;
+  font-size:13px;cursor:pointer;flex-shrink:0;display:grid;place-items:center;color:var(--muted)}
+#saleBar .sb-actions{display:flex;gap:6px;flex-shrink:0}
+#saleBar .sb-actions button{width:36px;height:36px;border-radius:11px;background:var(--surface-2);
+  border:none;font-size:16px;cursor:pointer;display:grid;place-items:center}
+
 /* login */
 .login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
   padding:36px 28px 40px;max-width:420px;margin:0 auto;background:#ffffff}
@@ -309,6 +324,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 
 <div id="modalRoot"></div>
 <div id="toast"></div>
+<div id="saleBar"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
@@ -329,7 +345,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.3.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1146,7 +1162,9 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'dinero':'piez
         <div class="sv num">${val}</div>
         <button onclick="window._qstep(1)">+</button>
       </div>`}
-    <button class="btn primary block" style="margin-top:6px" onclick="window._qadd()">Agregar al ticket</button>`;
+    <button class="btn primary block" style="margin-top:6px" onclick="window._qadd()">Agregar al ticket</button>
+    ${cart.length===0?`<button class="btn block" style="margin-top:8px;background:var(--green-soft,#e8f5ee);color:var(--green-d);font-weight:800"
+      onclick="window._qcobrarRapido()">⚡ Cobrar ahora (efectivo)</button>`:''}`;
     openSheet(html);
     window._qmode=m=>{mode=m;val=m==='pieza'?1:0;render2();};
     window._qset=v=>{val=v;render2();};
@@ -1165,6 +1183,14 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'dinero':'piez
       else cart.push({producto_id:p.id,nombre:p.nombre,unidad:p.unidad,
         precio:p.precio_venta,costo:p.costo,cantidad,subtotal:Math.round(subtotal*100)/100});
       closeSheet();renderTicketBar();toast('Agregado 🛒','ok');};
+    window._qcobrarRapido=()=>{
+      let cantidad = mode==='dinero' ? (p.precio_venta>0?val/p.precio_venta:0) : val;
+      if(cantidad<=0){toast('Pon una cantidad','bad');return;}
+      const subtotal = mode==='dinero' ? val : cantidad*p.precio_venta;
+      cart.push({producto_id:p.id,nombre:p.nombre,unidad:p.unidad,
+        precio:p.precio_venta,costo:p.costo,cantidad,subtotal:Math.round(subtotal*100)/100});
+      payMethod='efectivo';cartDiscount=0;
+      finalizarVenta();};
   };
   render2();
   setTimeout(()=>{const i=$('#qInput');if(i&&p.unidad==='kg'===false&&false)i.focus();},80);
@@ -1251,14 +1277,39 @@ function finalizarVenta(){
   state.ventas.push(venta);
   save();push('ventas',venta);cart.forEach(c=>{const p=findP(c.producto_id);if(p)push('productos',p);});
   cart=[];cartDiscount=0;closeSheet();renderTicketBar();
-  toast('Venta registrada ✓ '+money(tot),'ok');
-  // Ofrecer ticket por WhatsApp
-  setTimeout(()=>openWASheet(venta),120);
+  showSaleBar(venta);
 }
 
 /* ============================ VISTA: INVENTARIO ============================ */
+let _saleBarTimer=null;
+function showSaleBar(venta){
+  const bar=document.getElementById('saleBar');if(!bar)return;
+  bar.innerHTML=`
+    <div class="sb-info">
+      <div class="sb-title">✓ Venta #${venta.folio} · ${money(venta.total)}</div>
+      <div class="sb-sub">Toca para ticket, o sigue vendiendo</div>
+    </div>
+    <div class="sb-actions">
+      <button onclick="window._imprimirTicket('${venta.id}')" title="Imprimir">🖨️</button>
+      <button onclick="window._compartirTicketPDF('${venta.id}')" title="PDF">📄</button>
+      <button onclick="hideSaleBar();openWASheetSolo('${venta.id}')" title="WhatsApp">💬</button>
+    </div>
+    <button class="sb-x" onclick="hideSaleBar()">✕</button>`;
+  bar.classList.add('show');
+  clearTimeout(_saleBarTimer);
+  _saleBarTimer=setTimeout(hideSaleBar,6000);
+}
+function hideSaleBar(){
+  const bar=document.getElementById('saleBar');if(!bar)return;
+  bar.classList.remove('show');clearTimeout(_saleBarTimer);
+}
+function openWASheetSolo(ventaId){
+  const venta=state.ventas.find(v=>v.id===ventaId);if(venta)openWASheet(venta);
+}
+
 let invSort='alpha'; // 'alpha' | 'mas' | 'menos'
 let invSearch='';
+let invFilter='todos'; // 'todos' | 'bajo' | 'riesgo'
 let dashSelected=new Set(['ventas','ganancia']);
 let rentPreset='30d'; // 'hoy'|'7d'|'30d'|'mes'|'custom'
 let rentDesde=''; // guardadas para sobrevivir re-renders
@@ -1289,6 +1340,8 @@ window._invSearch=()=>{
   invSearch=(document.getElementById('invQ')||{value:''}).value.toLowerCase().trim();
   const sortFns={alpha:(a,b)=>a.nombre.localeCompare(b.nombre),mas:(a,b)=>b.stock*b.costo-a.stock*a.costo,menos:(a,b)=>a.stock*a.costo-b.stock*b.costo};
   let ps=productos().filter(p=>p.activo).sort(sortFns[invSort]||sortFns.alpha);
+  if(invFilter==='bajo')ps=ps.filter(p=>p.stock<=p.stock_min);
+  else if(invFilter==='riesgo')ps=ps.filter(enRiesgo);
   if(invSearch)ps=ps.filter(p=>p.nombre.toLowerCase().includes(invSearch)||p.categoria.toLowerCase().includes(invSearch));
   const el=document.getElementById('invList');
   if(el)el.innerHTML=_invRows(ps);
@@ -1300,11 +1353,23 @@ function vInventario(){
   const val=ps.reduce((a,p)=>a+p.stock*p.costo,0);
   const bajos=ps.filter(p=>p.stock<=p.stock_min);
   const riesgo=ps.filter(enRiesgo);
-  const filtered=invSearch?ps.filter(p=>p.nombre.toLowerCase().includes(invSearch)||p.categoria.toLowerCase().includes(invSearch)):ps;
+  // Un solo filtro activo a la vez → un solo listado, sin duplicar productos
+  let base=ps;
+  if(invFilter==='bajo')base=bajos;
+  else if(invFilter==='riesgo')base=riesgo;
+  const filtered=invSearch?base.filter(p=>p.nombre.toLowerCase().includes(invSearch)||p.categoria.toLowerCase().includes(invSearch)):base;
   const btn=(v,lbl)=>`<button onclick="invSort='${v}';render()"
     style="padding:5px 13px;border-radius:20px;border:1.5px solid ${invSort===v?'var(--green)':'var(--line)'};
     font-size:12px;font-weight:700;cursor:pointer;background:${invSort===v?'var(--green)':'transparent'};
     color:${invSort===v?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
+  const fbtn=(v,lbl,color)=>`<button onclick="invFilter='${v}';render()"
+    style="padding:5px 13px;border-radius:20px;border:1.5px solid ${invFilter===v?color:'var(--line)'};
+    font-size:12px;font-weight:700;cursor:pointer;background:${invFilter===v?color:'transparent'};
+    color:${invFilter===v?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
+  const titulo=invSearch?`Resultados para "${invSearch}" (${filtered.length})`
+    :invFilter==='bajo'?`Pedir más (${bajos.length})`
+    :invFilter==='riesgo'?`Vender pronto (${riesgo.length})`
+    :`Todos los productos (${ps.length})`;
   return `
   <div class="kpis" style="margin-top:0">
     <div class="kpi"><div class="k-lbl">Valor inventario</div><div class="k-val money">${money0(val)}</div></div>
@@ -1324,13 +1389,17 @@ function vInventario(){
       style="border:none;background:none;outline:none;flex:1;font-size:15px">
     ${invSearch?`<button onclick="invSearch='';render()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px">&#x2715;</button>`:''}
   </div>
+  <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+    ${fbtn('todos','Todos','var(--ink)')}
+    ${bajos.length?fbtn('bajo','🔴 Pedir más ('+bajos.length+')','#dc2626'):''}
+    ${riesgo.length?fbtn('riesgo','🟡 Vender pronto ('+riesgo.length+')','#f59e0b'):''}
+  </div>
   <div style="display:flex;gap:6px;margin-bottom:14px">
     ${btn('alpha','A–Z')}
     ${btn('mas','Mayor valor')}
     ${btn('menos','Menor valor')}
   </div>
-  ${!invSearch&&bajos.length?`<div class="sec-title">&#x1F534; Stock bajo</div><div class="card pad">${_invRows(bajos)}</div>`:''}
-  <div class="sec-title">${invSearch?`Resultados para "${invSearch}" (${filtered.length})`:'Todos los productos'}</div>
+  <div class="sec-title">${titulo}</div>
   <div class="card pad" id="invList">${_invRows(filtered)}</div>
 `;}
 
@@ -2159,8 +2228,17 @@ function openWASheet(venta){
     if(wrap)wrap.innerHTML=rows||(q.length>=1?'<div class="tiny muted" style="padding:6px 0">No encontrado — regístralo abajo ↓</div>':'');
   };
 
-  openSheet(`<h2>¿Ticket por WhatsApp?</h2>
+  openSheet(`<h2>✅ Venta registrada</h2>
   ${resumen}
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="btn block" style="flex:1;font-size:13.5px;padding:12px 8px" onclick="window._imprimirTicket('${venta.id}')">
+      🖨️ Imprimir
+    </button>
+    <button class="btn block" style="flex:1;font-size:13.5px;padding:12px 8px" onclick="window._compartirTicketPDF('${venta.id}')">
+      📄 PDF
+    </button>
+  </div>
+  <div class="sec-title" style="margin:0 0 8px">¿Enviar ticket por WhatsApp?</div>
   <div style="border-radius:14px;border:1.5px solid var(--line);padding:14px;margin-bottom:12px">
     <div class="b" style="margin-bottom:8px">Cliente existente</div>
     <input id="waSearch" placeholder="Nombre o teléfono..." autocomplete="off" autocorrect="off"
@@ -2185,7 +2263,7 @@ function openWASheet(venta){
       💾 Guardar como cliente #${state.config.nextNumCliente||1} y enviar WhatsApp
     </button>
   </div>
-  <button class="btn ghost block" onclick="closeSheet();go('vender')">Ahora no</button>`);
+  <button class="btn ghost block" onclick="closeSheet();go('vender')">Continuar sin WhatsApp</button>`);
 }
 
 window._waMarcar=function(clienteId,ventaId){
