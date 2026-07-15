@@ -248,7 +248,13 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .login #lgToggle:hover{background:#e8e8e8}
 .link{color:var(--green-d);font-weight:800;background:none}
 
-@media(max-width:360px){.pgrid{grid-template-columns:repeat(2,1fr)}.pcard .pemj{font-size:30px}}
+@media(max-width:360px){.pgrid{grid-template-columns:repeat(2,1fr)}.pcard .pemj{font-size:30px}}#printArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printArea,#printArea *{visibility:visible}
+  #printArea{display:block;position:absolute;left:0;top:0;width:80mm;padding:2mm;
+    font-family:'Courier New',monospace;color:#000}
+}
 </style>
 </head>
 <body>
@@ -323,7 +329,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.0.1';
+const APP_VERSION = '3.2.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -363,7 +369,7 @@ function blank(){return {
   business:{id:uid(),nombre:'Frutería El Mercadito'},
   member:{nombre:'Dueño',rol:'dueno'},
   productos:[], ventas:[], compras:[], mermas:[], caja:[], clientes:[],
-  config:{folio:1, lowAlert:true, nextNumCliente:1, mpToken:'', mpDeviceId:''},
+  config:{folio:1, lowAlert:true, nextNumCliente:1, terminalNombre:'Clip', mpComision:0},
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
 function load(){
@@ -1110,7 +1116,7 @@ function updatePosGrid(){let list=productos().filter(p=>p.activo);
   $('#posGrid').innerHTML=posCards(list);}
 
 /* ----- modal cantidad ----- */
-function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'peso':'pieza';let val=p.unidad==='kg'?0:1;
+function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'dinero':'pieza';let val=p.unidad==='kg'?0:1;
   const render2=()=>{
     let total = mode==='dinero' ? val : (mode==='peso'? val*p.precio_venta : val*p.precio_venta);
     let cantidad = mode==='dinero' ? (p.precio_venta>0?val/p.precio_venta:0) : val;
@@ -1123,8 +1129,8 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'peso':'pieza'
     </div>
     ${p.unidad==='kg'?`
       <div class="seg">
-        <button class="${mode==='peso'?'on':''}" onclick="window._qmode('peso')">Por peso (kg)</button>
         <button class="${mode==='dinero'?'on':''}" onclick="window._qmode('dinero')">Por dinero ($)</button>
+        <button class="${mode==='peso'?'on':''}" onclick="window._qmode('peso')">Por peso (kg)</button>
       </div>
       ${mode==='peso'?`<div class="quick">
         ${[0.25,0.5,1,2].map(q=>`<button onclick="window._qset(${q})">${q} kg</button>`).join('')}
@@ -1198,21 +1204,33 @@ function openCobro(){payMethod='efectivo';cartDiscount=0;
      <button class="${payMethod==='transferencia'?'on':''}" onclick="payMethod='transferencia';window._payUpd()"><span class="pico">📲</span>Transfer</button>
      <button class="${payMethod==='tarjeta'?'on':''}" onclick="payMethod='tarjeta';window._payUpd()"><span class="pico">💳</span>Tarjeta</button>
    </div>
+   <div id="terminalNote" style="display:${payMethod==='tarjeta'?'block':'none'}">${terminalNoteHtml(tot)}</div>
    <button class="btn primary block" style="margin-top:14px;font-size:17px;padding:16px" onclick="finalizarVenta()">
      Cobrar ${money(tot)}</button>
-   <button id="mpBtn" onclick="window._mpCobrar()"
-     style="margin-top:8px;width:100%;background:#ffe600;color:#333;border:none;border-radius:14px;
-     padding:14px;font-weight:800;font-size:15px;cursor:pointer;display:block">
-     🟡 Cobrar con terminal Mercado Pago${!(state.config.mpToken&&state.config.mpDeviceId)?' (configurar →)':''}
-   </button>
+   <p id="terminalHint" class="tiny muted" style="text-align:center;margin-top:8px;display:${payMethod==='tarjeta'?'block':'none'}">
+     Cobra en tu terminal ${state.config.terminalNombre||'Clip'} y luego confirma aquí ↑</p>
    `;
    openSheet(html);
    window._cobroUpd=()=>{const t=Math.max(0,cartTotal()-cartDiscount);const e=$('#cobroTot');if(e)e.textContent=money(t);
      const btn=document.querySelector('.sheet .btn.primary');if(btn)btn.textContent='Cobrar '+money(t);};
    window._payUpd=()=>{document.querySelectorAll('.pays button').forEach((b,idx)=>{
-     b.classList.toggle('on',['efectivo','transferencia','tarjeta'][idx]===payMethod);});};
+     b.classList.toggle('on',['efectivo','transferencia','tarjeta'][idx]===payMethod);});
+     const note=document.getElementById('terminalNote');
+     if(note){const t=Math.max(0,cartTotal()-cartDiscount);
+       note.style.display=payMethod==='tarjeta'?'block':'none';
+       note.innerHTML=terminalNoteHtml(t);}
+     const hint=document.getElementById('terminalHint');
+     if(hint)hint.style.display=payMethod==='tarjeta'?'block':'none';};
   };
   draw();
+}
+function terminalNoteHtml(tot){
+  const com=+state.config.mpComision||0;
+  if(com<=0)return '';
+  const comMonto=Math.round(tot*com)/100;const neto=tot-comMonto;
+  return `<div class="tiny muted" style="text-align:center;padding:8px 0 0">
+    Comisión ${state.config.terminalNombre||'Clip'} ${com}% (-${money0(comMonto)}) · recibes ${money0(neto)} neto
+  </div>`;
 }
 function cartDel(i){cart.splice(i,1);renderTicketBar();if(!cart.length){closeSheet();return;}openCobro();}
 
@@ -1220,10 +1238,13 @@ function finalizarVenta(){
   if(!cart.length)return;
   const sub=cartTotal();const tot=Math.max(0,sub-cartDiscount);
   const costo_total=cart.reduce((a,c)=>a+c.costo*c.cantidad,0);
+  const comPct=payMethod==='tarjeta'?(+state.config.mpComision||0):0;
+  const comMonto=Math.round(tot*comPct)/100;
   const venta={id:uid(),business_id:state.business.id,folio:state.config.folio++,fecha:now(),
     items:cart.map(c=>({producto_id:c.producto_id,nombre:c.nombre,unidad:c.unidad,
       cantidad:c.cantidad,precio:c.precio,costo:c.costo,subtotal:c.subtotal})),
     subtotal:sub,descuento:cartDiscount,total:tot,costo_total,
+    comision_pct:comPct,comision_monto:comMonto,total_neto:Math.round((tot-comMonto)*100)/100,
     metodo_pago:payMethod,usuario:state.member.nombre,deleted:false,updated_at:now()};
   // descontar inventario
   cart.forEach(c=>{const p=findP(c.producto_id);if(p){p.stock=Math.round((p.stock-c.cantidad)*1000)/1000;p.updated_at=now();}});
@@ -1505,7 +1526,7 @@ function vMovimientos(){
     <div class="divider"></div>
     ${acc('🔮','Asesor inteligente','Consejos para optimizar y reducir merma','asesor','#f3e8ff')}
     <div class="divider"></div>
-    ${acc('🟡','Terminal Mercado Pago','Cobrar directo a tu terminal Point','mpSettings','#fffde7')}
+    ${acc('💳','Terminal de cobro','Comisión de tu terminal (Clip, etc.)','mpSettings','#fffde7')}
     <div class="divider"></div>
     ${acc('📜','Ventas','Historial de tickets','historial','#f0f4ff')}
   </div>
@@ -1983,11 +2004,41 @@ function enviarWA(tel, venta){
       onclick="window._compartirTicketPDF('${venta.id}')">
       📄 Compartir ticket PDF por WhatsApp
     </button>
+    <button class="btn block" style="margin-top:8px;font-size:15px;padding:13px"
+      onclick="window._imprimirTicket('${venta.id}')">
+      🖨️ Imprimir ticket
+    </button>
     <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet();go('vender')">
       ✓ Ok, continuar sin enviar
     </button>`);
 }
 
+window._imprimirTicket=function(ventaId){
+  const venta=state.ventas.find(v=>v.id===ventaId);if(!venta)return;
+  let area=document.getElementById('printArea');
+  if(!area){area=document.createElement('div');area.id='printArea';document.body.appendChild(area);}
+  const d=new Date(venta.fecha);
+  const fecha=d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const hora=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const negocio=(state.business.nombre||'FRUTERÍA EL MERCADITO').toUpperCase();
+  const met=venta.metodo_pago==='efectivo'?'Efectivo':venta.metodo_pago==='tarjeta'?'Tarjeta':'Transferencia';
+  area.innerHTML=`
+    <div style="text-align:center;font-weight:800;font-size:15px">${negocio}</div>
+    <div style="text-align:center;font-size:11px">${fecha}  ${hora}h</div>
+    <div style="text-align:center;font-size:11px">Folio: ${String(venta.folio).padStart(6,'0')}</div>
+    <div style="border-top:1px dashed #000;margin:6px 0"></div>
+    ${(venta.items||[]).map(i=>`
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700">
+        <span>${i.nombre}</span><span>${money0(i.subtotal)}</span></div>
+      <div style="font-size:11px;color:#333">  ${qty(i.cantidad,i.unidad)} x ${money0(i.precio)}</div>`).join('')}
+    <div style="border-top:1px dashed #000;margin:6px 0"></div>
+    <div style="display:flex;justify-content:space-between;font-weight:900;font-size:15px">
+      <span>TOTAL:</span><span>${money0(venta.total)}</span></div>
+    <div style="border-top:2px solid #000;margin:6px 0"></div>
+    <div style="font-size:11px">Pago: ${met}</div>
+    <div style="text-align:center;font-weight:800;font-size:11px;margin-top:10px">GRACIAS POR SU PREFERENCIA</div>`;
+  window.print();
+};
 async function _cargarJsPDF(){
   if(window.jspdf)return window.jspdf;
   return new Promise((res,rej)=>{
@@ -2445,47 +2496,98 @@ window.eliminarCliente=function(cid){
 
 
 /* ============================ VISTA: GASTOS ============================ */
-const GASTO_CATS=['🛍️ Bolsas/empaques','🧹 Limpieza','👷 Personal/nómina',
-  '⛽ Gasolina/transporte','💡 Servicios','🏪 Local/renta','🛒 Insumos','📦 Otro'];
+const GASTO_CATS_FIJO=['🏪 Renta/Local','💡 Servicios (luz/agua/internet)','👷 Nómina/Personal',
+  '📱 Suscripciones/Software','🛡️ Seguros','📦 Otro fijo'];
+const GASTO_CATS_VAR=['🛍️ Bolsas/empaques','🧹 Limpieza','⛽ Gasolina/transporte',
+  '🛒 Insumos','🔧 Mantenimiento','📦 Otro variable'];
+
+function _gastoTipo(g){return g.tipo_gasto||'variable';} // compatibilidad con gastos viejos sin clasificar
 
 function vGastos(){
-  const gastos=(state.caja||[]).filter(c=>!c.deleted&&c.tipo==='salida')
+  const todos=(state.caja||[]).filter(c=>!c.deleted&&c.tipo==='salida')
     .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
-  const total=gastos.reduce((a,g)=>a+g.monto,0);
-  const hoyG=gastos.filter(g=>new Date(g.fecha)>=startOfDay(new Date())).reduce((a,g)=>a+g.monto,0);
+  const hoy0=startOfDay(new Date());
+  const hoyG=todos.filter(g=>new Date(g.fecha)>=hoy0).reduce((a,g)=>a+g.monto,0);
+  const fijos=todos.filter(g=>_gastoTipo(g)==='fijo');
+  const variables=todos.filter(g=>_gastoTipo(g)==='variable');
+  const totFijos=fijos.reduce((a,g)=>a+g.monto,0);
+  const totVar=variables.reduce((a,g)=>a+g.monto,0);
+  const total=totFijos+totVar;
+
   const row=g=>{
     const d=new Date(g.fecha).toLocaleDateString('es-MX',{day:'numeric',month:'short'});
     const hora=new Date(g.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     return `<div class="between" style="padding:10px 0;border-bottom:1px solid var(--line)">
-      <div><div style="font-weight:600;font-size:14px">${g.concepto||'Gasto'}</div>
-        <div class="tiny muted">${d} ${hora} · ${g.usuario||'—'}</div></div>
+      <div>
+        <div style="font-weight:600;font-size:14px">${g.concepto||'Gasto'}</div>
+        <div class="tiny muted">${g.categoria?g.categoria+' · ':''}${d} ${hora}</div>
+      </div>
       <span style="font-weight:800;color:var(--rose);font-size:15px">-${money(g.monto)}</span>
     </div>`;};
+
+  const seccion=(titulo,lista,tot,color)=>lista.length?`
+    <div class="between" style="margin:16px 0 8px">
+      <div class="b" style="font-size:14px">${titulo}</div>
+      <span style="font-weight:800;color:${color};font-size:14px">-${money0(tot)}</span>
+    </div>
+    <div class="card pad">${lista.map(row).join('')}</div>`:'';
+
   return `<button class="link" onclick="go('movimientos')">← Movimientos</button>
   <div class="kpis" style="margin-top:0">
     <div class="kpi"><div class="k-lbl">Gastos hoy</div><div class="k-val money neg">${money0(hoyG)}</div></div>
     <div class="kpi"><div class="k-lbl">Total registrado</div><div class="k-val money neg">${money0(total)}</div></div>
   </div>
-  <button class="btn primary block" style="margin-bottom:14px" onclick="openAddGasto()">+ Registrar gasto</button>
-  <div class="card pad">
-    ${gastos.length?gastos.map(row).join('')
-      :'<div class="empty"><span class="e-ico">💰</span>Sin gastos registrados</div>'}
-  </div><div style="height:14px"></div>`;}
+  ${total>0?`<div class="card pad" style="margin-bottom:4px">
+    <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;margin-bottom:8px">
+      <div style="width:${(totFijos/total*100).toFixed(1)}%;background:#7c3aed"></div>
+      <div style="width:${(totVar/total*100).toFixed(1)}%;background:#f59e0b"></div>
+    </div>
+    <div class="between tiny muted">
+      <span>🏛️ Fijos ${(totFijos/total*100).toFixed(0)}% · ${money0(totFijos)}</span>
+      <span>🔄 Variables ${(totVar/total*100).toFixed(0)}% · ${money0(totVar)}</span>
+    </div>
+  </div>`:''}
+  <button class="btn primary block" style="margin:14px 0" onclick="openAddGasto()">+ Registrar gasto</button>
+  ${!todos.length?'<div class="card pad"><div class="empty"><span class="e-ico">💰</span>Sin gastos registrados</div></div>':''}
+  ${seccion('🏛️ Gastos fijos',fijos,totFijos,'#7c3aed')}
+  ${seccion('🔄 Gastos variables',variables,totVar,'#f59e0b')}
+  <div style="height:14px"></div>`;}
 
 function openAddGasto(){
-  const cats=GASTO_CATS.map(c=>`<button onclick="window._setGastoCat(this,'${c}')"
-    style="padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);font-size:13px;cursor:pointer;
-    background:transparent;color:var(--text);white-space:nowrap">${c}</button>`).join('');
+  window._gastoTipoSel='variable';window._gastoCategoria='';
   openSheet(`<h2>Registrar gasto</h2>
+  <div class="field"><label>Tipo de gasto</label>
+    <div class="seg" style="margin-top:4px">
+      <button id="gtFijo" onclick="window._setGastoTipo('fijo')">🏛️ Fijo</button>
+      <button id="gtVar" class="on" onclick="window._setGastoTipo('variable')">🔄 Variable</button>
+    </div>
+    <p class="tiny muted" style="margin-top:6px">
+      <b>Fijo</b>: se repite cada mes sin importar cuánto vendas (renta, nómina, luz).<br>
+      <b>Variable</b>: cambia según tu actividad (bolsas, gasolina, insumos).
+    </p>
+  </div>
   <div class="field"><label>Categoría</label>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="gastoCats">${cats}</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="gastoCats"></div></div>
   <div class="field"><label>Descripción</label>
     <input id="gastoConcepto" placeholder="Ej: Bolsas de plástico, pago de luz..." autocomplete="off"></div>
   <div class="field"><label>Monto ($)</label>
     <input id="gastoMonto" type="number" inputmode="decimal" placeholder="0"></div>
   <button class="btn primary block" onclick="window._guardarGasto()">Guardar gasto</button>
   <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet()">Cancelar</button>`);
-  window._gastoCategoria='';}
+  window._renderGastoCats();}
+
+window._setGastoTipo=function(tipo){
+  window._gastoTipoSel=tipo;window._gastoCategoria='';
+  document.getElementById('gtFijo').classList.toggle('on',tipo==='fijo');
+  document.getElementById('gtVar').classList.toggle('on',tipo==='variable');
+  window._renderGastoCats();};
+
+window._renderGastoCats=function(){
+  const cats=(window._gastoTipoSel==='fijo'?GASTO_CATS_FIJO:GASTO_CATS_VAR);
+  const wrap=document.getElementById('gastoCats');if(!wrap)return;
+  wrap.innerHTML=cats.map(c=>`<button onclick="window._setGastoCat(this,'${c}')"
+    style="padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);font-size:13px;cursor:pointer;
+    background:transparent;color:var(--text);white-space:nowrap">${c}</button>`).join('');};
 
 window._setGastoCat=function(btn,cat){
   window._gastoCategoria=cat;
@@ -2499,7 +2601,8 @@ window._guardarGasto=function(){
   if(!concepto){toast('Pon el concepto del gasto','bad');return;}
   if(monto<=0){toast('El monto debe ser mayor a $0','bad');return;}
   const g={id:uid(),business_id:state.business.id,fecha:now(),tipo:'salida',
-    monto,concepto:(window._gastoCategoria?window._gastoCategoria+': ':'')+concepto,
+    monto,concepto,categoria:window._gastoCategoria||'',
+    tipo_gasto:window._gastoTipoSel||'variable',
     usuario:state.member.nombre||'—',deleted:false,updated_at:now()};
   state.caja.push(g);save();push('caja',g);
   closeSheet();render();toast('Gasto registrado -'+money(monto),'ok');};
@@ -2511,71 +2614,48 @@ function openSheet(html){
     <div class="sheet">${xBtn}<div class="sheet-scroll"><div class="grab"></div>${html}</div></div></div>`;}
 function closeSheet(){$('#modalRoot').innerHTML='';}
 
-/* ============================ MERCADO PAGO TERMINAL ============================ */
-window._mpCobrar=async function(){
-  const tot=Math.max(0,cartTotal()-cartDiscount);
-  const token=state.config.mpToken;const devId=state.config.mpDeviceId;
-  if(!token||!devId){openMpSettings();return;}
-  const btn=document.getElementById('mpBtn');
-  if(btn){btn.textContent='⏳ Enviando a terminal...';btn.disabled=true;}
-  try{
-    const r=await fetch(
-      `https://api.mercadopago.com/point/integration-api/devices/${devId}/payment-intents`,
-      {method:'POST',
-       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json',
-         'X-Idempotency-Key':uid()},
-       body:JSON.stringify({amount:tot,additional_info:{description:'Ticket #'+state.config.folio,
-         external_reference:'frt-'+state.config.folio}})});
-    const data=await r.json();
-    if(data.id||data.payment_intent_id){
-      payMethod='tarjeta';window._payUpd();
-      toast('✓ Cobro enviado · Esperando pago en terminal','ok');
-      if(btn){btn.textContent='⏳ Esperando pago...';btn.style.background='#d4edda';}
-    }else{throw new Error(data.message||data.error||JSON.stringify(data).substring(0,80));}
-  }catch(e){
-    toast('Error terminal: '+e.message.substring(0,60),'bad');
-    if(btn){btn.textContent='🟡 Terminal Mercado Pago';btn.disabled=false;}}
-};
+/* ============================ TERMINAL DE COBRO (Clip u otra) ============================ */
+// Nota: Clip (y la mayoría de terminales físicas en México) no ofrecen una API web
+// para "empujar" el cobro al aparato desde una app — solo SDKs nativos para Android/iOS.
+// Por eso aquí solo configuramos el % de comisión: el cajero cobra en la terminal física
+// y esta app calcula automáticamente cuánto llega neto y lo guarda en el ticket.
 
 function openMpSettings(){
-  const t=state.config.mpToken||'';const d=state.config.mpDeviceId||'';
-  openSheet(`<h2>🟡 Terminal Mercado Pago</h2>
-  <p class="sub">Configura tu terminal Point para cobrar directamente</p>
-  <div class="field"><label>Access Token (de tu cuenta MP)</label>
-    <input id="mpTok" placeholder="APP_USR-..." value="${t}"
-      style="font-size:12px;font-family:monospace"></div>
-  <div class="field"><label>Device ID de la terminal</label>
-    <input id="mpDev" placeholder="PAX_A910..." value="${d}"></div>
-  <button class="btn block" style="margin-bottom:8px" onclick="window._mpDetectar()">
-    🔍 Detectar terminal automáticamente</button>
-  <div id="mpDevList" style="margin-bottom:10px"></div>
-  <button class="btn primary block" onclick="window._mpGuardar()">Guardar configuración</button>
-  <p class="tiny muted" style="margin-top:10px;text-align:center">
-    Obtén tu Access Token en<br><b>mercadopago.com.mx → Tu negocio → Credenciales</b></p>`);}
+  const nombre=state.config.terminalNombre||'Clip';
+  const com=state.config.mpComision||0;
+  openSheet(`<h2>💳 Terminal de cobro</h2>
+  <p class="sub">Configura el nombre y la comisión de tu terminal física</p>
+  <div class="field"><label>Nombre de tu terminal</label>
+    <input id="mpNombre" placeholder="Ej: Clip, banorte, mercado pago..." value="${nombre}"></div>
+  <div class="field">
+    <label>% Comisión que cobra tu terminal</label>
+    <div style="display:flex;align-items:center;gap:8px">
+      <input id="mpCom" type="number" inputmode="decimal" min="0" max="100" step="0.1"
+        placeholder="Ej: 3.5" value="${com>0?com:''}" style="flex:1">
+      <span style="font-weight:700;color:var(--muted)">%</span>
+    </div>
+    <p class="tiny muted" style="margin-top:6px">
+      Algunas terminales cobran distinto según el tipo de tarjeta o plazo. Pon el % que más uses —
+      la app te mostrará cuánto vas a recibir neto antes de cobrar, y lo guarda en cada ticket.
+      Puedes modificarlo cuando quieras.
+    </p>
+  </div>
+  <div class="card pad" style="background:#f0f9ff;border:1px solid #bae6fd;margin-bottom:14px">
+    <p class="tiny" style="margin:0;line-height:1.5">
+      ℹ️ Esta app <b>no envía el cobro directamente</b> a tu terminal — eso solo lo permiten
+      apps nativas propias de cada marca. El flujo es: seleccionas "Tarjeta" al cobrar,
+      cobras físicamente en tu terminal, y esta app calcula la comisión y guarda el registro.
+    </p>
+  </div>
+  <button class="btn primary block" onclick="window._mpGuardar()">Guardar configuración</button>`);}
 
 window._mpGuardar=function(){
-  state.config.mpToken=(document.getElementById('mpTok')||{value:''}).value.trim();
-  state.config.mpDeviceId=(document.getElementById('mpDev')||{value:''}).value.trim();
-  save();closeSheet();toast('Terminal configurada ✓','ok');};
-
-window._mpDetectar=async function(){
-  const token=(document.getElementById('mpTok')||{value:''}).value.trim();
-  if(!token){toast('Primero ingresa el Access Token','bad');return;}
-  const list=document.getElementById('mpDevList');
-  if(list)list.innerHTML='<div class="tiny muted">Buscando terminales...</div>';
-  try{
-    const r=await fetch('https://api.mercadopago.com/point/integration-api/devices',
-      {headers:{'Authorization':'Bearer '+token}});
-    const data=await r.json();
-    const devs=(data.devices||[]);
-    if(!devs.length){if(list)list.innerHTML='<div class="tiny muted">Sin terminales. ¿Está en modo integración?</div>';return;}
-    if(list)list.innerHTML=devs.map(d=>`
-      <button onclick="document.getElementById('mpDev').value='${d.id}';this.style.background='var(--green)';this.style.color='#fff'"
-        style="display:block;width:100%;text-align:left;padding:8px 12px;border-radius:10px;
-        background:var(--surface-2);border:none;margin-bottom:6px;font-size:13px;cursor:pointer">
-        📱 ${d.id}<br><span class="tiny muted">${d.status||''} ${d.operating_mode||''}</span>
-      </button>`).join('');
-  }catch(e){if(list)list.innerHTML='<div class="tiny muted">Error: '+e.message+'</div>';}};
+  state.config.terminalNombre=(document.getElementById('mpNombre')||{value:'Clip'}).value.trim()||'Clip';
+  const comRaw=(document.getElementById('mpCom')||{value:''}).value.trim();
+  let com=parseFloat(comRaw)||0;
+  if(com<0)com=0; if(com>100)com=100;
+  state.config.mpComision=com;
+  save();closeSheet();render();toast('Terminal configurada ✓','ok');};
 
 
 /* ============================ NUBE (SUPABASE) ============================ */
