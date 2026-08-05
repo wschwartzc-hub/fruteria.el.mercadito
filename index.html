@@ -181,8 +181,10 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 
 /* ============================ MODAL / SHEET ============================ */
 .scrim{position:fixed;inset:0;z-index:90;background:rgba(15,30,20,.5);backdrop-filter:blur(2px);
-  display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
-.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;max-height:92vh;
+  display:flex;align-items:flex-end;justify-content:center;animation:fade .2s;
+  padding-top:calc(48px + env(safe-area-inset-top,0px))}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
+  max-height:calc(100vh - 48px - env(safe-area-inset-top,0px));
   display:flex;flex-direction:column;overflow:hidden;position:relative;
   animation:up .26s cubic-bezier(.16,1,.3,1);box-shadow:var(--sh-lg)}
 .sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 18px calc(20px + var(--safe-b))}
@@ -190,11 +192,11 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .sheet .grab{width:42px;height:5px;border-radius:99px;background:var(--line-2);margin:8px auto 18px}
 .sheet h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:2px;padding-right:38px}
 .sheet .sub{color:var(--muted);font-size:13.5px;margin-bottom:16px}
-.modal-center{align-items:center;padding:18px}
+.modal-center{align-items:center;padding:18px;padding-top:calc(48px + env(safe-area-inset-top,0px))}
 .modal-center .sheet{border-radius:22px;max-width:440px}
-.sheet-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:18px;
-  background:var(--surface-2);border:none;font-size:17px;cursor:pointer;z-index:5;
-  display:grid;place-items:center;color:var(--muted)}
+.sheet-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:17px;
+  background:var(--surface);border:1.5px solid var(--line-2);font-size:16px;font-weight:700;cursor:pointer;z-index:5;
+  display:grid;place-items:center;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.08)}
 
 /* qty entry */
 .qty-display{text-align:center;padding:14px;background:var(--surface-2);border-radius:16px;margin-bottom:14px}
@@ -345,7 +347,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.3.1';
+const APP_VERSION = '3.4.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1939,7 +1941,12 @@ function vMas(){const cl=state.cloud;
         <div class="tiny muted">${sbUser?sbUser.email:''}</div></div>
       <span class="chip g">Nube activa</span>
     </div>
-    <button class="btn block sm" onclick="cloudPull(false)">↻ Sincronizar ahora</button>
+    <button class="btn block sm" onclick="cloudPull(false)">↻ Descargar de la nube</button>
+    <button class="btn block sm" style="margin-top:8px" onclick="window._resyncAll()">
+      ⬆️ Forzar subida ahora</button>
+    <p class="tiny muted" style="margin-top:6px">
+      La app sube tus datos a la nube automáticamente en segundo plano — no necesitas hacer nada.
+      Estos botones son opcionales, por si quieres forzarlo manualmente.</p>
     <button class="btn block sm" style="margin-top:8px;color:var(--rose);border-color:var(--rose)" onclick="cloudLogout()">
       Cerrar sesión
     </button>
@@ -2825,9 +2832,30 @@ async function afterLogin(){
   toast('Conectado a la nube ✓','ok');
 }
 async function cloudPushAll(bid){
+  const fallos=[];
   for(const t of TABLES){const rows=(state[t]||[]).map(r=>({...r,business_id:bid}));
-    if(rows.length)await sb.from(frt(t)).upsert(rows);}
+    if(!rows.length)continue;
+    const{error}=await sb.from(frt(t)).upsert(rows);
+    if(error){console.warn('cloudPushAll '+t+':',error);fallos.push(t);}}
+  return fallos;
 }
+
+window._resyncAll=async function(){
+  if(!sb||!state.cloud.connected){toast('No estás conectado a la nube','bad');return;}
+  const btn=event&&event.target;if(btn){btn.textContent='⏳ Subiendo...';btn.disabled=true;}
+  try{
+    const fallos=await cloudPushAll(state.cloud.businessId);
+    if(fallos.length){
+      toast('⚠️ Fallo al subir: '+fallos.join(', '),'bad');
+    }else{
+      _syncFailCount=0;setSync(true,'Nube');
+      toast('✓ Todos tus datos se subieron a la nube','ok');
+    }
+  }catch(e){
+    toast('Error: '+e.message.substring(0,60),'bad');
+  }
+  if(btn){btn.textContent='⬆️ Subir todos mis datos a la nube';btn.disabled=false;}
+};
 async function cloudPull(silent){
   if(!sb||!state.cloud.businessId)return;
   if(!silent)toast('Sincronizando...');
@@ -2844,9 +2872,25 @@ function mergeRows(table,remote){const local=state[table]||[];const map={};
     if(!ex||new Date(r.updated_at||0)>=new Date(ex.updated_at||0))map[r.id]=r;});
   state[table]=Object.values(map);
 }
+let _syncFailCount=0;
 async function push(table,row){
   if(!sb||!state.cloud.connected)return;
-  try{const r={...row,business_id:state.cloud.businessId};await sb.from(frt(table)).upsert(r);}catch(e){console.warn(e);}
+  try{
+    const r={...row,business_id:state.cloud.businessId};
+    const{error}=await sb.from(frt(table)).upsert(r);
+    if(error){
+      console.warn('Fallo al sincronizar '+table+':',error);
+      _syncFailCount++;
+      setSync(true,'⚠️ Sin sincronizar');
+      // Solo molestamos con un toast la primera vez por sesión, para no saturar
+      if(_syncFailCount===1)toast('⚠️ No se pudo guardar en la nube — revisa tu conexión','bad');
+    }
+  }catch(e){
+    console.warn('Fallo al sincronizar '+table+':',e);
+    _syncFailCount++;
+    setSync(true,'⚠️ Sin sincronizar');
+    if(_syncFailCount===1)toast('⚠️ No se pudo guardar en la nube — revisa tu conexión','bad');
+  }
 }
 function subscribeRealtime(){realtimeChans.forEach(c=>sb.removeChannel(c));realtimeChans=[];
   TABLES.forEach(t=>{const ch=sb.channel('rt_'+t)
@@ -2933,7 +2977,10 @@ async function start(){
     try{const {data}=await sb.auth.getSession();
       if(data.session){sbUser=data.session.user;state.cloud.connected=true;
         hideLogin();setSync(true,'Nube');
-        if(!state.cloud.businessId){await afterLogin();}else{await cloudPull(true);subscribeRealtime();boot();}
+        if(!state.cloud.businessId){await afterLogin();}else{
+          await cloudPull(true);subscribeRealtime();boot();
+          _autoResync(); // sube en segundo plano cualquier dato local que no haya llegado a la nube — sin pedir nada al usuario
+        }
         return;}
     }catch(e){console.warn(e);}
     showLogin();return;
@@ -2941,6 +2988,29 @@ async function start(){
   // modo local
   hideLogin();setSync(false,'Local');boot();
 }
+
+// Autosanación: corre sola al abrir la app, al recuperar conexión, y al volver de segundo plano.
+// Así ningún dato queda atrapado en un solo aparato sin que nadie tenga que acordarse de nada.
+let _autoResyncBusy=false;
+async function _autoResync(){
+  if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
+  _autoResyncBusy=true;
+  try{
+    const fallos=await cloudPushAll(state.cloud.businessId);
+    if(fallos.length){
+      setSync(true,'⚠️ Sin sincronizar');
+      if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Hay datos sin subir a la nube','bad');}
+    }else if(_syncFailCount>0){
+      // se había marcado un fallo antes y ahora sí subió todo — avisamos que ya sanó
+      _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
+    }
+  }catch(e){console.warn('autoResync:',e);}
+  _autoResyncBusy=false;
+}
+window.addEventListener('online',()=>_autoResync());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')_autoResync();});
+setInterval(_autoResync,5*60*1000); // red de seguridad cada 5 min mientras la app quede abierta
+
 start();
 </script>
 </body>
