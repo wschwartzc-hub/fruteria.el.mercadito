@@ -347,7 +347,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.4.1';
+const APP_VERSION = '3.4.2';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2884,6 +2884,9 @@ async function push(table,row){
       setSync(true,'⚠️ Sin sincronizar');
       // Solo molestamos con un toast la primera vez por sesión, para no saturar
       if(_syncFailCount===1)toast('⚠️ No se pudo guardar en la nube — revisa tu conexión','bad');
+    }else if(_syncFailCount>0){
+      // Un guardado posterior sí funcionó — la conexión se recuperó sola, quitamos la alerta de inmediato
+      _syncFailCount=0;setSync(true,'Nube');
     }
   }catch(e){
     console.warn('Fallo al sincronizar '+table+':',e);
@@ -2899,8 +2902,21 @@ function subscribeRealtime(){realtimeChans.forEach(c=>sb.removeChannel(c));realt
     .subscribe();realtimeChans.push(ch);});
 }
 async function cloudLogout(){
+  if(sb&&state.cloud.connected&&state.cloud.businessId){
+    toast('Guardando tus datos antes de salir...','ok');
+    try{
+      const fallos=await cloudPushAll(state.cloud.businessId);
+      if(fallos.length){
+        toast('⚠️ No se pudo guardar todo en la nube. Espera a tener internet antes de cerrar sesión.','bad');
+        return; // NO cerramos sesión ni borramos nada — evita perder datos que aún no llegaron a la nube
+      }
+    }catch(e){
+      toast('⚠️ Sin conexión — no cierres sesión ahorita o podrías perder información sin guardar.','bad');
+      return;
+    }
+  }
   try{await sb.auth.signOut();}catch(e){}
-  // Limpiar sesión y datos en memoria — sin datos que ver
+  // Solo llegamos aquí si TODO ya quedó guardado en la nube — es seguro limpiar la memoria local
   sbUser=null;sb=null;
   state.cloud={connected:false,businessId:null,url:'',anon:''};
   state.ventas=[];state.compras=[];state.mermas=[];state.caja=[];
