@@ -347,7 +347,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.4.2';
+const APP_VERSION = '3.4.3';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -376,6 +376,7 @@ function toast(msg,kind=''){const t=$('#toast');t.textContent=msg;t.className='s
 
 /* ============================ ESTADO ============================ */
 const LS='fruteria_db_v1';
+const safeNum=(v,def=0)=>{const n=+v;return Number.isFinite(n)?n:def;};
 let state = load();
 let cart = [];           // venta en curso
 let posCat = 'Todo';
@@ -390,11 +391,32 @@ function blank(){return {
   config:{folio:1, lowAlert:true, nextNumCliente:1, terminalNombre:'Clip', mpComision:0},
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
+function sanitizeState(s){
+  // Blinda contra valores NaN/undefined que se hayan colado en versiones anteriores de la app.
+  // Un solo campo corrupto en un producto puede bloquear la subida de TODO el catálogo a la vez.
+  (s.productos||[]).forEach(p=>{
+    p.costo=safeNum(p.costo,0);p.precio_venta=safeNum(p.precio_venta,0);
+    p.stock=safeNum(p.stock,0);p.stock_min=safeNum(p.stock_min,0);
+    p.vida_util_dias=Number.isFinite(+p.vida_util_dias)?Math.round(+p.vida_util_dias):5;
+  });
+  (s.ventas||[]).forEach(v=>{
+    v.subtotal=safeNum(v.subtotal,0);v.descuento=safeNum(v.descuento,0);v.total=safeNum(v.total,0);
+    v.costo_total=safeNum(v.costo_total,0);v.comision_pct=safeNum(v.comision_pct,0);
+    v.comision_monto=safeNum(v.comision_monto,0);v.total_neto=safeNum(v.total_neto,v.total);
+    (v.items||[]).forEach(i=>{i.cantidad=safeNum(i.cantidad,0);i.precio=safeNum(i.precio,0);
+      i.costo=safeNum(i.costo,0);i.subtotal=safeNum(i.subtotal,0);});
+  });
+  (s.caja||[]).forEach(c=>{c.monto=safeNum(c.monto,0);});
+  (s.mermas||[]).forEach(m=>{m.cantidad=safeNum(m.cantidad,0);m.costo=safeNum(m.costo,0);m.valor_perdido=safeNum(m.valor_perdido,0);});
+  return s;
+}
+
 function load(){
   let s;
   try{const r=localStorage.getItem(LS);if(r)s=JSON.parse(r);}catch(e){}
   if(!s){s=blank();s.productos=seed(s.business.id);}
   if(!s.productos||!s.productos.length)s.productos=seed(s.business.id);
+  s=sanitizeState(s);
   try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}
   return s;
 }
@@ -1526,8 +1548,10 @@ function guardarCompra(){if(!compraCart.length)return;
     total,usuario:state.member.nombre,deleted:false,updated_at:now()};
   // subir stock + costo promedio ponderado
   compraCart.forEach(c=>{const p=findP(c.producto_id);if(!p)return;
-    const stockNuevo=p.stock+c.cantidad;
-    if(stockNuevo>0) p.costo=Math.round(((p.stock*p.costo)+(c.cantidad*c.costo))/stockNuevo*100)/100;
+    const stockActual=safeNum(p.stock,0),costoActual=safeNum(p.costo,0);
+    const stockNuevo=stockActual+safeNum(c.cantidad,0);
+    if(stockNuevo>0){const nuevo=((stockActual*costoActual)+(safeNum(c.cantidad,0)*safeNum(c.costo,0)))/stockNuevo;
+      p.costo=Number.isFinite(nuevo)?Math.round(nuevo*100)/100:costoActual;}
     p.stock=Math.round(stockNuevo*1000)/1000;p.updated_at=now();});
   state.compras.push(compra);
   save();push('compras',compra);compraCart.forEach(c=>{const p=findP(c.producto_id);if(p)push('productos',p);});
@@ -2836,7 +2860,17 @@ async function cloudPushAll(bid){
   for(const t of TABLES){const rows=(state[t]||[]).map(r=>({...r,business_id:bid}));
     if(!rows.length)continue;
     const{error}=await sb.from(frt(t)).upsert(rows);
-    if(error){console.warn('cloudPushAll '+t+':',error);fallos.push(t);}}
+    if(error){
+      console.warn('cloudPushAll '+t+' (lote falló, reintentando uno por uno):',error);
+      // Un solo registro dañado puede tumbar el lote entero — subimos de uno en uno
+      // para salvar los que sí están bien y detectar exactamente cuál es el problemático.
+      let algunoFalló=false;
+      for(const row of rows){
+        const{error:e2}=await sb.from(frt(t)).upsert(row);
+        if(e2){algunoFalló=true;console.warn('  registro problemático en '+t+':',row.id,row.nombre||'',e2.message);}
+      }
+      if(algunoFalló)fallos.push(t);
+    }}
   return fallos;
 }
 
