@@ -347,7 +347,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.4.3';
+const APP_VERSION = '3.5.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2855,9 +2855,12 @@ async function afterLogin(){
   await cloudPull(true);subscribeRealtime();boot();
   toast('Conectado a la nube ✓','ok');
 }
-async function cloudPushAll(bid){
+async function cloudPushAll(bid,since){
   const fallos=[];
-  for(const t of TABLES){const rows=(state[t]||[]).map(r=>({...r,business_id:bid}));
+  for(const t of TABLES){
+    let rows=state[t]||[];
+    if(since)rows=rows.filter(r=>new Date(r.updated_at||0)>new Date(since));
+    rows=rows.map(r=>({...r,business_id:bid}));
     if(!rows.length)continue;
     const{error}=await sb.from(frt(t)).upsert(rows);
     if(error){
@@ -2902,9 +2905,11 @@ async function cloudPull(silent){
 }
 function mergeRows(table,remote){const local=state[table]||[];const map={};
   local.forEach(r=>map[r.id]=r);
+  let cambio=false;
   remote.forEach(r=>{const ex=map[r.id];
-    if(!ex||new Date(r.updated_at||0)>=new Date(ex.updated_at||0))map[r.id]=r;});
+    if(!ex||new Date(r.updated_at||0)>new Date(ex.updated_at||0)){map[r.id]=r;cambio=true;}});
   state[table]=Object.values(map);
+  return cambio;
 }
 let _syncFailCount=0;
 async function push(table,row){
@@ -2929,10 +2934,15 @@ async function push(table,row){
     if(_syncFailCount===1)toast('⚠️ No se pudo guardar en la nube — revisa tu conexión','bad');
   }
 }
+let _rtDebounce=null;
+function _rtScheduleUpdate(){
+  clearTimeout(_rtDebounce);
+  _rtDebounce=setTimeout(()=>{save();render();},350); // agrupa ráfagas de cambios en una sola actualización
+}
 function subscribeRealtime(){realtimeChans.forEach(c=>sb.removeChannel(c));realtimeChans=[];
   TABLES.forEach(t=>{const ch=sb.channel('rt_'+t)
     .on('postgres_changes',{event:'*',schema:'public',table:frt(t),filter:'business_id=eq.'+state.cloud.businessId},
-      payload=>{if(payload.new){mergeRows(t,[payload.new]);save();render();}})
+      payload=>{if(payload.new&&mergeRows(t,[payload.new]))_rtScheduleUpdate();})
     .subscribe();realtimeChans.push(ch);});
 }
 async function cloudLogout(){
@@ -3042,17 +3052,24 @@ async function start(){
 // Autosanación: corre sola al abrir la app, al recuperar conexión, y al volver de segundo plano.
 // Así ningún dato queda atrapado en un solo aparato sin que nadie tenga que acordarse de nada.
 let _autoResyncBusy=false;
+let _lastAutoSyncAt=null; // primera pasada = catch-up completo; luego solo lo que cambió (evita re-subir todo cada vez)
 async function _autoResync(){
   if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
   _autoResyncBusy=true;
+  const desde=_lastAutoSyncAt; // null la primera vez → catch-up completo una sola vez por sesión
+  const marcaTiempo=new Date().toISOString();
   try{
-    const fallos=await cloudPushAll(state.cloud.businessId);
+    const fallos=await cloudPushAll(state.cloud.businessId,desde);
     if(fallos.length){
       setSync(true,'⚠️ Sin sincronizar');
       if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Hay datos sin subir a la nube','bad');}
-    }else if(_syncFailCount>0){
-      // se había marcado un fallo antes y ahora sí subió todo — avisamos que ya sanó
-      _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
+      // no avanzamos la marca de tiempo si algo falló — para reintentar esas filas la próxima vez
+    }else{
+      _lastAutoSyncAt=marcaTiempo;
+      if(_syncFailCount>0){
+        // se había marcado un fallo antes y ahora sí subió todo — avisamos que ya sanó
+        _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
+      }
     }
   }catch(e){console.warn('autoResync:',e);}
   _autoResyncBusy=false;
