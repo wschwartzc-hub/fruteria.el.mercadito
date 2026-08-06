@@ -347,7 +347,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.6.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2893,23 +2893,28 @@ async function afterLogin(){
 }
 async function cloudPushAll(bid,since){
   const fallos=[];
+  const CHUNK=150; // lotes moderados: evita timeouts por payload gigante sin ser tan lento como ir de 1 en 1
   for(const t of TABLES){
     let rows=state[t]||[];
     if(since)rows=rows.filter(r=>new Date(r.updated_at||0)>new Date(since));
     rows=rows.map(r=>({...r,business_id:bid}));
     if(!rows.length)continue;
-    const{error}=await sb.from(frt(t)).upsert(rows);
-    if(error){
-      console.warn('cloudPushAll '+t+' (lote falló, reintentando uno por uno):',error);
-      // Un solo registro dañado puede tumbar el lote entero — subimos de uno en uno
-      // para salvar los que sí están bien y detectar exactamente cuál es el problemático.
-      let algunoFalló=false;
-      for(const row of rows){
-        const{error:e2}=await sb.from(frt(t)).upsert(row);
-        if(e2){algunoFalló=true;console.warn('  registro problemático en '+t+':',row.id,row.nombre||'',e2.message);}
+    let algunoFalló=false;
+    for(let i=0;i<rows.length;i+=CHUNK){
+      const bloque=rows.slice(i,i+CHUNK);
+      const{error}=await sb.from(frt(t)).upsert(bloque);
+      if(error){
+        console.warn('cloudPushAll '+t+' bloque '+i+' falló, reintentando fila por fila:',error);
+        // Un solo registro dañado puede tumbar el bloque entero — subimos de uno en uno
+        // dentro de ESE bloque (máx. 150, no 970) para salvar los que sí están bien.
+        for(const row of bloque){
+          const{error:e2}=await sb.from(frt(t)).upsert(row);
+          if(e2){algunoFalló=true;console.warn('  registro problemático en '+t+':',row.id,row.nombre||'',e2.message);}
+        }
       }
-      if(algunoFalló)fallos.push(t);
-    }}
+    }
+    if(algunoFalló)fallos.push(t);
+  }
   return fallos;
 }
 
@@ -3091,22 +3096,22 @@ let _autoResyncBusy=false;
 async function _autoResync(){
   if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
   _autoResyncBusy=true;
-  // Guardado en state.config (persiste en localStorage) — así un refresh de página NO vuelve
-  // a disparar un catch-up completo cada vez. Solo se hace una vez por dispositivo, para siempre.
   const desde=state.config._lastAutoSyncAt||null;
   const marcaTiempo=new Date().toISOString();
   try{
     const fallos=await cloudPushAll(state.cloud.businessId,desde);
+    // IMPORTANTE: avanzamos la marca de tiempo SIEMPRE, incluso si algún registro falló.
+    // El fallback fila-por-fila ya le dio a cada registro su oportunidad individual — si uno
+    // sigue fallando (dato dañado que no se pudo sanar), reintentarlo cada 5 min para siempre
+    // es justo lo que causaba que la app resubiera TODO el catálogo una y otra vez sin parar.
+    // Al avanzar la marca, ese registro problemático simplemente deja de reintentarse solo
+    // (se queda con su fecha vieja, fuera de la ventana "desde"); todo lo demás sigue sano.
+    state.config._lastAutoSyncAt=marcaTiempo;save();
     if(fallos.length){
       setSync(true,'⚠️ Sin sincronizar');
-      if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Hay datos sin subir a la nube','bad');}
-      // no avanzamos la marca de tiempo si algo falló — para reintentar esas filas la próxima vez
-    }else{
-      state.config._lastAutoSyncAt=marcaTiempo;save();
-      if(_syncFailCount>0){
-        // se había marcado un fallo antes y ahora sí subió todo — avisamos que ya sanó
-        _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
-      }
+      if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Un registro no se pudo subir a la nube','bad');}
+    }else if(_syncFailCount>0){
+      _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
     }
   }catch(e){console.warn('autoResync:',e);}
   _autoResyncBusy=false;
