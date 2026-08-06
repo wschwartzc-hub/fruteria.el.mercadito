@@ -2,7 +2,7 @@
 <html lang="es-MX">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1f9d55">
 <title>Frutería · Control de Negocio</title>
 <style>
@@ -23,12 +23,14 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%;overflow:hidden}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{
   font-family:var(--font); background:var(--bg); color:var(--ink);
   font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
-  overscroll-behavior-y:none;
+  overscroll-behavior-y:none; touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
 }
-button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;touch-action:manipulation}
 input,select,textarea{font-family:inherit;font-size:16px}
 .num{font-variant-numeric:tabular-nums}
 .hidden{display:none!important}
@@ -347,7 +349,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.6.1';
+const APP_VERSION = '3.7.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2980,11 +2982,23 @@ function _rtScheduleUpdate(){
   clearTimeout(_rtDebounce);
   _rtDebounce=setTimeout(()=>{save();render();},350); // agrupa ráfagas de cambios en una sola actualización
 }
+let _rtReconnectTimer=null;
 function subscribeRealtime(){realtimeChans.forEach(c=>sb.removeChannel(c));realtimeChans=[];
   TABLES.forEach(t=>{const ch=sb.channel('rt_'+t)
     .on('postgres_changes',{event:'*',schema:'public',table:frt(t),filter:'business_id=eq.'+state.cloud.businessId},
       payload=>{if(payload.new&&mergeRows(t,[payload.new]))_rtScheduleUpdate();})
-    .subscribe();realtimeChans.push(ch);});
+    .subscribe(status=>{
+      // Si el canal se cae (pantalla apagada, cambio de red, WebSocket cerrado por inactividad),
+      // lo reconectamos solos — nadie debería tener que refrescar la página para que el
+      // tiempo real vuelva a funcionar.
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+        clearTimeout(_rtReconnectTimer);
+        _rtReconnectTimer=setTimeout(()=>{
+          if(sb&&state.cloud.connected&&state.cloud.businessId)subscribeRealtime();
+        },3000);
+      }
+    });
+    realtimeChans.push(ch);});
 }
 async function cloudLogout(){
   if(sb&&state.cloud.connected&&state.cloud.businessId){
@@ -3117,7 +3131,14 @@ async function _autoResync(){
   _autoResyncBusy=false;
 }
 window.addEventListener('online',()=>_autoResync());
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')_autoResync();});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    _autoResync();
+    // Refrescamos también el canal de tiempo real — si estuvo en pausa (pantalla apagada,
+    // cambio de app), esto garantiza que vuelva a escuchar cambios sin que nadie recargue nada.
+    if(sb&&state.cloud.connected&&state.cloud.businessId)subscribeRealtime();
+  }
+});
 setInterval(_autoResync,5*60*1000); // red de seguridad cada 5 min mientras la app quede abierta
 
 start();
