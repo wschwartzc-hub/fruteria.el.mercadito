@@ -349,7 +349,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -383,6 +383,7 @@ let state = load();
 let cart = [];           // venta en curso
 let posCat = 'Todo';
 let posSearch = '';
+let posOcultarAgotados = true; // por defecto oculta los "Agotado" para no estorbar al vender
 let payMethod = 'efectivo';
 let cartDiscount = 0;
 
@@ -1170,11 +1171,21 @@ function vVender(){
   let list=productos().filter(p=>p.activo);
   if(posCat!=='Todo') list=list.filter(p=>p.categoria===posCat);
   if(posSearch) list=list.filter(p=>p.nombre.toLowerCase().includes(posSearch.toLowerCase()));
+  const ocultos=list.filter(p=>p.stock<=0).length;
+  if(posOcultarAgotados) list=list.filter(p=>p.stock>0);
+  list=list.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)); // A–Z siempre, igual en todos los dispositivos
   return `
   <div class="search">🔎<input id="posSearch" placeholder="Buscar producto..." value="${posSearch}"
        oninput="posSearch=this.value;updatePosGrid()"></div>
   <div class="cats" id="posCats">${cats.map(c=>`<button class="cat-pill ${c===posCat?'active':''}"
        onclick="posCat='${c}';render()">${c}</button>`).join('')}</div>
+  <div class="between" style="padding:2px 2px 10px">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)">
+      <input type="checkbox" ${posOcultarAgotados?'checked':''} style="width:auto"
+        onchange="posOcultarAgotados=this.checked;render()">
+      Ocultar agotados${ocultos>0?` (${ocultos})`:''}
+    </label>
+  </div>
   <div class="pgrid" id="posGrid">${posCards(list)}</div>
   ${list.length===0?`<div class="empty"><span class="e-ico">🧺</span>No hay productos aquí.<br>
     <button class="link" onclick="go('productos')">Agregar productos</button></div>`:''}
@@ -1191,6 +1202,8 @@ function posCards(list){return list.map(p=>{const out=p.stock<=0;const low=!out&
 function updatePosGrid(){let list=productos().filter(p=>p.activo);
   if(posCat!=='Todo')list=list.filter(p=>p.categoria===posCat);
   if(posSearch)list=list.filter(p=>p.nombre.toLowerCase().includes(posSearch.toLowerCase()));
+  if(posOcultarAgotados)list=list.filter(p=>p.stock>0);
+  list=list.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre));
   $('#posGrid').innerHTML=posCards(list);}
 
 /* ----- modal cantidad ----- */
