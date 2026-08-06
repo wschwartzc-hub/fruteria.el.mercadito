@@ -347,7 +347,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.5.0';
+const APP_VERSION = '3.6.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -420,7 +420,8 @@ function load(){
   try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}
   return s;
 }
-function save(){state._t=now();try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
+let _stateVersion=0; // se incrementa en cada save() — sirve para invalidar cachés de cálculos pesados
+function save(){state._t=now();_stateVersion++;try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
 
 function seed(bid){let _i=0;const P=(nombre,categoria,unidad,perecedero,vida)=>(
   {id:'prod-'+(++_i),business_id:bid,nombre,categoria,unidad,
@@ -486,7 +487,32 @@ const findP     = id => state.productos.find(p=>p.id===id);
 /* ============================ UTILIDADES DE NEGOCIO ============================ */
 const margenPct = p => p.precio_venta>0 ? (p.precio_venta-p.costo)/p.precio_venta*100 : 0;
 
+// Índice cacheado de unidades vendidas por producto en los últimos 14 días.
+// Antes: cada producto en Inventario reescaneaba TODAS las ventas hasta 3 veces (enRiesgo+diasInventario).
+// Con 149 productos y 970+ ventas reales eso son 700,000+ operaciones por cada render — se sentía como que la app se trababa.
+// Ahora: un solo recorrido de las ventas por render, y cada producto solo consulta el resultado (lookup).
+let _idx14Version=-1, _idx14=null;
+function _buildIdx14(){
+  const since=daysAgo(14);
+  const idx=new Map();
+  ventas().forEach(v=>{
+    if(new Date(v.fecha)<since)return;
+    (v.items||[]).forEach(i=>{
+      if(!i.producto_id)return;
+      idx.set(i.producto_id,(idx.get(i.producto_id)||0)+(+i.cantidad||0));
+    });
+  });
+  _idx14=idx;_idx14Version=_stateVersion;
+}
+
 function soldUnits(pid, sinceDate){
+  // Camino rápido: el 100% de las llamadas reales piden "últimos 14 días" — usamos el índice cacheado.
+  const since14=daysAgo(14).getTime();
+  if(Math.abs(sinceDate.getTime()-since14)<2*86400000){
+    if(_idx14Version!==_stateVersion)_buildIdx14();
+    return _idx14.get(pid)||0;
+  }
+  // Camino lento (rango de fecha distinto, poco frecuente): escaneo directo como antes.
   let u=0;
   ventas().forEach(v=>{if(new Date(v.fecha)<sinceDate)return;
     (v.items||[]).forEach(i=>{if(i.producto_id===pid)u+=+i.cantidad||0;});});
@@ -727,31 +753,41 @@ const DIAS_FULL=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sá
 const DIAS_SHORT=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 // Análisis profundo por producto: demanda por día de semana + hora pico
-function analizarProducto(pid, dias=42){
+// Índice cacheado del análisis de 42 días por producto (día de semana + hora pico).
+// Antes: generarInsights() llamaba analizarProducto() una vez por cada uno de los 149 productos,
+// y CADA llamada reescaneaba las 970 ventas completas — hasta 144,000+ operaciones en cada apertura
+// del Resumen o del Asesor. Ahora: un solo recorrido de las ventas, resultado por producto en caché.
+let _idx42Version=-1, _idx42=null;
+function _buildIdx42(dias=42){
   const desde=daysAgo(dias);
-  const porDia=Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)}));
-  let totalUnid=0, totalVentas=0;
+  const idx=new Map();
   ventas().forEach(v=>{
     const f=new Date(v.fecha); if(f<desde)return;
+    const dia=f.getDay(), hr=f.getHours();
     (v.items||[]).forEach(i=>{
-      if(i.producto_id!==pid)return;
-      const dia=f.getDay(), hr=f.getHours();
-      porDia[dia].unid+=+i.cantidad||0;
-      porDia[dia].ventas++;
-      porDia[dia].horas[hr]+=+i.cantidad||0;
-      totalUnid+=+i.cantidad||0; totalVentas++;
+      const pid=i.producto_id;if(!pid)return;
+      let e=idx.get(pid);
+      if(!e){e={porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),totalUnid:0,totalVentas:0};idx.set(pid,e);}
+      e.porDia[dia].unid+=+i.cantidad||0;
+      e.porDia[dia].ventas++;
+      e.porDia[dia].horas[hr]+=+i.cantidad||0;
+      e.totalUnid+=+i.cantidad||0; e.totalVentas++;
     });
   });
-  // Cuántas semanas de datos hay
+  _idx42=idx;_idx42Version=_stateVersion;
+}
+
+function analizarProducto(pid, dias=42){
+  if(_idx42Version!==_stateVersion)_buildIdx42(dias);
+  const e=_idx42.get(pid)||{porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),totalUnid:0,totalVentas:0};
   const semanas=Math.max(1,Math.ceil(dias/7));
-  // Promedio por día de semana
-  const promDia=porDia.map((d,i)=>({
+  const promDia=e.porDia.map((d,i)=>({
     dia:i, unidPorSemana:d.unid/semanas, ventas:d.ventas,
     horaPico:d.horas.indexOf(Math.max(...d.horas)),
     pico:Math.max(...d.horas)
   }));
-  const avgDiario=totalUnid/dias;
-  return {pid, totalUnid, totalVentas, avgDiario, promDia, semanas};
+  const avgDiario=e.totalUnid/dias;
+  return {pid, totalUnid:e.totalUnid, totalVentas:e.totalVentas, avgDiario, promDia, semanas};
 }
 
 // Detecta el día más fuerte de un producto vs su promedio
@@ -3052,11 +3088,12 @@ async function start(){
 // Autosanación: corre sola al abrir la app, al recuperar conexión, y al volver de segundo plano.
 // Así ningún dato queda atrapado en un solo aparato sin que nadie tenga que acordarse de nada.
 let _autoResyncBusy=false;
-let _lastAutoSyncAt=null; // primera pasada = catch-up completo; luego solo lo que cambió (evita re-subir todo cada vez)
 async function _autoResync(){
   if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
   _autoResyncBusy=true;
-  const desde=_lastAutoSyncAt; // null la primera vez → catch-up completo una sola vez por sesión
+  // Guardado en state.config (persiste en localStorage) — así un refresh de página NO vuelve
+  // a disparar un catch-up completo cada vez. Solo se hace una vez por dispositivo, para siempre.
+  const desde=state.config._lastAutoSyncAt||null;
   const marcaTiempo=new Date().toISOString();
   try{
     const fallos=await cloudPushAll(state.cloud.businessId,desde);
@@ -3065,7 +3102,7 @@ async function _autoResync(){
       if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Hay datos sin subir a la nube','bad');}
       // no avanzamos la marca de tiempo si algo falló — para reintentar esas filas la próxima vez
     }else{
-      _lastAutoSyncAt=marcaTiempo;
+      state.config._lastAutoSyncAt=marcaTiempo;save();
       if(_syncFailCount>0){
         // se había marcado un fallo antes y ahora sí subió todo — avisamos que ya sanó
         _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
