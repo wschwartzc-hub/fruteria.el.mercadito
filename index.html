@@ -349,7 +349,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.9.0';
+const APP_VERSION = '3.9.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2653,12 +2653,16 @@ function vGastos(){
   const row=g=>{
     const d=new Date(g.fecha).toLocaleDateString('es-MX',{day:'numeric',month:'short'});
     const hora=new Date(g.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
-    return `<div class="between" style="padding:10px 0;border-bottom:1px solid var(--line)">
+    return `<div class="between" style="padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer"
+      onclick="openAddGasto('${g.id}')">
       <div>
         <div style="font-weight:600;font-size:14px">${g.concepto||'Gasto'}</div>
         <div class="tiny muted">${g.categoria?g.categoria+' · ':''}${d} ${hora}</div>
       </div>
-      <span style="font-weight:800;color:var(--rose);font-size:15px">-${money(g.monto)}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-weight:800;color:var(--rose);font-size:15px">-${money(g.monto)}</span>
+        <span style="color:var(--faint);font-size:16px">›</span>
+      </div>
     </div>`;};
 
   const seccion=(titulo,lista,tot,color)=>lista.length?`
@@ -2689,13 +2693,16 @@ function vGastos(){
   ${seccion('🔄 Gastos variables',variables,totVar,'#f59e0b')}
   <div style="height:14px"></div>`;}
 
-function openAddGasto(){
-  window._gastoTipoSel='variable';window._gastoCategoria='';
-  openSheet(`<h2>Registrar gasto</h2>
+function openAddGasto(id){
+  const g=id?(state.caja||[]).find(c=>c.id===id):null;
+  window._gastoEditId=id||null;
+  window._gastoTipoSel=g?_gastoTipo(g):'variable';
+  window._gastoCategoria=g?(g.categoria||''):'';
+  openSheet(`<h2>${g?'Editar gasto':'Registrar gasto'}</h2>
   <div class="field"><label>Tipo de gasto</label>
     <div class="seg" style="margin-top:4px">
-      <button id="gtFijo" onclick="window._setGastoTipo('fijo')">🏛️ Fijo</button>
-      <button id="gtVar" class="on" onclick="window._setGastoTipo('variable')">🔄 Variable</button>
+      <button id="gtFijo" class="${window._gastoTipoSel==='fijo'?'on':''}" onclick="window._setGastoTipo('fijo')">🏛️ Fijo</button>
+      <button id="gtVar" class="${window._gastoTipoSel==='variable'?'on':''}" onclick="window._setGastoTipo('variable')">🔄 Variable</button>
     </div>
     <p class="tiny muted" style="margin-top:6px">
       <b>Fijo</b>: se repite cada mes sin importar cuánto vendas (renta, nómina, luz).<br>
@@ -2705,10 +2712,11 @@ function openAddGasto(){
   <div class="field"><label>Categoría</label>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="gastoCats"></div></div>
   <div class="field"><label>Descripción</label>
-    <input id="gastoConcepto" placeholder="Ej: Bolsas de plástico, pago de luz..." autocomplete="off"></div>
+    <input id="gastoConcepto" placeholder="Ej: Bolsas de plástico, pago de luz..." autocomplete="off" value="${g?(g.concepto||'').replace(/"/g,'&quot;'):''}"></div>
   <div class="field"><label>Monto ($)</label>
-    <input id="gastoMonto" type="number" inputmode="decimal" placeholder="0"></div>
-  <button class="btn primary block" onclick="window._guardarGasto()">Guardar gasto</button>
+    <input id="gastoMonto" type="number" inputmode="decimal" placeholder="0" value="${g?g.monto:''}"></div>
+  <button class="btn primary block" onclick="window._guardarGasto()">${g?'Guardar cambios':'Guardar gasto'}</button>
+  ${g?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="window._eliminarGasto('${id}')">🗑️ Eliminar gasto</button>`:''}
   <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet()">Cancelar</button>`);
   window._renderGastoCats();}
 
@@ -2721,9 +2729,11 @@ window._setGastoTipo=function(tipo){
 window._renderGastoCats=function(){
   const cats=(window._gastoTipoSel==='fijo'?GASTO_CATS_FIJO:GASTO_CATS_VAR);
   const wrap=document.getElementById('gastoCats');if(!wrap)return;
-  wrap.innerHTML=cats.map(c=>`<button onclick="window._setGastoCat(this,'${c}')"
-    style="padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);font-size:13px;cursor:pointer;
-    background:transparent;color:var(--text);white-space:nowrap">${c}</button>`).join('');};
+  const sel=window._gastoCategoria;
+  wrap.innerHTML=cats.map(c=>{const on=c===sel;
+    return `<button onclick="window._setGastoCat(this,'${c}')"
+    style="padding:6px 12px;border-radius:20px;border:1.5px solid ${on?'var(--green)':'var(--line)'};font-size:13px;cursor:pointer;
+    background:${on?'var(--green)':'transparent'};color:${on?'#fff':'var(--text)'};white-space:nowrap">${c}</button>`;}).join('');};
 
 window._setGastoCat=function(btn,cat){
   window._gastoCategoria=cat;
@@ -2736,12 +2746,30 @@ window._guardarGasto=function(){
   const monto=parseFloat((document.getElementById('gastoMonto')||{value:'0'}).value)||0;
   if(!concepto){toast('Pon el concepto del gasto','bad');return;}
   if(monto<=0){toast('El monto debe ser mayor a $0','bad');return;}
-  const g={id:uid(),business_id:state.business.id,fecha:now(),tipo:'salida',
-    monto,concepto,categoria:window._gastoCategoria||'',
-    tipo_gasto:window._gastoTipoSel||'variable',
-    usuario:state.member.nombre||'—',deleted:false,updated_at:now()};
-  state.caja.push(g);save();push('caja',g);
-  closeSheet();render();toast('Gasto registrado -'+money(monto),'ok');};
+  const editId=window._gastoEditId;
+  if(editId){
+    const g=(state.caja||[]).find(c=>c.id===editId);
+    if(!g){toast('No se encontró el gasto','bad');return;}
+    g.concepto=concepto;g.monto=monto;g.categoria=window._gastoCategoria||'';
+    g.tipo_gasto=window._gastoTipoSel||'variable';g.updated_at=now();
+    save();push('caja',g);
+    closeSheet();render();toast('Gasto actualizado ✓','ok');
+  }else{
+    const g={id:uid(),business_id:state.business.id,fecha:now(),tipo:'salida',
+      monto,concepto,categoria:window._gastoCategoria||'',
+      tipo_gasto:window._gastoTipoSel||'variable',
+      usuario:state.member.nombre||'—',deleted:false,updated_at:now()};
+    state.caja.push(g);save();push('caja',g);
+    closeSheet();render();toast('Gasto registrado -'+money(monto),'ok');
+  }
+};
+
+window._eliminarGasto=function(id){
+  const g=(state.caja||[]).find(c=>c.id===id);if(!g)return;
+  if(!confirm('¿Eliminar este gasto de '+money(g.monto)+'?'))return;
+  g.deleted=true;g.updated_at=now();save();push('caja',g);
+  closeSheet();render();toast('Gasto eliminado');
+};
 
 
 function openSheet(html){
