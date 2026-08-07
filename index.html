@@ -349,7 +349,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.8.1';
+const APP_VERSION = '3.9.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -379,6 +379,7 @@ function toast(msg,kind=''){const t=$('#toast');t.textContent=msg;t.className='s
 /* ============================ ESTADO ============================ */
 const LS='fruteria_db_v1';
 const safeNum=(v,def=0)=>{const n=+v;return Number.isFinite(n)?n:def;};
+const _uuidRe=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let state = load();
 let cart = [];           // venta en curso
 let posCat = 'Todo';
@@ -414,12 +415,36 @@ function sanitizeState(s){
   return s;
 }
 
+// Migración de IDs: el catálogo base original usaba ids tipo "prod-23" (no son UUID válidos).
+// La columna id en Supabase exige formato UUID estricto — cualquier producto con un id así
+// NUNCA puede subirse a la nube, sin importar cuántas veces se reintente (rechazo permanente,
+// no un problema de conexión). Aquí les asignamos un UUID real y actualizamos todas las
+// referencias cruzadas (ventas, compras, mermas) para que sigan apuntando al producto correcto.
+function migrarIdsNoValidos(s){
+  const idMap={};
+  (s.productos||[]).forEach(p=>{
+    if(p.id&&!_uuidRe.test(p.id)){
+      const nuevo=uid();
+      idMap[p.id]=nuevo;
+      p.id=nuevo;
+      p.updated_at=now(); // se trata como cambio nuevo, listo para subir con el id correcto
+    }
+  });
+  if(!Object.keys(idMap).length)return s; // nada que migrar — salida rápida
+  (s.ventas||[]).forEach(v=>(v.items||[]).forEach(i=>{if(idMap[i.producto_id])i.producto_id=idMap[i.producto_id];}));
+  (s.compras||[]).forEach(c=>(c.items||[]).forEach(i=>{if(idMap[i.producto_id])i.producto_id=idMap[i.producto_id];}));
+  (s.mermas||[]).forEach(m=>{if(idMap[m.producto_id])m.producto_id=idMap[m.producto_id];});
+  console.warn('Migrados '+Object.keys(idMap).length+' producto(s) con id inválido a UUID real.');
+  return s;
+}
+
 function load(){
   let s;
   try{const r=localStorage.getItem(LS);if(r)s=JSON.parse(r);}catch(e){}
   if(!s){s=blank();s.productos=seed(s.business.id);}
   if(!s.productos||!s.productos.length)s.productos=seed(s.business.id);
   s=sanitizeState(s);
+  s=migrarIdsNoValidos(s);
   try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}
   return s;
 }
