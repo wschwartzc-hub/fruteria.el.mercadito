@@ -360,7 +360,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.0.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -661,6 +661,12 @@ window._pinCancel=function(){
 };
 
 window._pinIniciarSetup=function(){_pinStage='setup1';_pinBuffer='';_pinFirstEntry='';_pinErrorTxt='';render();};
+
+window._pinBloquear=function(){
+  _pinUnlocked=false;
+  toast('🔒 Bloqueado','ok');
+  go('vender');
+};
 
 window._pinQuitar=function(){
   if(!confirm('¿Quitar la protección con PIN?'))return;
@@ -1125,7 +1131,8 @@ function vAsesor(){
       predicciones de stock y consejos para reducir merma.</div></div>`;
   }
 
-  return `<button class="link" onclick="go('inteligencia')">← Resumen</button>
+  return `<div class="between"><button class="link" onclick="go('inteligencia')">← Resumen</button>
+  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)" aria-label="Bloquear">🔓</button>`:''}</div>
   <div class="sec-title" style="margin-bottom:2px">Asesor inteligente</div>
   <div class="tiny muted" style="margin:0 0 4px 2px">Análisis de tus patrones de venta · ${hoy}</div>
   ${body}
@@ -2167,9 +2174,10 @@ function vMas(){const cl=state.cloud;
     <div class="between">
       <div><div class="b">PIN activado</div>
         <div class="tiny muted">Protege Resumen, Rentabilidad, Gastos y Asesor</div></div>
-      <span class="chip g">🔒 Activo</span>
+      <span class="chip g">${_pinUnlocked?'🔓 Desbloqueado':'🔒 Bloqueado'}</span>
     </div>
-    <button class="btn block sm" style="margin-top:12px" onclick="window._pinIniciarSetup()">Cambiar PIN</button>
+    ${_pinUnlocked?`<button class="btn block sm" style="margin-top:12px" onclick="window._pinBloquear()">🔒 Bloquear ahora</button>`:''}
+    <button class="btn block sm" style="margin-top:${_pinUnlocked?'8px':'12px'}" onclick="window._pinIniciarSetup()">Cambiar PIN</button>
     <button class="btn block sm" style="margin-top:8px;color:var(--rose)" onclick="window._pinQuitar()">Quitar PIN</button>
     `:`
     <div class="tiny muted" style="margin-bottom:10px">
@@ -2626,7 +2634,8 @@ function vRentabilidad(){
     font-size:12px;font-weight:700;cursor:pointer;background:${rentPreset===k?'var(--green)':'transparent'};
     color:${rentPreset===k?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
   return `
-  <button class="link" onclick="go('inteligencia')">← Resumen</button>
+  <div class="between"><button class="link" onclick="go('inteligencia')">← Resumen</button>
+  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)" aria-label="Bloquear">🔓</button>`:''}</div>
   <div class="sec-title">Rentabilidad</div>
   <div class="card pad" style="margin-bottom:0">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -2820,7 +2829,8 @@ function vGastos(){
     </div>
     <div class="card pad">${lista.map(row).join('')}</div>`:'';
 
-  return `<button class="link" onclick="go('movimientos')">← Movimientos</button>
+  return `<div class="between"><button class="link" onclick="go('movimientos')">← Movimientos</button>
+  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)" aria-label="Bloquear">🔓</button>`:''}</div>
   <div class="kpis" style="margin-top:0">
     <div class="kpi"><div class="k-lbl">Gastos hoy</div><div class="k-val money neg">${money0(hoyG)}</div></div>
     <div class="kpi"><div class="k-lbl">Total registrado</div><div class="k-val money neg">${money0(total)}</div></div>
