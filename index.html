@@ -189,7 +189,8 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
   max-height:calc(100vh - 48px - env(safe-area-inset-top,0px));
   display:flex;flex-direction:column;overflow:hidden;position:relative;
   animation:up .26s cubic-bezier(.16,1,.3,1);box-shadow:var(--sh-lg)}
-.sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 18px calc(20px + var(--safe-b))}
+.sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 18px calc(20px + var(--safe-b));
+  flex:1;min-height:0}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
 .sheet .grab{width:42px;height:5px;border-radius:99px;background:var(--line-2);margin:8px auto 18px}
 .sheet h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:2px;padding-right:38px}
@@ -360,7 +361,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.1.2';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
