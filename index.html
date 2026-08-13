@@ -360,7 +360,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.1.0';
+const APP_VERSION = '4.1.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -674,6 +674,42 @@ window._pinQuitar=function(){
   _pinUnlocked=true;render();toast('PIN eliminado');
 };
 
+// Cambiar o quitar el PIN exige confirmar la contraseña de la cuenta — así nadie
+// puede desactivar la protección solo por tener la tablet desbloqueada en la mano.
+window._pinAskPassword=function(onSuccess){
+  if(!sb||!sbUser){
+    toast('Necesitas estar conectado a la nube para esto','bad');return;
+  }
+  openSheet(`<h2>Confirma tu contraseña</h2>
+  <p class="sub">Para cambiar o quitar el PIN, escribe la contraseña de tu cuenta<br>(${sbUser.email})</p>
+  <div class="field"><label>Contraseña</label>
+    <input id="pinPassInput" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+  <div id="pinPassErr" class="tiny" style="color:var(--rose);min-height:16px;margin-bottom:10px"></div>
+  <button class="btn primary block" onclick="window._pinVerifyPassword()">Confirmar</button>
+  <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet()">Cancelar</button>`);
+  window._pinPassCallback=onSuccess;
+};
+
+window._pinVerifyPassword=async function(){
+  const pass=(document.getElementById('pinPassInput')||{value:''}).value;
+  const err=document.getElementById('pinPassErr');
+  if(!pass){if(err)err.textContent='Escribe tu contraseña';return;}
+  const btn=document.querySelector('.sheet .btn.primary');
+  if(btn){btn.textContent='Verificando...';btn.disabled=true;}
+  try{
+    const{error}=await sb.auth.signInWithPassword({email:sbUser.email,password:pass});
+    if(error){
+      if(err)err.textContent='Contraseña incorrecta';
+      if(btn){btn.textContent='Confirmar';btn.disabled=false;}
+      return;
+    }
+    closeSheet();
+    if(window._pinPassCallback)window._pinPassCallback();
+  }catch(e){
+    if(err)err.textContent='Error al verificar — revisa tu conexión';
+    if(btn){btn.textContent='Confirmar';btn.disabled=false;}
+  }
+};
 
 let currentView='inteligencia';
 function go(v){
@@ -2205,8 +2241,8 @@ function vMas(){const cl=state.cloud;
       <span class="chip g">${_pinUnlocked?'🔓 Desbloqueado':'🔒 Bloqueado'}</span>
     </div>
     ${_pinUnlocked?`<button class="btn block sm" style="margin-top:12px" onclick="window._pinBloquear()">🔒 Bloquear ahora</button>`:''}
-    <button class="btn block sm" style="margin-top:${_pinUnlocked?'8px':'12px'}" onclick="window._pinIniciarSetup()">Cambiar PIN</button>
-    <button class="btn block sm" style="margin-top:8px;color:var(--rose)" onclick="window._pinQuitar()">Quitar PIN</button>
+    <button class="btn block sm" style="margin-top:${_pinUnlocked?'8px':'12px'}" onclick="window._pinAskPassword(window._pinIniciarSetup)">Cambiar PIN</button>
+    <button class="btn block sm" style="margin-top:8px;color:var(--rose)" onclick="window._pinAskPassword(window._pinQuitar)">Quitar PIN</button>
     `:`
     <div class="tiny muted" style="margin-bottom:10px">
       Pide un PIN de 4 a 6 dígitos para ver los números del negocio, la rentabilidad,
