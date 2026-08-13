@@ -360,7 +360,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.1.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1639,9 +1639,12 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     <div class="field"><label>Costo (lo que te cuesta)</label><input id="pCosto" class="num" inputmode="decimal" value="${e.costo||''}" placeholder="$0" oninput="window._pCalc()"></div>
     <div class="field"><label>Precio de venta</label><input id="pPrecio" class="num" inputmode="decimal" value="${e.precio_venta||''}" placeholder="$0" oninput="window._pCalc()"></div>
   </div>
-  <div id="pCalcBox" style="display:none;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin:-4px 0 14px;font-size:13px">
+  <div id="pCalcBox" style="display:none;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin:-4px 0 6px;font-size:13px">
     <div class="between"><span class="muted">Margen (sobre el precio)</span><b id="pCalcMargen">—</b></div>
     <div class="between" style="margin-top:3px"><span class="muted">Markup (sobre el costo)</span><b id="pCalcMarkup">—</b></div>
+    <button onclick="window._pCalcToggle()" style="background:none;border:none;color:var(--green-d);font-size:12px;font-weight:700;padding:6px 0 0;cursor:pointer">
+      <span id="pCalcToggleTxt">❓ ¿Cómo se calcula esto?</span></button>
+    <div id="pCalcExplain" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);line-height:1.5"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Stock actual</label><input id="pStock" class="num" inputmode="decimal" value="${e.stock||''}" placeholder="0"></div>
@@ -1679,12 +1682,37 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     const box=document.getElementById('pCalcBox');if(!box)return;
     if(c<=0||pr<=0){box.style.display='none';return;}
     box.style.display='block';
-    const margen=(pr-c)/pr*100, markup=(pr-c)/c*100;
+    const ganancia=pr-c;
+    const margen=ganancia/pr*100, markup=ganancia/c*100;
     document.getElementById('pCalcMargen').textContent=margen.toFixed(1)+'%';
     document.getElementById('pCalcMarkup').textContent=markup.toFixed(1)+'%';
+    const exp=document.getElementById('pCalcExplain');
+    if(exp)exp.innerHTML=`
+      <div style="margin-bottom:8px"><b>Margen ${margen.toFixed(1)}%</b> — de cada ${money(pr)} que paga el cliente,
+      ${money(ganancia)} son ganancia:</div>
+      <div class="tiny muted" style="margin-bottom:10px">
+        ${money(pr)} − ${money(c)} = ${money(ganancia)} de ganancia<br>
+        ${money(ganancia)} ÷ ${money(pr)} = ${(ganancia/pr).toFixed(3)} → <b>${margen.toFixed(1)}%</b>
+      </div>
+      <div style="margin-bottom:6px"><b>Markup ${markup.toFixed(1)}%</b> — es lo mismo de ganancia,
+      pero comparado contra el costo en vez del precio:</div>
+      <div class="tiny muted">
+        ${money(ganancia)} ÷ ${money(c)} = ${(ganancia/c).toFixed(3)} → <b>${markup.toFixed(1)}%</b>
+      </div>
+      <div class="tiny muted" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
+        💡 Son la misma ganancia en pesos — solo cambia contra qué número la comparas.
+        El markup siempre sale más alto que el margen (excepto si es $0).
+      </div>`;
   };
   window._pCalc();
 }
+window._pCalcToggle=function(){
+  const exp=document.getElementById('pCalcExplain');const txt=document.getElementById('pCalcToggleTxt');
+  if(!exp)return;
+  const abierto=exp.style.display!=='none';
+  exp.style.display=abierto?'none':'block';
+  txt.textContent=abierto?'❓ ¿Cómo se calcula esto?':'▲ Ocultar explicación';
+};
 function saveProd(id,exists){
   const nombre=$('#pNombre').value.trim();if(!nombre){toast('Ponle nombre','bad');return;}
   const data={nombre,categoria:$('#pCat').value,unidad:$('#pUnidad').value,
