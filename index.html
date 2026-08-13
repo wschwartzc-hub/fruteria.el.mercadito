@@ -200,6 +200,17 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
   background:var(--surface);border:1.5px solid var(--line-2);font-size:16px;font-weight:700;cursor:pointer;z-index:5;
   display:grid;place-items:center;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.08)}
 
+/* PIN de seguridad */
+.pin-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line-2);background:transparent;transition:.15s}
+.pin-dot.on{background:var(--green);border-color:var(--green)}
+.pin-dot.err{background:var(--rose);border-color:var(--rose)}
+.pin-key{width:66px;height:66px;border-radius:33px;background:var(--surface-2);font-size:24px;font-weight:600;
+  color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-user-select:none;user-select:none}
+.pin-key:active{background:var(--line-2)}
+@keyframes pinshake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}
+  30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
+.pin-shake{animation:pinshake .4s}
+
 /* qty entry */
 .qty-display{text-align:center;padding:14px;background:var(--surface-2);border-radius:16px;margin-bottom:14px}
 .qty-display .qd-emj{font-size:40px}
@@ -349,7 +360,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '4.0.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -392,7 +403,7 @@ function blank(){return {
   business:{id:uid(),nombre:'Frutería El Mercadito'},
   member:{nombre:'Dueño',rol:'dueno'},
   productos:[], ventas:[], compras:[], mermas:[], caja:[], clientes:[],
-  config:{folio:1, lowAlert:true, nextNumCliente:1, terminalNombre:'Clip', mpComision:0},
+  config:{folio:1, lowAlert:true, nextNumCliente:1, terminalNombre:'Clip', mpComision:0, pinHash:null, pinLength:null},
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
 function sanitizeState(s){
@@ -562,15 +573,117 @@ function enRiesgo(p){
 
 
 
-/* ============================ ROUTING / RENDER ============================ */
+/* ============================ PIN DE SEGURIDAD ============================ */
+// Protege pantallas con información sensible del negocio (números, gastos con posibles sueldos).
+// El PIN vive a nivel negocio en la nube (frt_businesses), no por dispositivo — así protege
+// en cualquier aparato donde se abra la app. Se desbloquea una vez por sesión, como el PIN del iPhone.
+const PIN_PROTECTED=['inteligencia','rentabilidad','gastos','asesor'];
+let _pinUnlocked=false;
+let _pinBuffer='';
+let _pinStage=null; // null | 'setup1' | 'setup2' | 'unlock'
+let _pinFirstEntry='';
+let _pinTargetView='inteligencia';
+let _pinErrorTxt='';
+
+async function hashPin(pin){
+  const enc=new TextEncoder().encode('frt-pin-salt-v1:'+pin);
+  const buf=await crypto.subtle.digest('SHA-256',enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function vPinLock(){
+  const setup=_pinStage==='setup1'||_pinStage==='setup2';
+  const titulo=_pinStage==='setup1'?'Crea tu PIN':_pinStage==='setup2'?'Confirma tu PIN':'Ingresa tu PIN';
+  const sub=_pinStage==='setup1'?'Entre 4 y 6 dígitos':_pinStage==='setup2'?'Vuelve a escribirlo para confirmar':'Protege los números de tu negocio';
+  const maxLen=setup?6:(state.config.pinLength||6);
+  const dots=Array(maxLen).fill(0).map((_,i)=>`<span class="pin-dot ${i<_pinBuffer.length?'on':''}"></span>`).join('');
+  const key=n=>`<button class="pin-key" onclick="window._pinPress('${n}')">${n}</button>`;
+  return `
+  <div id="pinWrap" style="min-height:64vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 10px">
+    <div style="font-size:38px;margin-bottom:6px">🔒</div>
+    <div style="font-size:19px;font-weight:800;margin-bottom:4px">${titulo}</div>
+    <div class="tiny muted" style="margin-bottom:22px;text-align:center">${sub}</div>
+    <div id="pinDotsRow" style="display:flex;gap:14px;margin-bottom:8px">${dots}</div>
+    <div class="tiny" style="color:var(--rose);font-weight:700;height:16px;margin-bottom:14px">${_pinErrorTxt}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,66px);gap:16px">
+      ${[1,2,3,4,5,6,7,8,9].map(key).join('')}
+      <div></div>${key(0)}
+      <button class="pin-key" onclick="window._pinDel()" style="font-size:20px">⌫</button>
+    </div>
+    ${setup&&_pinBuffer.length>=4?`<button class="btn primary block" style="max-width:230px;margin-top:24px" onclick="window._pinNext()">Listo ✓</button>`:''}
+    <button class="btn ghost sm" style="margin-top:18px;color:var(--muted)" onclick="window._pinCancel()">‹ Volver</button>
+  </div>`;
+}
+
+window._pinPress=function(n){
+  const maxLen=(_pinStage==='setup1'||_pinStage==='setup2')?6:(state.config.pinLength||6);
+  if(_pinBuffer.length>=maxLen)return;
+  _pinBuffer+=n; _pinErrorTxt='';
+  render();
+  if(_pinStage==='unlock'&&_pinBuffer.length===(state.config.pinLength||6))window._pinVerify();
+};
+window._pinDel=function(){_pinBuffer=_pinBuffer.slice(0,-1);render();};
+
+window._pinNext=function(){
+  if(_pinBuffer.length<4){_pinErrorTxt='Mínimo 4 dígitos';render();return;}
+  if(_pinStage==='setup1'){_pinFirstEntry=_pinBuffer;_pinBuffer='';_pinStage='setup2';render();return;}
+  if(_pinStage==='setup2'){
+    if(_pinBuffer!==_pinFirstEntry){
+      _pinErrorTxt='No coincide — intenta de nuevo';_pinBuffer='';_pinFirstEntry='';_pinStage='setup1';render();return;
+    }
+    (async()=>{
+      state.config.pinHash=await hashPin(_pinBuffer);
+      state.config.pinLength=_pinBuffer.length;
+      save();await pushPinToCloud();
+      _pinUnlocked=true;_pinStage=null;_pinBuffer='';_pinFirstEntry='';
+      go('mas');toast('PIN configurado ✓','ok');
+    })();
+  }
+};
+
+window._pinVerify=async function(){
+  const hash=await hashPin(_pinBuffer);
+  if(hash===state.config.pinHash){
+    _pinUnlocked=true;_pinStage=null;_pinBuffer='';_pinErrorTxt='';
+    go(_pinTargetView);
+  }else{
+    _pinErrorTxt='PIN incorrecto';_pinBuffer='';
+    const dots=document.getElementById('pinDotsRow');
+    if(dots){dots.classList.add('pin-shake');setTimeout(()=>dots.classList.remove('pin-shake'),400);}
+    render();
+  }
+};
+
+window._pinCancel=function(){
+  const wasSetup=_pinStage==='setup1'||_pinStage==='setup2';
+  _pinStage=null;_pinBuffer='';_pinFirstEntry='';_pinErrorTxt='';
+  go(wasSetup?'mas':'vender');
+};
+
+window._pinIniciarSetup=function(){_pinStage='setup1';_pinBuffer='';_pinFirstEntry='';_pinErrorTxt='';render();};
+
+window._pinQuitar=function(){
+  if(!confirm('¿Quitar la protección con PIN?'))return;
+  state.config.pinHash=null;state.config.pinLength=null;save();pushPinToCloud();
+  _pinUnlocked=true;render();toast('PIN eliminado');
+};
+
+
 let currentView='inteligencia';
-function go(v){currentView=v; render();
+function go(v){
+  if(PIN_PROTECTED.includes(v)&&state.config.pinHash&&!_pinUnlocked){
+    _pinTargetView=v;_pinStage='unlock';_pinBuffer='';_pinErrorTxt='';
+    render();return;
+  }
+  _pinStage=null; // navegar a cualquier vista (protegida ya desbloqueada, o libre) limpia el candado pegado
+  currentView=v; render();
   document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
   window.scrollTo({top:0,behavior:'smooth'});
   if(v==='mas'&&!window._climaHTML)cargarClima();}
 function render(){
   $('#bizName').textContent = state.business.nombre || 'Frutería';
   const m=$('#main');
+  if(_pinStage){m.innerHTML=`<div class="view">${vPinLock()}</div>`;return;}
   const views={inteligencia:vInteligencia,inventario:vInventario,vender:vVender,
                movimientos:vMovimientos,mas:vMas,productos:vProductos,compras:vCompras,
                merma:vMerma,caja:vCaja,historial:vHistorial,clientes:vClientes,
@@ -1516,8 +1629,12 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
   <div class="field"><label>¿Cómo lo vendes?</label><select id="pUnidad">
     ${UNITS.map(u=>`<option value="${u}" ${u===e.unidad?'selected':''}>${u==='kg'?'Por kilo (peso)':'Por '+u}</option>`).join('')}</select></div>
   <div class="grid2">
-    <div class="field"><label>Costo (lo que te cuesta)</label><input id="pCosto" class="num" inputmode="decimal" value="${e.costo||''}" placeholder="$0"></div>
-    <div class="field"><label>Precio de venta</label><input id="pPrecio" class="num" inputmode="decimal" value="${e.precio_venta||''}" placeholder="$0"></div>
+    <div class="field"><label>Costo (lo que te cuesta)</label><input id="pCosto" class="num" inputmode="decimal" value="${e.costo||''}" placeholder="$0" oninput="window._pCalc()"></div>
+    <div class="field"><label>Precio de venta</label><input id="pPrecio" class="num" inputmode="decimal" value="${e.precio_venta||''}" placeholder="$0" oninput="window._pCalc()"></div>
+  </div>
+  <div id="pCalcBox" style="display:none;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin:-4px 0 14px;font-size:13px">
+    <div class="between"><span class="muted">Margen (sobre el precio)</span><b id="pCalcMargen">—</b></div>
+    <div class="between" style="margin-top:3px"><span class="muted">Markup (sobre el costo)</span><b id="pCalcMarkup">—</b></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Stock actual</label><input id="pStock" class="num" inputmode="decimal" value="${e.stock||''}" placeholder="0"></div>
@@ -1549,6 +1666,17 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     if(bar)bar.style.width=Math.min(100,v/30*100).toFixed(0)+'%';
     if(bar)bar.style.background=v<=4?'var(--rose)':v<=10?'var(--amber)':'var(--green)';
     if(lbl)lbl.textContent=v<=3?'⚠️ Muy perecedero — revisa diario':v<=7?'Normal para frutas frescas':'Aguanta bien en almacén';};
+  window._pCalc=()=>{
+    const c=parseFloat(document.getElementById('pCosto')?.value)||0;
+    const pr=parseFloat(document.getElementById('pPrecio')?.value)||0;
+    const box=document.getElementById('pCalcBox');if(!box)return;
+    if(c<=0||pr<=0){box.style.display='none';return;}
+    box.style.display='block';
+    const margen=(pr-c)/pr*100, markup=(pr-c)/c*100;
+    document.getElementById('pCalcMargen').textContent=margen.toFixed(1)+'%';
+    document.getElementById('pCalcMarkup').textContent=markup.toFixed(1)+'%';
+  };
+  window._pCalc();
 }
 function saveProd(id,exists){
   const nombre=$('#pNombre').value.trim();if(!nombre){toast('Ponle nombre','bad');return;}
@@ -2031,6 +2159,26 @@ function vMas(){const cl=state.cloud;
     <button class="lrow" style="width:100%;text-align:left" onclick="go('clientes')">
       <span class="l-emj">👤</span><div class="l-main"><div class="l-n">Clientes recurrentes</div>
       <div class="l-s">${(state.clientes||[]).filter(c=>!c.deleted).length} registrados</div></div><span class="l-r faint">›</span></button>
+  </div>
+
+  <div class="sec-title">Seguridad</div>
+  <div class="card pad">
+    ${state.config.pinHash?`
+    <div class="between">
+      <div><div class="b">PIN activado</div>
+        <div class="tiny muted">Protege Resumen, Rentabilidad, Gastos y Asesor</div></div>
+      <span class="chip g">🔒 Activo</span>
+    </div>
+    <button class="btn block sm" style="margin-top:12px" onclick="window._pinIniciarSetup()">Cambiar PIN</button>
+    <button class="btn block sm" style="margin-top:8px;color:var(--rose)" onclick="window._pinQuitar()">Quitar PIN</button>
+    `:`
+    <div class="tiny muted" style="margin-bottom:10px">
+      Pide un PIN de 4 a 6 dígitos para ver los números del negocio, la rentabilidad,
+      los gastos (pueden incluir sueldos) y el asesor inteligente. El resto de la app
+      (vender, inventario, etc.) queda libre.
+    </div>
+    <button class="btn primary block sm" onclick="window._pinIniciarSetup()">🔒 Configurar PIN</button>
+    `}
   </div>
 
   <div class="sec-title">Cuenta y respaldo</div>
@@ -2961,7 +3109,21 @@ async function cloudPull(silent){
     if(error){console.warn(t,error);continue;}
     mergeRows(t,data||[]);
   }
+  // El PIN vive a nivel negocio (no por dispositivo) — se trae de frt_businesses,
+  // no del batch de TABLES, para que proteja en cualquier aparato, no solo donde se configuró.
+  try{
+    const{data:biz}=await sb.from('frt_businesses').select('pin_hash,pin_length').eq('id',state.cloud.businessId).single();
+    if(biz){state.config.pinHash=biz.pin_hash||null;state.config.pinLength=biz.pin_length||null;}
+  }catch(e){console.warn('pin pull:',e);}
   save();render();if(!silent)toast('Sincronizado ✓','ok');
+}
+async function pushPinToCloud(){
+  if(!sb||!state.cloud.businessId)return;
+  try{
+    await sb.from('frt_businesses').update({
+      pin_hash:state.config.pinHash||null, pin_length:state.config.pinLength||null
+    }).eq('id',state.cloud.businessId);
+  }catch(e){console.warn('pin push:',e);}
 }
 function mergeRows(table,remote){const local=state[table]||[];const map={};
   local.forEach(r=>map[r.id]=r);
