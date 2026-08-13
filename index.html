@@ -184,21 +184,25 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 /* ============================ MODAL / SHEET ============================ */
 .scrim{position:fixed;inset:0;z-index:90;background:rgba(15,30,20,.5);backdrop-filter:blur(2px);
   display:flex;align-items:flex-end;justify-content:center;animation:fade .2s;
-  padding-top:calc(48px + env(safe-area-inset-top,0px))}
+  padding-top:calc(40px + env(safe-area-inset-top,0px))}
 .sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
-  max-height:calc(100vh - 48px - env(safe-area-inset-top,0px));
-  display:flex;flex-direction:column;overflow:hidden;position:relative;
+  max-height:calc(100vh - 40px - env(safe-area-inset-top,0px));
+  overflow:hidden;position:relative;
   animation:up .26s cubic-bezier(.16,1,.3,1);box-shadow:var(--sh-lg)}
-.sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 18px calc(20px + var(--safe-b));
-  flex:1;min-height:0}
+.sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:calc(100vh - 40px - env(safe-area-inset-top,0px));
+  padding:0 18px calc(20px + var(--safe-b))}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
-.sheet .grab{width:42px;height:5px;border-radius:99px;background:var(--line-2);margin:8px auto 18px}
+/* El encabezado (grab + botón cerrar) es STICKY dentro del propio contenedor que hace scroll —
+   así queda pegado arriba pase lo que pase con el tamaño del cuadro por fuera. Más simple y
+   robusto que depender de position:absolute combinado con cálculos de safe-area/flex. */
+.sheet-header{position:sticky;top:0;z-index:6;background:var(--surface);padding-top:14px;margin:0 -18px;padding-left:18px;padding-right:18px}
+.sheet .grab{width:42px;height:5px;border-radius:99px;background:var(--line-2);margin:0 auto 18px}
 .sheet h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:2px;padding-right:38px}
 .sheet .sub{color:var(--muted);font-size:13.5px;margin-bottom:16px}
-.modal-center{align-items:center;padding:18px;padding-top:calc(48px + env(safe-area-inset-top,0px))}
+.modal-center{align-items:center;padding:18px;padding-top:calc(40px + env(safe-area-inset-top,0px))}
 .modal-center .sheet{border-radius:22px;max-width:440px}
-.sheet-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:17px;
-  background:var(--surface);border:1.5px solid var(--line-2);font-size:16px;font-weight:700;cursor:pointer;z-index:5;
+.sheet-close{position:absolute;top:8px;right:0;width:34px;height:34px;border-radius:17px;
+  background:var(--surface);border:1.5px solid var(--line-2);font-size:16px;font-weight:700;cursor:pointer;z-index:7;
   display:grid;place-items:center;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.08)}
 
 /* PIN de seguridad */
@@ -361,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.1.2';
+const APP_VERSION = '4.1.3';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2998,7 +3002,10 @@ window._eliminarGasto=function(id){
 function openSheet(html){
   const xBtn=`<button class="sheet-close" onclick="closeSheet()" aria-label="Cerrar">✕</button>`;
   $('#modalRoot').innerHTML=`<div class="scrim" onclick="if(event.target===this)closeSheet()">
-    <div class="sheet">${xBtn}<div class="sheet-scroll"><div class="grab"></div>${html}</div></div></div>`;}
+    <div class="sheet"><div class="sheet-scroll">
+      <div class="sheet-header"><div class="grab"></div>${xBtn}</div>
+      ${html}
+    </div></div></div>`;}
 function closeSheet(){$('#modalRoot').innerHTML='';}
 
 /* ============================ TERMINAL DE COBRO (Clip u otra) ============================ */
