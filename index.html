@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.1.4';
+const APP_VERSION = '4.2.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -3371,9 +3371,16 @@ let _autoResyncBusy=false;
 async function _autoResync(){
   if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
   _autoResyncBusy=true;
-  const desde=state.config._lastAutoSyncAt||null;
-  const marcaTiempo=new Date().toISOString();
   try{
+    // Primero jalamos cambios de OTROS dispositivos. El canal de tiempo real puede
+    // quedarse "sordo" en silencio sin avisar (común en tablets/celulares: pantalla
+    // apagada, cambio de red) — sin este pull periódico, un dispositivo podía quedarse
+    // viendo datos viejos para siempre porque el ciclo automático solo subía cambios
+    // propios, nunca bajaba los ajenos.
+    await cloudPull(true);
+
+    const desde=state.config._lastAutoSyncAt||null;
+    const marcaTiempo=new Date().toISOString();
     const fallos=await cloudPushAll(state.cloud.businessId,desde);
     // IMPORTANTE: avanzamos la marca de tiempo SIEMPRE, incluso si algún registro falló.
     // El fallback fila-por-fila ya le dio a cada registro su oportunidad individual — si uno
