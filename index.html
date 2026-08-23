@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.2.1';
+const APP_VERSION = '4.3.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1521,6 +1521,22 @@ function terminalNoteHtml(tot){
 }
 function cartDel(i){cart.splice(i,1);renderTicketBar();if(!cart.length){closeSheet();return;}openCobro();}
 
+// Ajuste atómico de stock: la resta local es instantánea (para que la pantalla no
+// espere a la red), pero además confirmamos/corregimos contra el servidor en segundo
+// plano usando frt_ajustar_stock (UPDATE stock = stock + delta, atómico en Postgres).
+// Esto evita el bug real: dos ventas casi simultáneas en dispositivos distintos partían
+// del mismo stock local, y la que subía después SOBRESCRIBÍA por completo el resultado
+// de la primera con un número absoluto — perdiendo esa resta en vez de sumarse a ella.
+function ajustarStockAsync(producto_id,delta){
+  if(!(sb&&state.cloud.connected&&state.cloud.businessId))return; // sin conexión: se sincroniza normal después vía push
+  sb.rpc('frt_ajustar_stock',{p_producto_id:producto_id,p_delta:delta}).then(({data,error})=>{
+    if(error){console.warn('ajustarStock rpc:',error);return;}
+    if(data==null)return;
+    const p=findP(producto_id);
+    if(p&&Math.abs((p.stock||0)-data)>0.0001){p.stock=data;p.updated_at=now();save();render();}
+  }).catch(e=>console.warn('ajustarStock rpc:',e));
+}
+
 function finalizarVenta(){
   if(!cart.length)return;
   const sub=cartTotal();const tot=Math.max(0,sub-cartDiscount);
@@ -1533,10 +1549,13 @@ function finalizarVenta(){
     subtotal:sub,descuento:cartDiscount,total:tot,costo_total,
     comision_pct:comPct,comision_monto:comMonto,total_neto:Math.round((tot-comMonto)*100)/100,
     metodo_pago:payMethod,usuario:state.member.nombre,deleted:false,updated_at:now()};
-  // descontar inventario
-  cart.forEach(c=>{const p=findP(c.producto_id);if(p){p.stock=Math.round((p.stock-c.cantidad)*1000)/1000;p.updated_at=now();}});
+  // descontar inventario: resta local instantánea + confirmación atómica en el servidor
+  cart.forEach(c=>{const p=findP(c.producto_id);if(p){
+    p.stock=Math.round((p.stock-c.cantidad)*1000)/1000;p.updated_at=now();
+    ajustarStockAsync(c.producto_id,-c.cantidad);
+  }});
   state.ventas.push(venta);
-  save();push('ventas',venta);cart.forEach(c=>{const p=findP(c.producto_id);if(p)push('productos',p);});
+  save();push('ventas',venta);
   cart=[];cartDiscount=0;closeSheet();renderTicketBar();
   showSaleBar(venta);
 }
@@ -1876,7 +1895,8 @@ function saveMerma(pid){const p=findP(pid);const cant=parseFloat($('#mCant').val
     cantidad:cant,costo:p.costo,valor_perdido:Math.round(cant*p.costo*100)/100,motivo:$('#mMot').value,
     usuario:state.member.nombre,deleted:false,updated_at:now()};
   p.stock=Math.round((p.stock-cant)*1000)/1000;p.updated_at=now();
-  state.mermas.push(m);save();push('mermas',m);push('productos',p);
+  ajustarStockAsync(pid,-cant);
+  state.mermas.push(m);save();push('mermas',m);
   closeSheet();render();toast('Merma registrada ('+money(m.valor_perdido)+')','bad');
 }
 
