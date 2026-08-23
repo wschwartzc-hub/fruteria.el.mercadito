@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.5.0';
+const APP_VERSION = '4.6.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2403,14 +2403,19 @@ function vMas(){const cl=state.cloud;
     ${cl.connected?`
     <div class="between" style="margin-bottom:14px">
       <div><div class="b">Conectado</div>
-        <div class="tiny muted">${sbUser?sbUser.email:''}</div></div>
+        <div class="tiny muted">${sbUser?sbUser.email:''}</div>
+        <div class="tiny muted">Última sincronización: ${_haceCuanto(state.config._lastPullAt)||'—'}</div></div>
       <span class="chip g">Nube activa</span>
     </div>
+    <button class="btn primary block sm" onclick="window._verificarCuadre()">🔍 Verificar que todo cuadre</button>
+    <p class="tiny muted" style="margin:6px 0 12px">
+      Compara este dispositivo contra la nube y te dice si hay alguna diferencia.
+      Úsalo cuando quieras confirmar que no se perdió nada.</p>
     <button class="btn block sm" onclick="cloudPull(false)">↻ Descargar de la nube</button>
     <button class="btn block sm" style="margin-top:8px" onclick="window._resyncAll()">
       ⬆️ Forzar subida ahora</button>
     <p class="tiny muted" style="margin-top:6px">
-      La app sube tus datos a la nube automáticamente en segundo plano — no necesitas hacer nada.
+      La app sincroniza sola en segundo plano — no necesitas hacer nada.
       Estos botones son opcionales, por si quieres forzarlo manualmente.</p>
     <button class="btn block sm" style="margin-top:8px;color:var(--rose);border-color:var(--rose)" onclick="cloudLogout()">
       Cerrar sesión
@@ -3307,6 +3312,85 @@ async function cloudPushAll(bid,since){
   return fallos;
 }
 
+// Verificación de cuadre: compara TODO lo que hay en este dispositivo contra la nube
+// y reporta diferencias concretas. Da certeza sin sacrificar el modo offline.
+window._verificarCuadre=async function(){
+  if(!sb||!state.cloud.connected||!state.cloud.businessId){
+    toast('Necesitas estar conectado a la nube','bad');return;}
+  openSheet(`<h2>🔍 Verificando cuadre...</h2>
+    <p class="sub">Comparando este dispositivo contra la nube</p>
+    <div style="text-align:center;padding:30px 0;font-size:32px">⏳</div>`);
+  const dif=[];
+  try{
+    for(const t of TABLES){
+      const{data,error}=await sb.from(frt(t)).select('*').eq('business_id',state.cloud.businessId);
+      if(error){dif.push({tabla:t,tipo:'error',msg:'No se pudo leer de la nube'});continue;}
+      const nube=(data||[]).filter(r=>!r.deleted);
+      const local=(state[t]||[]).filter(r=>!r.deleted);
+      const nubeIds=new Set(nube.map(r=>r.id));
+      const localIds=new Set(local.map(r=>r.id));
+      const soloLocal=local.filter(r=>!nubeIds.has(r.id));
+      const soloNube=nube.filter(r=>!localIds.has(r.id));
+      if(soloLocal.length)dif.push({tabla:t,tipo:'falta_nube',n:soloLocal.length});
+      if(soloNube.length)dif.push({tabla:t,tipo:'falta_local',n:soloNube.length});
+      // Para productos comparamos además el stock, que es lo que más importa cuadrar
+      if(t==='productos'){
+        const mapN={};nube.forEach(r=>mapN[r.id]=r);
+        local.forEach(r=>{const n=mapN[r.id];
+          if(n&&Math.abs(safeNum(r.stock,0)-safeNum(n.stock,0))>0.001)
+            dif.push({tabla:t,tipo:'stock',nombre:r.nombre,local:safeNum(r.stock,0),nube:safeNum(n.stock,0)});});
+      }
+    }
+  }catch(e){dif.push({tabla:'—',tipo:'error',msg:e.message});}
+
+  const ETIQ={productos:'Productos',ventas:'Ventas',compras:'Compras',mermas:'Mermas',
+              caja:'Caja',clientes:'Clientes',stockLog:'Historial de stock'};
+  let html;
+  if(!dif.length){
+    html=`<h2>✅ Todo cuadra</h2>
+    <p class="sub">Este dispositivo y la nube tienen exactamente la misma información.</p>
+    <div style="background:#eaf7ee;border-radius:10px;padding:14px;margin:14px 0;font-size:14px">
+      No hay nada pendiente de subir ni de bajar. Puedes seguir vendiendo con confianza.
+    </div>`;
+  }else{
+    const filas=dif.map(dd=>{
+      if(dd.tipo==='stock')return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13.5px">${dd.nombre}</div>
+        <div class="tiny muted">Aquí dice <b>${_fmtNum(dd.local)}</b> · en la nube dice <b>${_fmtNum(dd.nube)}</b></div></div>`;
+      if(dd.tipo==='falta_nube')return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13.5px">${ETIQ[dd.tabla]||dd.tabla}</div>
+        <div class="tiny muted">${dd.n} registro(s) que aún no llegan a la nube</div></div>`;
+      if(dd.tipo==='falta_local')return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13.5px">${ETIQ[dd.tabla]||dd.tabla}</div>
+        <div class="tiny muted">${dd.n} registro(s) en la nube que no están en este aparato</div></div>`;
+      return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13.5px">${ETIQ[dd.tabla]||dd.tabla}</div>
+        <div class="tiny muted">${dd.msg}</div></div>`;}).join('');
+    html=`<h2>⚠️ Encontré ${dif.length} diferencia(s)</h2>
+    <p class="sub">Entre este dispositivo y la nube</p>
+    <div class="card pad" style="margin:12px 0">${filas}</div>
+    <button class="btn primary block" onclick="window._arreglarCuadre()">Arreglar automáticamente</button>
+    <p class="tiny muted" style="margin-top:8px">
+      Sube lo que falte en la nube y baja lo que falte aquí. En caso de conflicto,
+      gana el dato más reciente.</p>`;
+  }
+  openSheet(html+`<button class="btn ghost block" style="margin-top:10px" onclick="closeSheet()">Cerrar</button>`);
+};
+
+window._arreglarCuadre=async function(){
+  const btn=document.querySelector('.sheet .btn.primary');
+  if(btn){btn.textContent='⏳ Arreglando...';btn.disabled=true;}
+  try{
+    await cloudPushAll(state.cloud.businessId);   // sube lo que falte allá
+    await cloudPull(true);                        // baja lo que falte acá
+    _syncFailCount=0;refrescarIndicadorSync();
+    closeSheet();toast('✓ Cuadre corregido','ok');
+  }catch(e){
+    toast('No se pudo completar: '+String(e.message||e).substring(0,50),'bad');
+    if(btn){btn.textContent='Arreglar automáticamente';btn.disabled=false;}
+  }
+};
+
 window._resyncAll=async function(){
   if(!sb||!state.cloud.connected){toast('No estás conectado a la nube','bad');return;}
   const btn=event&&event.target;if(btn){btn.textContent='⏳ Subiendo...';btn.disabled=true;}
@@ -3326,9 +3410,10 @@ window._resyncAll=async function(){
 async function cloudPull(silent){
   if(!sb||!state.cloud.businessId)return;
   if(!silent)toast('Sincronizando...');
+  let fallaron=0;
   for(const t of TABLES){
     const {data,error}=await sb.from(frt(t)).select('*').eq('business_id',state.cloud.businessId);
-    if(error){console.warn(t,error);continue;}
+    if(error){console.warn(t,error);fallaron++;continue;}
     mergeRows(t,data||[]);
   }
   // El PIN vive a nivel negocio (no por dispositivo) — se trae de frt_businesses,
@@ -3337,8 +3422,35 @@ async function cloudPull(silent){
     const{data:biz}=await sb.from('frt_businesses').select('pin_hash,pin_length').eq('id',state.cloud.businessId).single();
     if(biz){state.config.pinHash=biz.pin_hash||null;state.config.pinLength=biz.pin_length||null;}
   }catch(e){console.warn('pin pull:',e);}
-  save();render();if(!silent)toast('Sincronizado ✓','ok');
+  // Solo marcamos "sincronizado" si TODAS las tablas bajaron bien — el indicador
+  // debe decir la verdad, no asumir éxito.
+  if(fallaron===0)state.config._lastPullAt=new Date().toISOString();
+  save();refrescarIndicadorSync();render();
+  if(!silent)toast(fallaron?('⚠️ '+fallaron+' tabla(s) no bajaron'):'Sincronizado ✓', fallaron?'bad':'ok');
 }
+
+// Indicador honesto: dice hace cuánto fue la última sincronización COMPLETA exitosa,
+// en vez de un "Nube" fijo que no distingue entre estar al día y llevar horas desconectado.
+function _haceCuanto(iso){
+  if(!iso)return null;
+  const min=Math.floor((Date.now()-new Date(iso).getTime())/60000);
+  if(min<1)return 'ahora';
+  if(min<60)return 'hace '+min+' min';
+  const hr=Math.floor(min/60);
+  if(hr<24)return 'hace '+hr+' h';
+  return 'hace '+Math.floor(hr/24)+' d';
+}
+function refrescarIndicadorSync(){
+  if(!state.cloud.connected){setSync(false,'Local');return;}
+  if(_syncFailCount>0){setSync(true,'⚠️ Sin sincronizar');return;}
+  const txt=_haceCuanto(state.config._lastPullAt);
+  if(!txt){setSync(true,'Nube');return;}
+  const min=Math.floor((Date.now()-new Date(state.config._lastPullAt).getTime())/60000);
+  // Más de 15 min sin lograr sincronizar es señal de que algo no anda bien
+  setSync(min<15, min<15?('Nube · '+txt):('⚠️ '+txt));
+}
+setInterval(refrescarIndicadorSync,60*1000); // refresca el "hace X min" cada minuto
+
 async function pushPinToCloud(){
   if(!sb||!state.cloud.businessId)return;
   try{
@@ -3533,7 +3645,7 @@ async function _autoResync(){
       setSync(true,'⚠️ Sin sincronizar');
       if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Un registro no se pudo subir a la nube','bad');}
     }else if(_syncFailCount>0){
-      _syncFailCount=0;setSync(true,'Nube');toast('✓ Todo tu información ya está al día en la nube','ok');
+      _syncFailCount=0;refrescarIndicadorSync();toast('✓ Todo tu información ya está al día en la nube','ok');
     }
   }catch(e){console.warn('autoResync:',e);}
   _autoResyncBusy=false;
