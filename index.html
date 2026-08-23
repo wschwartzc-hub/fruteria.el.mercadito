@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.6.0';
+const APP_VERSION = '4.6.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1829,14 +1829,14 @@ function timelineStock(pid){
   const eventos=[];
   ventas().forEach(v=>(v.items||[]).forEach(i=>{
     if(i.producto_id===pid)eventos.push({fecha:v.fecha,tipo:'venta',delta:-(+i.cantidad||0),
-      detalle:'Ticket #'+v.folio,usuario:v.usuario,
+      detalle:'Ticket #'+v.folio,usuario:v.usuario,unidad:i.unidad,
       editado:!!(v.ediciones&&v.ediciones.length)});}));
   compras().forEach(c=>(c.items||[]).forEach(i=>{
     if(i.producto_id===pid)eventos.push({fecha:c.fecha,tipo:'compra',delta:+i.cantidad||0,
-      detalle:c.proveedor?('Compra a '+c.proveedor):'Compra',usuario:c.usuario});}));
+      detalle:c.proveedor?('Compra a '+c.proveedor):'Compra',usuario:c.usuario,unidad:i.unidad});}));
   mermas().forEach(m=>{
     if(m.producto_id===pid)eventos.push({fecha:m.fecha,tipo:'merma',delta:-(+m.cantidad||0),
-      detalle:m.motivo||'Merma',usuario:m.usuario});});
+      detalle:m.motivo||'Merma',usuario:m.usuario,unidad:m.unidad});});
   (state.stockLog||[]).filter(l=>l.producto_id===pid&&!l.deleted).forEach(l=>{
     eventos.push({fecha:l.fecha,tipo:'ajuste',delta:l.stock_despues-l.stock_antes,
       detalle:'Editado a mano: '+l.stock_antes+' → '+l.stock_despues,usuario:l.usuario});});
@@ -1848,17 +1848,42 @@ function verHistorialStock(pid){
   const p=findP(pid);if(!p)return;
   const eventos=timelineStock(pid); // más reciente primero
   const ICONO={venta:'🛒',compra:'📦',merma:'🗑️',ajuste:'✏️'};
+  const real=safeNum(p.stock,0);
 
-  // Saldo acumulado: recorremos del más viejo al más nuevo sumando cada movimiento.
-  // Esto permite detectar si el stock actual cuadra con la suma de todo lo registrado —
-  // si no cuadra, hay movimientos que nunca quedaron registrados (la pista clave
-  // para investigar descuadres como el del queso).
-  const cronologico=[...eventos].reverse();
-  let saldo=0;
-  const saldoPorEvento=new Map();
-  cronologico.forEach(ev=>{saldo=Math.round((saldo+ev.delta)*1000)/1000;saldoPorEvento.set(ev,saldo);});
-  const esperado=saldo, real=safeNum(p.stock,0);
-  const descuadre=Math.round((real-esperado)*1000)/1000;
+  // Saldo calculado HACIA ATRÁS desde el stock actual (que sí conocemos con certeza).
+  // Antes lo calculaba hacia adelante arrancando en 0, lo cual asumía que el producto
+  // nació con stock cero — falso para cualquier producto que ya existía antes de que
+  // empezáramos a registrar el historial, y producía saldos negativos sin sentido.
+  const saldoTras=new Map();
+  let acumulado=real;
+  eventos.forEach(ev=>{saldoTras.set(ev,Math.round(acumulado*1000)/1000);
+    acumulado=acumulado-ev.delta;}); // retrocedemos deshaciendo cada movimiento
+
+  // ¿El historial está completo? Solo lo está si hay al menos una entrada que EXPLIQUE
+  // de dónde salió el stock (compra o ajuste). Si solo hay ventas, falta el punto de partida.
+  const tieneEntradas=eventos.some(ev=>ev.tipo==='compra'||ev.tipo==='ajuste');
+  const uds=eventos.filter(ev=>ev.unidad).map(ev=>ev.unidad);
+  const unidadesDistintas=[...new Set([...uds,p.unidad])];
+
+  const avisoHTML = !eventos.length ? '' : (!tieneEntradas
+    ? `<div style="background:#fff8e6;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
+         ℹ️ <b>Historial parcial.</b>
+         <span class="tiny muted">Aquí solo aparecen las salidas (ventas y mermas) porque las
+         entradas de mercancía de este producto nunca se capturaron con <b>"+ Compra"</b>.
+         El seguimiento de ajustes manuales empezó apenas con esta versión, así que los
+         reabastecimientos anteriores no quedaron registrados. A partir de ahora, si usas
+         <b>"+ Compra"</b> para meter mercancía, el historial va a cuadrar completo.</span>
+       </div>`
+    : '');
+
+  const avisoUnidad = unidadesDistintas.length>1
+    ? `<div style="background:#fff8e6;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
+         ⚠️ <b>Unidades mezcladas.</b>
+         <span class="tiny muted">Este producto hoy está configurado como <b>${p.unidad}</b>,
+         pero hay ventas registradas como <b>${unidadesDistintas.filter(u=>u!==p.unidad).join(', ')}</b>.
+         Los números no son comparables entre sí hasta que se unifique la unidad en el producto.</span>
+       </div>`
+    : '';
 
   const filas=eventos.map(ev=>{
     const f=new Date(ev.fecha);
@@ -1866,6 +1891,7 @@ function verHistorialStock(pid){
     const horaTxt=f.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     const signo=ev.delta>=0?'+':'';
     const color=ev.delta>0?'var(--green-d)':ev.delta<0?'var(--rose)':'var(--muted)';
+    const u=ev.unidad&&ev.unidad!==p.unidad?` <span style="color:var(--amber)">${ev.unidad}</span>`:'';
     return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
       <div style="font-size:18px">${ICONO[ev.tipo]}</div>
       <div style="flex:1;min-width:0">
@@ -1873,25 +1899,15 @@ function verHistorialStock(pid){
         <div class="tiny muted">${fechaTxt} · ${horaTxt}${ev.usuario?' · '+ev.usuario:''}</div>
       </div>
       <div style="text-align:right;white-space:nowrap">
-        <div style="font-weight:800;color:${color};font-size:14px">${signo}${_fmtNum(ev.delta)}</div>
-        <div class="tiny muted">queda ${_fmtNum(saldoPorEvento.get(ev))}</div>
+        <div style="font-weight:800;color:${color};font-size:14px">${signo}${_fmtNum(ev.delta)}${u}</div>
+        <div class="tiny muted">quedó ${_fmtNum(saldoTras.get(ev))}</div>
       </div>
     </div>`;}).join('');
 
-  const cuadraHTML=eventos.length?(Math.abs(descuadre)<0.001?
-    `<div style="background:#eaf7ee;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
-       ✅ <b>Todo cuadra.</b> La suma de los movimientos coincide con el stock actual.
-     </div>`:
-    `<div style="background:#fdeaea;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
-       ⚠️ <b>No cuadra por ${_fmtNum(Math.abs(descuadre))} ${p.unidad}.</b><br>
-       <span class="tiny muted">Los movimientos registrados suman ${_fmtNum(esperado)}, pero el stock
-       actual dice ${_fmtNum(real)}. Esa diferencia salió o entró sin quedar registrada
-       (mercancía no capturada, o un ajuste hecho desde otro dispositivo antes de esta versión).</span>
-     </div>`):'';
-
   openSheet(`<h2>📜 Historial de stock</h2>
   <p class="sub">${p.nombre} · stock actual: <b>${_fmtNum(real)} ${p.unidad}</b></p>
-  ${cuadraHTML}
+  ${avisoUnidad}
+  ${avisoHTML}
   ${eventos.length?`<div>${filas}</div>`:`<div class="empty"><span class="e-ico">📭</span>Sin movimientos registrados todavía.</div>`}
   <button class="btn ghost block" style="margin-top:16px" onclick="openProd('${pid}')">‹ Volver al producto</button>`);
 }
