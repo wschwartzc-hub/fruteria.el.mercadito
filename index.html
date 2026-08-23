@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.3.0';
+const APP_VERSION = '4.4.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -407,7 +407,7 @@ let cartDiscount = 0;
 function blank(){return {
   business:{id:uid(),nombre:'Frutería El Mercadito'},
   member:{nombre:'Dueño',rol:'dueno'},
-  productos:[], ventas:[], compras:[], mermas:[], caja:[], clientes:[],
+  productos:[], ventas:[], compras:[], mermas:[], caja:[], clientes:[], stockLog:[],
   config:{folio:1, lowAlert:true, nextNumCliente:1, terminalNombre:'Clip', mpComision:0, pinHash:null, pinLength:null},
   cloud:{url:'',anon:'',businessId:'',connected:false}
 };}
@@ -428,6 +428,7 @@ function sanitizeState(s){
   });
   (s.caja||[]).forEach(c=>{c.monto=safeNum(c.monto,0);});
   (s.mermas||[]).forEach(m=>{m.cantidad=safeNum(m.cantidad,0);m.costo=safeNum(m.costo,0);m.valor_perdido=safeNum(m.valor_perdido,0);});
+  (s.stockLog||[]).forEach(l=>{l.stock_antes=safeNum(l.stock_antes,0);l.stock_despues=safeNum(l.stock_despues,0);});
   return s;
 }
 
@@ -459,6 +460,7 @@ function load(){
   try{const r=localStorage.getItem(LS);if(r)s=JSON.parse(r);}catch(e){}
   if(!s){s=blank();s.productos=seed(s.business.id);}
   if(!s.productos||!s.productos.length)s.productos=seed(s.business.id);
+  if(!s.stockLog)s.stockLog=[]; // usuarios existentes que no tenían este campo
   s=sanitizeState(s);
   s=migrarIdsNoValidos(s);
   try{localStorage.setItem(LS,JSON.stringify(s));}catch(e){}
@@ -1733,6 +1735,7 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     </div>
   </div>
   <button class="btn primary block" onclick="saveProd('${e.id}',${!!p})">Guardar</button>
+  ${p?`<button class="btn ghost block" style="margin-top:8px" onclick="verHistorialStock('${e.id}')">📜 Ver historial de stock</button>`:''}
   ${p?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="delProd('${e.id}')">Eliminar producto</button>`:''}`;
   openSheet(html);
   window.updateVidaBar=()=>{const v=parseInt(document.getElementById('pVida')?.value)||5;
@@ -1785,10 +1788,68 @@ function saveProd(id,exists){
     perecedero:$('#pPere').checked,vida_util_dias:parseInt($('#pVida')?.value)||5,updated_at:now()};
   $('#pPere').onchange=()=>{const w=document.getElementById('pVidaWrap');if(w)w.style.display=$('#pPere').checked?'':'none';};
   let p;
-  if(exists){p=findP(id);Object.assign(p,data);}
+  if(exists){
+    p=findP(id);
+    const stockAntes=safeNum(p.stock,0);
+    Object.assign(p,data);
+    // Si el stock cambió a mano (no por venta/compra/merma), lo registramos para
+    // que el historial de este producto explique de dónde salió cada número.
+    if(Math.abs(stockAntes-data.stock)>0.0001){
+      const entrada={id:uid(),business_id:state.business.id,producto_id:id,fecha:now(),
+        stock_antes:stockAntes,stock_despues:data.stock,usuario:state.member.nombre||'—',
+        deleted:false,updated_at:now()};
+      state.stockLog.push(entrada);push('stockLog',entrada);
+    }
+  }
   else{p={id,business_id:state.business.id,activo:true,deleted:false,vida_util_dias:5,...data};state.productos.push(p);}
   save();push('productos',p);closeSheet();render();toast('Guardado ✓','ok');
 }
+// Línea de tiempo de stock: junta ventas, compras, mermas y ajustes manuales de UN
+// producto en un solo historial cronológico — para responder "¿a dónde se fue el stock?"
+// sin tener que revisar cada tabla por separado.
+function timelineStock(pid){
+  const eventos=[];
+  ventas().forEach(v=>(v.items||[]).forEach(i=>{
+    if(i.producto_id===pid)eventos.push({fecha:v.fecha,tipo:'venta',delta:-(+i.cantidad||0),
+      detalle:'Ticket #'+v.folio,usuario:v.usuario});}));
+  compras().forEach(c=>(c.items||[]).forEach(i=>{
+    if(i.producto_id===pid)eventos.push({fecha:c.fecha,tipo:'compra',delta:+i.cantidad||0,
+      detalle:c.proveedor?('Compra a '+c.proveedor):'Compra',usuario:c.usuario});}));
+  mermas().forEach(m=>{
+    if(m.producto_id===pid)eventos.push({fecha:m.fecha,tipo:'merma',delta:-(+m.cantidad||0),
+      detalle:m.motivo||'Merma',usuario:m.usuario});});
+  (state.stockLog||[]).filter(l=>l.producto_id===pid&&!l.deleted).forEach(l=>{
+    eventos.push({fecha:l.fecha,tipo:'ajuste',delta:l.stock_despues-l.stock_antes,
+      detalle:'Editado a mano: '+l.stock_antes+' → '+l.stock_despues,usuario:l.usuario});});
+  eventos.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)); // más reciente primero
+  return eventos;
+}
+
+function verHistorialStock(pid){
+  const p=findP(pid);if(!p)return;
+  const eventos=timelineStock(pid);
+  const ICONO={venta:'🛒',compra:'📦',merma:'🗑️',ajuste:'✏️'};
+  const filas=eventos.map(ev=>{
+    const f=new Date(ev.fecha);
+    const fechaTxt=f.toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+    const horaTxt=f.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+    const signo=ev.delta>=0?'+':'';
+    const color=ev.delta>0?'var(--green-d)':ev.delta<0?'var(--rose)':'var(--muted)';
+    return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+      <div style="font-size:18px">${ICONO[ev.tipo]}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600">${ev.detalle}</div>
+        <div class="tiny muted">${fechaTxt} · ${horaTxt}${ev.usuario?' · '+ev.usuario:''}</div>
+      </div>
+      <div style="font-weight:800;color:${color};white-space:nowrap;font-size:14px">${signo}${_fmtNum(ev.delta)} ${p.unidad}</div>
+    </div>`;}).join('');
+  openSheet(`<h2>📜 Historial de stock</h2>
+  <p class="sub">${p.nombre} · stock actual: <b>${_fmtNum(p.stock)} ${p.unidad}</b></p>
+  ${eventos.length?`<div>${filas}</div>`:`<div class="empty"><span class="e-ico">📭</span>Sin movimientos registrados todavía.</div>`}
+  <button class="btn ghost block" style="margin-top:16px" onclick="openProd('${pid}')">‹ Volver al producto</button>`);
+}
+function _fmtNum(n){const r=Math.round((+n||0)*1000)/1000;return r%1===0?String(r):String(r);}
+
 function delProd(id){const p=findP(id);if(!p)return;
   if(!confirm('¿Eliminar '+p.nombre+'?'))return;
   p.deleted=true;p.updated_at=now();save();push('productos',p);closeSheet();render();toast('Eliminado');
@@ -3078,7 +3139,7 @@ window._mpGuardar=function(){
 
 /* ============================ NUBE (SUPABASE) ============================ */
 let sb=null, sbUser=null, realtimeChans=[];
-const TABLES=['productos','ventas','compras','mermas','caja','clientes'];
+const TABLES=['productos','ventas','compras','mermas','caja','clientes','stockLog'];
 
 function cloudConfigured(){return !!(state.cloud.url||window.SUPABASE_URL)&&!!(state.cloud.anon||window.SUPABASE_ANON);}
 function initSupabase(){
@@ -3137,7 +3198,7 @@ function traducirError(m){m=(m||'').toLowerCase();
   return m||'Error al conectar';}
 
 // Mapper: nombre local → nombre real en Supabase (prefijo frt_)
-const frt=t=>t==='businesses'||t==='members'?'frt_'+t:'frt_'+t;
+const frt=t=>t==='stockLog'?'frt_stock_log':'frt_'+t;
 
 async function afterLogin(){
   let {data:mems, error:eMems}=await sb.from('frt_members').select('business_id,nombre,rol').eq('user_id',sbUser.id);
