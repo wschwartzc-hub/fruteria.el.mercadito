@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.4.1';
+const APP_VERSION = '4.5.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1540,6 +1540,22 @@ function ajustarStockAsync(producto_id,delta){
   }).catch(e=>console.warn('ajustarStock rpc:',e));
 }
 
+// Folio definitivo desde el servidor. El número local es solo provisional para que el
+// ticket se vea al instante; en cuanto responde el servidor lo corregimos. Antes el
+// contador vivía SOLO en cada dispositivo y nunca se sincronizaba — cada aparato
+// numeraba en paralelo y generaba tickets distintos con el mismo folio (30 duplicados
+// reales detectados en la base de datos antes de este arreglo).
+function asignarFolioServidor(venta){
+  if(!(sb&&state.cloud.connected&&state.cloud.businessId))return; // sin nube: se queda el provisional
+  sb.rpc('frt_siguiente_folio',{p_business_id:state.cloud.businessId}).then(({data,error})=>{
+    if(error||data==null){console.warn('folio rpc:',error);return;}
+    if(venta.folio===data)return; // el provisional coincidió, nada que corregir
+    venta.folio=data;venta.updated_at=now();
+    if(state.config.folio<=data)state.config.folio=data+1; // mantener el local al día
+    save();push('ventas',venta);render();
+  }).catch(e=>console.warn('folio rpc:',e));
+}
+
 function finalizarVenta(){
   if(!cart.length)return;
   const sub=cartTotal();const tot=Math.max(0,sub-cartDiscount);
@@ -1559,6 +1575,7 @@ function finalizarVenta(){
   }});
   state.ventas.push(venta);
   save();push('ventas',venta);
+  asignarFolioServidor(venta);
   cart=[];cartDiscount=0;closeSheet();renderTicketBar();
   showSaleBar(venta);
 }
