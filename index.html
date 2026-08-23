@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.4.0';
+const APP_VERSION = '4.4.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -451,6 +451,7 @@ function migrarIdsNoValidos(s){
   (s.ventas||[]).forEach(v=>(v.items||[]).forEach(i=>{if(idMap[i.producto_id])i.producto_id=idMap[i.producto_id];}));
   (s.compras||[]).forEach(c=>(c.items||[]).forEach(i=>{if(idMap[i.producto_id])i.producto_id=idMap[i.producto_id];}));
   (s.mermas||[]).forEach(m=>{if(idMap[m.producto_id])m.producto_id=idMap[m.producto_id];});
+  (s.stockLog||[]).forEach(l=>{if(idMap[l.producto_id])l.producto_id=idMap[l.producto_id];});
   console.warn('Migrados '+Object.keys(idMap).length+' producto(s) con id inválido a UUID real.');
   return s;
 }
@@ -1811,7 +1812,8 @@ function timelineStock(pid){
   const eventos=[];
   ventas().forEach(v=>(v.items||[]).forEach(i=>{
     if(i.producto_id===pid)eventos.push({fecha:v.fecha,tipo:'venta',delta:-(+i.cantidad||0),
-      detalle:'Ticket #'+v.folio,usuario:v.usuario});}));
+      detalle:'Ticket #'+v.folio,usuario:v.usuario,
+      editado:!!(v.ediciones&&v.ediciones.length)});}));
   compras().forEach(c=>(c.items||[]).forEach(i=>{
     if(i.producto_id===pid)eventos.push({fecha:c.fecha,tipo:'compra',delta:+i.cantidad||0,
       detalle:c.proveedor?('Compra a '+c.proveedor):'Compra',usuario:c.usuario});}));
@@ -1827,8 +1829,20 @@ function timelineStock(pid){
 
 function verHistorialStock(pid){
   const p=findP(pid);if(!p)return;
-  const eventos=timelineStock(pid);
+  const eventos=timelineStock(pid); // más reciente primero
   const ICONO={venta:'🛒',compra:'📦',merma:'🗑️',ajuste:'✏️'};
+
+  // Saldo acumulado: recorremos del más viejo al más nuevo sumando cada movimiento.
+  // Esto permite detectar si el stock actual cuadra con la suma de todo lo registrado —
+  // si no cuadra, hay movimientos que nunca quedaron registrados (la pista clave
+  // para investigar descuadres como el del queso).
+  const cronologico=[...eventos].reverse();
+  let saldo=0;
+  const saldoPorEvento=new Map();
+  cronologico.forEach(ev=>{saldo=Math.round((saldo+ev.delta)*1000)/1000;saldoPorEvento.set(ev,saldo);});
+  const esperado=saldo, real=safeNum(p.stock,0);
+  const descuadre=Math.round((real-esperado)*1000)/1000;
+
   const filas=eventos.map(ev=>{
     const f=new Date(ev.fecha);
     const fechaTxt=f.toLocaleDateString('es-MX',{day:'numeric',month:'short'});
@@ -1838,17 +1852,33 @@ function verHistorialStock(pid){
     return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
       <div style="font-size:18px">${ICONO[ev.tipo]}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13.5px;font-weight:600">${ev.detalle}</div>
+        <div style="font-size:13.5px;font-weight:600">${ev.detalle}${ev.editado?' <span class="tiny" style="color:var(--amber);font-weight:700">✏️ editado</span>':''}</div>
         <div class="tiny muted">${fechaTxt} · ${horaTxt}${ev.usuario?' · '+ev.usuario:''}</div>
       </div>
-      <div style="font-weight:800;color:${color};white-space:nowrap;font-size:14px">${signo}${_fmtNum(ev.delta)} ${p.unidad}</div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="font-weight:800;color:${color};font-size:14px">${signo}${_fmtNum(ev.delta)}</div>
+        <div class="tiny muted">queda ${_fmtNum(saldoPorEvento.get(ev))}</div>
+      </div>
     </div>`;}).join('');
+
+  const cuadraHTML=eventos.length?(Math.abs(descuadre)<0.001?
+    `<div style="background:#eaf7ee;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
+       ✅ <b>Todo cuadra.</b> La suma de los movimientos coincide con el stock actual.
+     </div>`:
+    `<div style="background:#fdeaea;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
+       ⚠️ <b>No cuadra por ${_fmtNum(Math.abs(descuadre))} ${p.unidad}.</b><br>
+       <span class="tiny muted">Los movimientos registrados suman ${_fmtNum(esperado)}, pero el stock
+       actual dice ${_fmtNum(real)}. Esa diferencia salió o entró sin quedar registrada
+       (mercancía no capturada, o un ajuste hecho desde otro dispositivo antes de esta versión).</span>
+     </div>`):'';
+
   openSheet(`<h2>📜 Historial de stock</h2>
-  <p class="sub">${p.nombre} · stock actual: <b>${_fmtNum(p.stock)} ${p.unidad}</b></p>
+  <p class="sub">${p.nombre} · stock actual: <b>${_fmtNum(real)} ${p.unidad}</b></p>
+  ${cuadraHTML}
   ${eventos.length?`<div>${filas}</div>`:`<div class="empty"><span class="e-ico">📭</span>Sin movimientos registrados todavía.</div>`}
   <button class="btn ghost block" style="margin-top:16px" onclick="openProd('${pid}')">‹ Volver al producto</button>`);
 }
-function _fmtNum(n){const r=Math.round((+n||0)*1000)/1000;return r%1===0?String(r):String(r);}
+function _fmtNum(n){const r=Math.round((+n||0)*1000)/1000;return String(r);}
 
 function delProd(id){const p=findP(id);if(!p)return;
   if(!confirm('¿Eliminar '+p.nombre+'?'))return;
@@ -2203,10 +2233,16 @@ window._editGuardar=function(id){
   const totalAntes=v.total;
 
   // ── Ajustar stock ───────────────────────────────────────────────────────
+  // Usa el ajuste atómico igual que las ventas normales (v4.3.0) — antes calculaba
+  // localmente y subía el valor absoluto, quedando vulnerable al mismo bug de
+  // concurrencia que ya se había corregido en el flujo de venta.
+  const _afectados=new Set();
   oldItems.forEach(it=>{if(!it.custom){const p=findP(it.producto_id);
-    if(p){p.stock=Math.round((p.stock+it.cantidad)*1000)/1000;p.updated_at=now();}}});
+    if(p){p.stock=Math.round((p.stock+it.cantidad)*1000)/1000;p.updated_at=now();
+      ajustarStockAsync(it.producto_id,+it.cantidad);_afectados.add(it.producto_id);}}});
   newItems.forEach(it=>{if(!it.custom){const p=findP(it.producto_id);
-    if(p){p.stock=Math.round((p.stock-it.cantidad)*1000)/1000;p.updated_at=now();}}});
+    if(p){p.stock=Math.round((p.stock-it.cantidad)*1000)/1000;p.updated_at=now();
+      ajustarStockAsync(it.producto_id,-it.cantidad);_afectados.add(it.producto_id);}}});
 
   // ── Recalcular totales ──────────────────────────────────────────────────
   const sub=newItems.reduce((a,it)=>a+it.subtotal,0);
@@ -2226,7 +2262,9 @@ window._editGuardar=function(id){
   v.items=newItems;v.subtotal=sub;v.total=tot;v.costo_total=costoTotal;v.updated_at=now();
 
   save();push('ventas',v);
-  productos().forEach(p=>push('productos',p));
+  // Solo los productos realmente afectados por la edición — antes subía TODO el
+  // catálogo (149 productos) en cada edición de ticket, sin ninguna necesidad.
+  _afectados.forEach(pid=>{const p=findP(pid);if(p)push('productos',p);});
   _editItems=[];
   closeSheet();render();
   toast('Ticket #'+v.folio+' actualizado ✓','ok');
