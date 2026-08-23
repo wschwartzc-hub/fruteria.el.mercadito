@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.6.1';
+const APP_VERSION = '4.6.2';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1867,12 +1867,14 @@ function verHistorialStock(pid){
 
   const avisoHTML = !eventos.length ? '' : (!tieneEntradas
     ? `<div style="background:#fff8e6;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
-         ℹ️ <b>Historial parcial.</b>
-         <span class="tiny muted">Aquí solo aparecen las salidas (ventas y mermas) porque las
-         entradas de mercancía de este producto nunca se capturaron con <b>"+ Compra"</b>.
-         El seguimiento de ajustes manuales empezó apenas con esta versión, así que los
-         reabastecimientos anteriores no quedaron registrados. A partir de ahora, si usas
-         <b>"+ Compra"</b> para meter mercancía, el historial va a cuadrar completo.</span>
+         ℹ️ <b>Entradas no capturadas.</b>
+         <span class="tiny muted">Este producto tiene salidas (ventas/mermas) pero ninguna entrada
+         registrada. El punto de partida de abajo está <b>calculado</b>, no capturado: es lo que
+         debió haber para que las cuentas cierren en el stock de hoy.<br><br>
+         Los reabastecimientos previos no quedaron registrados porque se metieron editando
+         "Stock actual" a mano, y el seguimiento de esos cambios empezó apenas con esta versión.
+         <b>De aquí en adelante</b>, cualquier edición manual sí queda registrada — y si usas
+         <b>"+ Compra"</b> para meter mercancía, aparece con proveedor y costo.</span>
        </div>`
     : '');
 
@@ -1904,11 +1906,27 @@ function verHistorialStock(pid){
       </div>
     </div>`;}).join('');
 
+  // Punto de partida calculado: tras retroceder por todos los movimientos, 'acumulado'
+  // quedó con el stock que debió existir antes del movimiento más antiguo registrado.
+  // No es un dato capturado — es lo que las cuentas implican — y se marca como tal.
+  const inicio=Math.round(acumulado*1000)/1000;
+  const filaInicio=eventos.length?`
+    <div style="display:flex;gap:10px;padding:10px 0;opacity:.75">
+      <div style="font-size:18px">📍</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600">Punto de partida ${tieneEntradas?'':'(calculado)'}</div>
+        <div class="tiny muted">Antes del movimiento más antiguo registrado</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="font-weight:800;font-size:14px;color:var(--muted)">${_fmtNum(inicio)}</div>
+      </div>
+    </div>`:'';
+
   openSheet(`<h2>📜 Historial de stock</h2>
   <p class="sub">${p.nombre} · stock actual: <b>${_fmtNum(real)} ${p.unidad}</b></p>
   ${avisoUnidad}
   ${avisoHTML}
-  ${eventos.length?`<div>${filas}</div>`:`<div class="empty"><span class="e-ico">📭</span>Sin movimientos registrados todavía.</div>`}
+  ${eventos.length?`<div>${filas}${filaInicio}</div>`:`<div class="empty"><span class="e-ico">📭</span>Sin movimientos registrados todavía.</div>`}
   <button class="btn ghost block" style="margin-top:16px" onclick="openProd('${pid}')">‹ Volver al producto</button>`);
 }
 function _fmtNum(n){const r=Math.round((+n||0)*1000)/1000;return String(r);}
