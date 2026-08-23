@@ -365,7 +365,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.2.0';
+const APP_VERSION = '4.2.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -1691,6 +1691,10 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     <div class="field"><label>Stock actual</label><input id="pStock" class="num" inputmode="decimal" value="${e.stock||''}" placeholder="0"></div>
     <div class="field"><label>Avisar cuando baje a</label><input id="pMin" class="num" inputmode="decimal" value="${e.stock_min||''}" placeholder="0"></div>
   </div>
+  ${p?`<p class="tiny muted" style="margin:-8px 0 14px">
+    ⚠️ Este número <b>reemplaza</b> el stock actual, no se le suma. Para agregar
+    mercancía nueva sin perder la cuenta de lo que ya se vendió hoy, usa
+    <b>"+ Compra"</b> en vez de editar este campo directamente.</p>`:''}
   <div class="field"><label class="row" style="gap:9px;justify-content:flex-start">
     <input type="checkbox" id="pPere" ${e.perecedero?'checked':''} style="width:auto"> Es perecedero (se echa a perder)</label></div>
   <div class="field" id="pVidaWrap" style="${e.perecedero?'':'display:none'}">
