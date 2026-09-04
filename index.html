@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.7.1';
+const APP_VERSION = '4.8.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -536,7 +536,16 @@ function load(){
   return s;
 }
 let _stateVersion=0; // se incrementa en cada save() — sirve para invalidar cachés de cálculos pesados
-function save(){state._t=now();_stateVersion++;try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
+let _saveFailed=false;
+function save(){state._t=now();_stateVersion++;
+  try{localStorage.setItem(LS,JSON.stringify(state));_saveFailed=false;}
+  catch(e){ // memoria del navegador llena o bloqueada: antes se ignoraba en silencio y el aparato
+    // "perdía" ventas al recargar sin que nadie supiera por qué
+    if(!_saveFailed){_saveFailed=true;console.error('No se pudo guardar en este aparato:',e);
+      try{toast('Este aparato no puede guardar datos (memoria del navegador llena). Avisa al soporte.','bad');}catch(_){}}
+    try{refrescarIndicadorSync();}catch(_){}
+  }
+}
 
 function seed(bid){let _i=0;const P=(nombre,categoria,unidad,perecedero,vida)=>(
   {id:'prod-'+(++_i),business_id:bid,nombre,categoria,unidad,
@@ -3301,7 +3310,7 @@ window._mpGuardar=function(){
 
 
 /* ============================ NUBE (SUPABASE) ============================ */
-let sb=null, sbUser=null, realtimeChans=[];
+let sb=null, sbUser=null;
 const TABLES=['productos','ventas','compras','mermas','caja','clientes','stockLog'];
 
 function cloudConfigured(){return !!(state.cloud.url||window.SUPABASE_URL)&&!!(state.cloud.anon||window.SUPABASE_ANON);}
@@ -3317,12 +3326,26 @@ function openCloud(){
   const cl=state.cloud;
   if(!cl.connected&&!keysBakedIn()){ return; }  // sin llaves: silencio total
   if(!cl.connected){ showLogin(); return; }
+  const vivo=realtimeVivo(), pend=pendientesCount(), ult=_haceCuanto(state.config._lastPullAt);
   openSheet(`<h2>Tu cuenta</h2>
   <div class="card pad" style="margin-bottom:14px"><div class="between">
-     <div><div class="b">Conectado ✓</div><div class="tiny muted">${sbUser?sbUser.email:''}</div></div>
+     <div><div class="b">Conectado</div><div class="tiny muted">${sbUser?sbUser.email:''}</div></div>
      <span class="chip g">Activa</span></div></div>
-   <button class="btn block sm" onclick="cloudPull(true)">↻ Sincronizar ahora</button>
+  <div class="card pad" style="margin-bottom:14px">
+     <div class="between" style="padding:4px 0"><span class="tiny muted">Tiempo real</span><span class="chip ${vivo?'g':'a'}">${vivo?'En vivo':'Reconectando'}</span></div>
+     <div class="between" style="padding:4px 0"><span class="tiny muted">Última sincronización</span><span class="tiny">${ult||'—'}</span></div>
+     <div class="between" style="padding:4px 0"><span class="tiny muted">Pendientes por subir</span><span class="tiny ${pend?'b':''}">${pend}</span></div>
+  </div>
+   <button class="btn block sm" onclick="sincronizarAhora()">Sincronizar ahora</button>
    <button class="btn block sm ghost" style="margin-top:8px;color:var(--rose)" onclick="cloudLogout()">Cerrar sesión</button>`);
+}
+async function sincronizarAhora(){
+  closeSheet();toast('Sincronizando...');
+  ensureRealtime(true);
+  const corrio=await _autoResync();
+  const pend=pendientesCount();
+  if(!corrio)toast('Ya se está sincronizando, espera un momento');
+  else toast(pend?(pend+' registro(s) siguen sin subir — se reintentará solo'):'Sincronizado',pend?'bad':'ok');
 }
 // cloudConnect eliminado: la config va solo en el HTML (CONFIG block arriba), nunca en UI.
 function showLogin(){$('#app').classList.add('hidden');$('#loginScreen').classList.remove('hidden');
@@ -3389,7 +3412,9 @@ async function afterLogin(){
   toast('Conectado a la nube ✓','ok');
 }
 async function cloudPushAll(bid,since){
-  const fallos=[];
+  const fallos=[];let maxMs=0;
+  const tope=Date.now()+24*3600*1000; // fechas más de un día en el futuro son basura de reloj: no mueven la marca
+  const anota=row=>{const ms=new Date(row.updated_at||0).getTime();if(ms>maxMs&&ms<tope)maxMs=ms;};
   const CHUNK=150; // lotes moderados: evita timeouts por payload gigante sin ser tan lento como ir de 1 en 1
   for(const t of TABLES){
     let rows=state[t]||[];
@@ -3406,13 +3431,14 @@ async function cloudPushAll(bid,since){
         // dentro de ESE bloque (máx. 150, no 970) para salvar los que sí están bien.
         for(const row of bloque){
           const{error:e2}=await sb.from(frt(t)).upsert(row);
-          if(e2){algunoFalló=true;console.warn('  registro problemático en '+t+':',row.id,row.nombre||'',e2.message);}
+          if(e2){algunoFalló=true;_pendMark(t,row.id);console.warn('  registro problemático en '+t+':',row.id,row.nombre||'',e2.message);}
+          else{_pendClear(t,row.id);anota(row);}
         }
-      }
+      }else bloque.forEach(row=>{_pendClear(t,row.id);anota(row);});
     }
     if(algunoFalló)fallos.push(t);
   }
-  return fallos;
+  return {fallos,maxUpdatedAt:maxMs?new Date(maxMs).toISOString():null};
 }
 
 // Verificación de cuadre: compara TODO lo que hay en este dispositivo contra la nube
@@ -3498,7 +3524,7 @@ window._resyncAll=async function(){
   if(!sb||!state.cloud.connected){toast('No estás conectado a la nube','bad');return;}
   const btn=event&&event.target;if(btn){btn.textContent='⏳ Subiendo...';btn.disabled=true;}
   try{
-    const fallos=await cloudPushAll(state.cloud.businessId);
+    const {fallos}=await cloudPushAll(state.cloud.businessId);
     if(fallos.length){
       toast('Fallo al subir: '+fallos.join(', '),'bad');
     }else{
@@ -3545,7 +3571,11 @@ function _haceCuanto(iso){
 }
 function refrescarIndicadorSync(){
   if(!state.cloud.connected){setSync(false,'Local');return;}
-  if(_syncFailCount>0){setSync(true,'Sin sincronizar');return;}
+  if(_saveFailed){setSync(false,'No se puede guardar');return;}
+  const pend=pendientesCount();
+  if(pend>0){setSync(false,pend+' sin subir');return;}
+  if(_syncFailCount>0){setSync(false,'Sin sincronizar');return;}
+  if(realtimeVivo()){setSync(true,'Nube · en vivo');return;}
   const txt=_haceCuanto(state.config._lastPullAt);
   if(!txt){setSync(true,'Nube');return;}
   const min=Math.floor((Date.now()-new Date(state.config._lastPullAt).getTime())/60000);
@@ -3571,56 +3601,132 @@ function mergeRows(table,remote){const local=state[table]||[];const map={};
   return cambio;
 }
 let _syncFailCount=0;
+/* ---- Cola de pendientes ----
+   Cada registro que no logra subir se recuerda POR ID (persistido en localStorage) y se reintenta
+   en cada ciclo hasta que entre. Antes, una venta hecha con la señal caída cuyo reintento de los
+   5 min también fallaba quedaba atrapada en el aparato para siempre: la marca de tiempo avanzaba
+   igual y nadie la volvía a intentar. */
+function _pend(){return state.config._pendientes||(state.config._pendientes={});}
+function _pendMark(table,id){if(!id)return;const l=_pend()[table]||(_pend()[table]=[]);if(!l.includes(id))l.push(id);}
+function _pendClear(table,id){const p=state.config._pendientes;if(!p||!p[table])return;
+  const i=p[table].indexOf(id);if(i>=0)p[table].splice(i,1);if(!p[table].length)delete p[table];}
+function pendientesCount(){const p=state.config._pendientes;if(!p)return 0;return Object.values(p).reduce((a,l)=>a+l.length,0);}
 async function push(table,row){
   if(!sb||!state.cloud.connected)return;
+  _pendMark(table,row.id); // se anota ANTES de intentar; se borra solo cuando el servidor confirma
   try{
     const r={...row,business_id:state.cloud.businessId};
     const{error}=await sb.from(frt(table)).upsert(r);
-    if(error){
-      console.warn('Fallo al sincronizar '+table+':',error);
-      _syncFailCount++;
-      setSync(true,'Sin sincronizar');
-      // Solo molestamos con un toast la primera vez por sesión, para no saturar
-      if(_syncFailCount===1)toast('No se pudo guardar en la nube — revisa tu conexión','bad');
-    }else if(_syncFailCount>0){
-      // Un guardado posterior sí funcionó — la conexión se recuperó sola, quitamos la alerta de inmediato
-      _syncFailCount=0;setSync(true,'Nube');
-    }
+    if(error)throw error;
+    _pendClear(table,row.id);
+    if(_syncFailCount>0){_syncFailCount=0;refrescarIndicadorSync();}
   }catch(e){
     console.warn('Fallo al sincronizar '+table+':',e);
+    save(); // persiste la marca de pendiente por si la app se cierra antes del reintento
     _syncFailCount++;
-    setSync(true,'Sin sincronizar');
-    if(_syncFailCount===1)toast('No se pudo guardar en la nube — revisa tu conexión','bad');
+    refrescarIndicadorSync();
+    // Solo molestamos con un toast la primera vez por sesión, para no saturar
+    if(_syncFailCount===1)toast('No se pudo guardar en la nube — se reintentará solo','bad');
   }
+}
+// Sube los registros pendientes de uno en uno. Devuelve cuántos siguen fallando.
+async function pushPendientes(){
+  const p=state.config._pendientes;if(!p||!sb||!state.cloud.connected)return 0;
+  let fallan=0;
+  for(const t of Object.keys(p)){
+    for(const id of [...p[t]]){
+      const row=(state[t]||[]).find(r=>r.id===id);
+      if(!row){_pendClear(t,id);continue;} // ya no existe localmente: nada que subir
+      try{
+        const{error}=await sb.from(frt(t)).upsert({...row,business_id:state.cloud.businessId});
+        if(error)throw error;
+        _pendClear(t,id);
+      }catch(e){fallan++;console.warn('pendiente sigue fallando '+t+':',id,e.message||e);}
+    }
+  }
+  if(fallan===0&&state.config._pendientes&&!Object.keys(state.config._pendientes).length)delete state.config._pendientes;
+  save();
+  return fallan;
 }
 let _rtDebounce=null;
 function _rtScheduleUpdate(){
   clearTimeout(_rtDebounce);
   _rtDebounce=setTimeout(()=>{save();render();},350); // agrupa ráfagas de cambios en una sola actualización
 }
-let _rtReconnectTimer=null;
-function subscribeRealtime(){realtimeChans.forEach(c=>sb.removeChannel(c));realtimeChans=[];
-  TABLES.forEach(t=>{const ch=sb.channel('rt_'+t)
-    .on('postgres_changes',{event:'*',schema:'public',table:frt(t),filter:'business_id=eq.'+state.cloud.businessId},
-      payload=>{if(payload.new&&mergeRows(t,[payload.new]))_rtScheduleUpdate();})
-    .subscribe(status=>{
-      // Si el canal se cae (pantalla apagada, cambio de red, WebSocket cerrado por inactividad),
-      // lo reconectamos solos — nadie debería tener que refrescar la página para que el
-      // tiempo real vuelva a funcionar.
-      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
-        clearTimeout(_rtReconnectTimer);
-        _rtReconnectTimer=setTimeout(()=>{
-          if(sb&&state.cloud.connected&&state.cloud.businessId)subscribeRealtime();
-        },3000);
+/* ---- Tiempo real ----
+   Un solo canal con las 7 tablas. Reglas que corrigen el problema que había:
+   1) NUNCA se reutiliza un nombre de canal: cada canal nuevo lleva un número de generación.
+      supabase-js devuelve el canal existente si el nombre coincide, y como removeChannel es
+      asíncrono, el canal viejo seguía "saliendo" cuando se pedía el nuevo → subscribe() no
+      hacía nada y el aparato se quedaba sordo hasta el siguiente pull de 5 min.
+   2) Los avisos (CLOSED/ERROR) de canales viejos se ignoran por generación: un cierre tardío ya
+      no dispara otra reconexión (antes se formaba un bucle de re-suscripción cada 3 s).
+   3) Si el canal está sano, volver a primer plano NO lo tira: solo se verifica.
+   4) Cada vez que el canal se (re)conecta después de una caída se hace un pull completo: lo que
+      haya pasado mientras estaba caído se recupera en vez de perderse. */
+const _rt={ch:null,gen:0,status:'off',timer:null,busy:false,okAt:0,lastEventAt:0,fails:0,hiddenAt:0};
+function realtimeVivo(){return !!(_rt.ch&&_rt.status==='SUBSCRIBED'&&sb&&sb.realtime&&sb.realtime.isConnected());}
+function _rtProgramar(ms){clearTimeout(_rt.timer);_rt.timer=setTimeout(()=>ensureRealtime(),ms);}
+function _rtSocketVivo(){try{if(sb.realtime&&!sb.realtime.isConnected())sb.realtime.connect();}catch(e){}}
+function ensureRealtime(force){
+  if(!sb||!state.cloud.connected||!state.cloud.businessId||_rt.busy)return;
+  const viejo=_rt.ch;
+  if(viejo&&!force){
+    const st=viejo.state; // joined | joining | errored | leaving | closed
+    if(st==='joined'||st==='joining'){_rtSocketVivo();return;} // sano o en camino: no tocarlo
+    if(st==='errored'&&_rt.fails<3){_rtSocketVivo();_rtProgramar(8000);return;} // la librería reintenta sola; le damos oportunidad
+  }
+  _rt.busy=true;
+  try{
+    const gen=++_rt.gen, bid=state.cloud.businessId;
+    const nuevo=sb.channel('frt_'+String(bid).slice(0,8)+'_'+gen+'_'+Date.now().toString(36));
+    TABLES.forEach(t=>nuevo.on('postgres_changes',
+      {event:'*',schema:'public',table:frt(t),filter:'business_id=eq.'+bid},
+      payload=>{
+        // Se aceptan eventos aunque vengan de un canal que ya se está reemplazando: mergeRows es
+        // idempotente (solo gana el registro más nuevo), así que un duplicado no hace daño y un
+        // evento perdido sí.
+        _rt.lastEventAt=Date.now();
+        if(payload.new&&payload.new.id&&mergeRows(t,[payload.new]))_rtScheduleUpdate();
+      }));
+    nuevo.subscribe((status,err)=>{
+      if(gen!==_rt.gen)return; // aviso de un canal viejo: se ignora (rompe el bucle de reconexión)
+      const antes=_rt.status;_rt.status=status;
+      if(status==='SUBSCRIBED'){
+        _rt.fails=0;_rt.okAt=Date.now();
+        _rtSoltar(viejo); // el viejo se suelta hasta que el nuevo ya escucha: nunca hay un hueco sin canal
+        // Si veníamos de una caída o de un reinicio forzado, jalamos todo por si algo pasó mientras tanto
+        const pullReciente=state.config._lastPullAt&&(Date.now()-new Date(state.config._lastPullAt).getTime()<15000);
+        if((antes!=='off'||force)&&!pullReciente)cloudPull(true);
+      }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        _rt.fails++;console.warn('realtime '+status,err&&(err.message||err));
+        _rtProgramar(Math.min(30000,3000*_rt.fails));
+      }else if(status==='CLOSED'){
+        _rtProgramar(2000);
       }
+      refrescarIndicadorSync();
     });
-    realtimeChans.push(ch);});
+    _rt.ch=nuevo;
+    if(viejo)setTimeout(()=>_rtSoltar(viejo),15000); // si el nuevo no logra suscribirse, el viejo se suelta de todos modos
+  }catch(e){console.warn('ensureRealtime:',e);_rtProgramar(5000);}
+  _rt.busy=false;
 }
+// Quita un canal viejo en segundo plano (su nombre nunca se reutiliza, así que no hay carrera)
+function _rtSoltar(ch){if(!ch||ch._soltado)return;ch._soltado=true;try{Promise.resolve(sb.removeChannel(ch)).catch(()=>{});}catch(e){}}
+function subscribeRealtime(){ensureRealtime(true);} // compatibilidad con los puntos de llamada existentes
+// Vigilante: si el canal lleva más de un minuto sin estar suscrito (en primer plano), se reconstruye.
+// Cubre el WebSocket "zombi" que deja iOS/Android al volver de segundo plano.
+setInterval(()=>{
+  if(!sb||!state.cloud.connected||!state.cloud.businessId||document.hidden)return;
+  if(realtimeVivo())_rt.okAt=Date.now();
+  else if(Date.now()-_rt.okAt>60000){_rt.okAt=Date.now();ensureRealtime(true);}
+  refrescarIndicadorSync();
+},30000);
 async function cloudLogout(){
   if(sb&&state.cloud.connected&&state.cloud.businessId){
     toast('Guardando tus datos antes de salir...','ok');
     try{
-      const fallos=await cloudPushAll(state.cloud.businessId);
+      const {fallos}=await cloudPushAll(state.cloud.businessId);
       if(fallos.length){
         toast('No se pudo guardar todo en la nube. Espera a tener internet antes de cerrar sesión.','bad');
         return; // NO cerramos sesión ni borramos nada — evita perder datos que aún no llegaron a la nube
@@ -3724,7 +3830,8 @@ async function start(){
 // Así ningún dato queda atrapado en un solo aparato sin que nadie tenga que acordarse de nada.
 let _autoResyncBusy=false;
 async function _autoResync(){
-  if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
+  if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return false;
+  if(navigator.onLine===false)return false; // sin red: no vale la pena marcar fallos, se reintenta al volver
   _autoResyncBusy=true;
   try{
     // Primero jalamos cambios de OTROS dispositivos. El canal de tiempo real puede
@@ -3734,34 +3841,44 @@ async function _autoResync(){
     // propios, nunca bajaba los ajenos.
     await cloudPull(true);
 
+    // 1) Lo que quedó pendiente de intentos anteriores, por ID. Es la vía principal:
+    //    no depende del reloj del aparato ni de ninguna marca de tiempo.
+    let fallan=await pushPendientes();
+
+    // 2) Red de seguridad por fecha: todo lo modificado desde el último ciclo.
     const desde=state.config._lastAutoSyncAt||null;
     const marcaTiempo=new Date().toISOString();
-    const fallos=await cloudPushAll(state.cloud.businessId,desde);
-    // IMPORTANTE: avanzamos la marca de tiempo SIEMPRE, incluso si algún registro falló.
-    // El fallback fila-por-fila ya le dio a cada registro su oportunidad individual — si uno
-    // sigue fallando (dato dañado que no se pudo sanar), reintentarlo cada 5 min para siempre
-    // es justo lo que causaba que la app resubiera TODO el catálogo una y otra vez sin parar.
-    // Al avanzar la marca, ese registro problemático simplemente deja de reintentarse solo
-    // (se queda con su fecha vieja, fuera de la ventana "desde"); todo lo demás sigue sano.
-    state.config._lastAutoSyncAt=marcaTiempo;save();
-    if(fallos.length){
-      setSync(true,'Sin sincronizar');
-      if(_syncFailCount===0){_syncFailCount=1;toast('Un registro no se pudo subir a la nube','bad');}
+    const res=await cloudPushAll(state.cloud.businessId,desde);
+    // La marca avanza siempre — lo que falló ya quedó anotado por ID en pendientes (cloudPushAll
+    // lo marca) y se reintenta en el siguiente ciclo. Antes, un registro que fallaba aquí se
+    // perdía para siempre porque la marca avanzaba y nadie más lo volvía a intentar.
+    // Si se subieron registros con fecha "en el futuro" (reloj de otro aparato adelantado), la
+    // marca salta hasta esa fecha: evita resubirlos en cada ciclo sin fin.
+    state.config._lastAutoSyncAt=(res.maxUpdatedAt&&res.maxUpdatedAt>marcaTiempo)?res.maxUpdatedAt:marcaTiempo;
+    save();
+    fallan+=res.fallos.length;
+    const pend=pendientesCount();
+    if(fallan||pend){
+      refrescarIndicadorSync();
+      if(_syncFailCount===0){_syncFailCount=1;toast('Hay registros que aún no suben a la nube — se reintentará solo','bad');}
     }else if(_syncFailCount>0){
-      _syncFailCount=0;refrescarIndicadorSync();toast('✓ Todo tu información ya está al día en la nube','ok');
-    }
+      _syncFailCount=0;refrescarIndicadorSync();toast('Toda tu información ya está al día en la nube','ok');
+    }else refrescarIndicadorSync();
   }catch(e){console.warn('autoResync:',e);}
   _autoResyncBusy=false;
+  return true;
 }
-window.addEventListener('online',()=>_autoResync());
+window.addEventListener('online',()=>{_autoResync();ensureRealtime(true);});
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'){
-    _autoResync();
-    // Refrescamos también el canal de tiempo real — si estuvo en pausa (pantalla apagada,
-    // cambio de app), esto garantiza que vuelva a escuchar cambios sin que nadie recargue nada.
-    if(sb&&state.cloud.connected&&state.cloud.businessId)subscribeRealtime();
-  }
+  if(document.visibilityState==='hidden'){_rt.hiddenAt=Date.now();return;}
+  _autoResync();
+  // Tras más de 20 s en segundo plano el WebSocket suele volver "zombi" (abierto pero muerto):
+  // se reconstruye de raíz. Si fue un parpadeo, solo se verifica que el canal siga sano —
+  // NO se tira un canal que funciona, que era justo lo que dejaba sordo al aparato.
+  ensureRealtime(!!(_rt.hiddenAt&&Date.now()-_rt.hiddenAt>20000));
 });
+// iOS restaura páginas desde caché sin disparar visibilitychange: mismo tratamiento.
+window.addEventListener('pageshow',e=>{if(e.persisted){_autoResync();ensureRealtime(true);}});
 setInterval(_autoResync,5*60*1000); // red de seguridad cada 5 min mientras la app quede abierta
 
 start();
