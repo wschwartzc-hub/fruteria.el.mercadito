@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.7.0';
+const APP_VERSION = '4.7.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -423,8 +423,32 @@ const ICO={
   up:'<path d="M12 19V6"/><path d="M6.5 11.5 12 5.5l5.5 6"/>',
   expand:'<path d="M9 4.5H4.5V9"/><path d="M15 4.5h4.5V9"/><path d="M9 19.5H4.5V15"/><path d="M15 19.5h4.5V15"/>',
   basket:'<path d="M3 9.5h18l-1.8 9.5H4.8z"/><path d="M8 9.5 10.5 4M16 9.5 13.5 4"/>',
+  user:'<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.2-3.6 4-5.4 7.5-5.4S18.3 16.4 19.5 20"/>',
+  printer:'<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="2"/><path d="M7 14h10v6.5H7z"/>',
+  file:'<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/>',
+  chat:'<path d="M4 5.5h16v11H9.5L5 20.5V16.5H4z"/>',
+  save:'<path d="M4.5 4.5h11l4 4v11h-15z"/><path d="M8 4.5v5h7v-5"/><path d="M8 13h8v6.5H8z"/>',
+  download:'<path d="M12 4v11"/><path d="M7 10.5 12 15.5l5-5"/><path d="M4.5 19.5h15"/>',
+  upload:'<path d="M12 20V9"/><path d="M7 13.5 12 8.5l5 5"/><path d="M4.5 4.5h15"/>',
+  checkCircle:'<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.8 2.8L16.2 9.5"/>',
+  alert:'<path d="M12 3.8 21 19.5H3z"/><path d="M12 10v4"/><path d="M12 16.9h.01"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.3l3.3 2"/>',
+  calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17"/><path d="M8 3.5v4M16 3.5v4"/>',
+  trendUp:'<path d="M4 17 10 11l3.5 3.5L20 8"/><path d="M15 8h5v5"/>',
+  trendDown:'<path d="M4 8 10 14l3.5-3.5L20 17"/><path d="M15 17h5v-5"/>',
+  pencil:'<path d="M4.5 19.5h4L19 9a2.5 2.5 0 0 0-3.5-3.5L5 16z"/><path d="M14.5 6.5 17.5 9.5"/>',
+  building:'<path d="M5 20.5V5.5h9v15"/><path d="M14 10.5h5v10h-5"/><path d="M8 9h3M8 12.5h3M8 16h3"/>',
+  coins:'<ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7"/><path d="M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>',
+  receipt:'<path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"/><path d="M9 8h6M9 11.5h6"/>',
+  inbox:'<path d="M3.5 13.5 6 5.5h12l2.5 8v6h-17z"/><path d="M3.5 13.5H8l1 2.5h6l1-2.5h4.5"/>',
+  help:'<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4"/><path d="M12 17h.01"/>',
+  bolt:'<path d="M13.5 3 5.5 13.5h5l-.5 7.5 8-10.5h-5z"/>',
+  pin:'<path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 4.8 6.5 12 6.5 12s6.5-7.2 6.5-12A6.5 6.5 0 0 0 12 2.5z"/><circle cx="12" cy="9" r="2.3"/>',
+  store:'<path d="M4 9.5V20h16V9.5"/><path d="M3 9.5 5 4h14l2 5.5a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/>',
   sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>'
 };
+/* Quita el emoji inicial de categorias guardadas antes de v4.7 */
+const limpiaCat=t=>String(t||'').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]+\s*/u,'');
 /* size en px; color acepta cualquier valor CSS. */
 function ico(name,size,color,w){return '<svg width="'+(size||20)+'" height="'+(size||20)+'" viewBox="0 0 24 24" '+
   'fill="none" stroke="'+(color||'currentColor')+'" stroke-width="'+(w||1.8)+'" stroke-linecap="round" '+
@@ -652,7 +676,7 @@ function vPinLock(){
   const key=n=>`<button class="pin-key" onclick="window._pinPress('${n}')">${n}</button>`;
   return `
   <div id="pinWrap" style="min-height:64vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 10px">
-    <div style="font-size:38px;margin-bottom:6px">🔒</div>
+    <div style="margin-bottom:10px">${ico('lock',34,'var(--green)',1.7)}</div>
     <div style="font-size:19px;font-weight:800;margin-bottom:4px">${titulo}</div>
     <div class="tiny muted" style="margin-bottom:22px;text-align:center">${sub}</div>
     <div id="pinDotsRow" style="display:flex;gap:14px;margin-bottom:8px">${dots}</div>
@@ -716,7 +740,7 @@ window._pinIniciarSetup=function(){_pinStage='setup1';_pinBuffer='';_pinFirstEnt
 
 window._pinBloquear=function(){
   _pinUnlocked=false;
-  toast('🔒 Bloqueado','ok');
+  toast('Bloqueado','ok');
   go('vender');
 };
 
@@ -948,33 +972,33 @@ function topClientes(n=5){
 function dashTips(mes,horaAgg,diaAgg,s30){
   const tips=[];
   if(ventas().length===0){
-    tips.push({ico:'🚀',txt:'Empieza registrando tus ventas del día con el botón Vender. Aquí verás estadísticas reales de tu negocio.'});
+    tips.push({ico:ico('bolt',22,'var(--green)',1.7),txt:'Empieza registrando tus ventas del día con el botón Vender. Aquí verás estadísticas reales de tu negocio.'});
     return tips;}
   // Merma alta
   if(s30.total>0&&s30.merma/s30.total>0.08)
-    tips.push({ico:'⚠️',txt:`Tu merma representa el ${(s30.merma/s30.total*100).toFixed(0)}% de tus ventas. Compra menos cantidad de los productos que más se pierden y rota el inventario más rápido.`});
+    tips.push({ico:ico('alert',22,'var(--mango)',1.7),txt:`Tu merma representa el ${(s30.merma/s30.total*100).toFixed(0)}% de tus ventas. Compra menos cantidad de los productos que más se pierden y rota el inventario más rápido.`});
   // Hora pico
   const ph=horaAgg.filter(h=>h.v>0);
   if(ph.length){const best=ph.reduce((b,h)=>h.v>b.v?h:b);
-    tips.push({ico:'🕐',txt:`Tu hora pico de ventas es ${best.h}:00–${best.h+1}:00. Asegúrate de tener inventario completo antes de esa hora.`});}
+    tips.push({ico:ico('clock',22,'var(--blue)',1.7),txt:`Tu hora pico de ventas es ${best.h}:00–${best.h+1}:00. Asegúrate de tener inventario completo antes de esa hora.`});}
   // Mejor día
   const pd=diaAgg.filter(d=>d.v>0);
   if(pd.length>=2){
     const bd=pd.reduce((b,d)=>d.v>b.v?d:b);
     const wd=pd.reduce((w,d)=>d.v<w.v?d:w);
-    tips.push({ico:'📅',txt:`${bd.n} es tu mejor día. ${wd.n!==bd.n?`El ${wd.n} es más flojo — buen momento para reabastecer y acomodar.`:''}`});}
+    tips.push({ico:ico('calendar',22,'var(--blue)',1.7),txt:`${bd.n} es tu mejor día. ${wd.n!==bd.n?`El ${wd.n} es más flojo — buen momento para reabastecer y acomodar.`:''}`});}
   // Tendencia mensual
   if(mes.length>=2){
     const l=mes[mes.length-1],p=mes[mes.length-2];
     if(p.ventas>0){const chg=((l.ventas-p.ventas)/p.ventas*100);
-      if(chg>10)tips.push({ico:'📈',txt:`Tus ventas subieron ${chg.toFixed(0)}% este mes vs el anterior. ¡Buen ritmo — sigue así!`});
-      else if(chg<-10)tips.push({ico:'📉',txt:`Tus ventas bajaron ${Math.abs(chg).toFixed(0)}% vs el mes anterior. Revisa precios, horarios o promociones.`});}}
+      if(chg>10)tips.push({ico:ico('trendUp',22,'var(--green)',1.7),txt:`Tus ventas subieron ${chg.toFixed(0)}% este mes vs el anterior. ¡Buen ritmo — sigue así!`});
+      else if(chg<-10)tips.push({ico:ico('trendDown',22,'var(--rose)',1.7),txt:`Tus ventas bajaron ${Math.abs(chg).toFixed(0)}% vs el mes anterior. Revisa precios, horarios o promociones.`});}}
   // Pocos clientes
   const nc=(state.clientes||[]).filter(c=>!c.deleted).length;
-  if(nc<5)tips.push({ico:'👤',txt:`Solo tienes ${nc} cliente${nc===1?'':'s'} registrado${nc===1?'':'s'}. Pide el número de WhatsApp al vender — los clientes frecuentes son tu mejor negocio.`});
+  if(nc<5)tips.push({ico:ico('user',22,'var(--muted)',1.7),txt:`Solo tienes ${nc} cliente${nc===1?'':'s'} registrado${nc===1?'':'s'}. Pide el número de WhatsApp al vender — los clientes frecuentes son tu mejor negocio.`});
   // Bajo margen
   const bm=productos().filter(p=>p.activo&&margenPct(p)<15&&margenPct(p)>0).slice(0,1);
-  if(bm.length)tips.push({ico:'💡',txt:`${bm[0].nombre} tiene un margen de solo ${margenPct(bm[0]).toFixed(0)}%. Intenta subir el precio o negociar mejor el costo con tu proveedor.`});
+  if(bm.length)tips.push({ico:ico('bulb',22,'var(--mango)',1.7),txt:`${bm[0].nombre} tiene un margen de solo ${margenPct(bm[0]).toFixed(0)}%. Intenta subir el precio o negociar mejor el costo con tu proveedor.`});
   return tips.slice(0,4);}
 
 function progressBar(val,max,color){
@@ -1058,7 +1082,7 @@ function generarInsights(){
       urgencia: esHoy?100 : esManana?90 : 40,
       categoria:p.categoria,
       titulo:`${DIAS_FULL[df.dia]}: día fuerte de ${p.nombre}`,
-      texto:`Vendes ${df.unidPorSemana.toFixed(1)} ${p.unidad} los ${DIAS_SHORT[df.dia].toLowerCase()}${horaTxt} — ${df.ratio.toFixed(1)}× tu promedio. Asegura ≥${stockNecesario} ${p.unidad} ese día.${esHoy?' ⚠️ ES HOY':esManana?' 📅 Es mañana':''}`,
+      texto:`Vendes ${df.unidPorSemana.toFixed(1)} ${p.unidad} los ${DIAS_SHORT[df.dia].toLowerCase()}${horaTxt} — ${df.ratio.toFixed(1)}× tu promedio. Asegura ≥${stockNecesario} ${p.unidad} ese día.${esHoy?' — ES HOY':esManana?' — Es mañana':''}`,
       stockNecesario, stockActual:p.stock
     });
   });
@@ -1134,11 +1158,11 @@ function vAsesor(){
   const hoy=DIAS_FULL[new Date().getDay()];
   // Agrupar por tipo
   const grupos={
-    demanda:{titulo:'📅 Prepárate por día',sub:'Asegura stock en tus días fuertes',items:[]},
-    merma:{titulo:'🗑️ Evita perder producto',sub:'Stock que no alcanzarás a vender',items:[]},
-    merma_sin_venta:{titulo:'🗑️ Evita perder producto',sub:'',items:[]},
-    agotamiento:{titulo:'⚠️ Reabastece pronto',sub:'Productos por agotarse',items:[]},
-    lento:{titulo:'🐌 Rotación lenta',sub:'Capital estancado',items:[]},
+    demanda:{titulo:'Prepárate por día',sub:'Asegura stock en tus días fuertes',items:[]},
+    merma:{titulo:'Evita perder producto',sub:'Stock que no alcanzarás a vender',items:[]},
+    merma_sin_venta:{titulo:'Evita perder producto',sub:'',items:[]},
+    agotamiento:{titulo:'Reabastece pronto',sub:'Productos por agotarse',items:[]},
+    lento:{titulo:'Rotación lenta',sub:'Capital estancado',items:[]},
     estrella:{titulo:'⭐ Tus ganadores',sub:'Lo que más mueve tu negocio',items:[]}
   };
   insights.forEach(i=>{
@@ -1170,7 +1194,7 @@ function vAsesor(){
       const dia=DIAS_FULL.findIndex(df=>i.titulo.includes(df));
       if(dia>=0){porDia[dia]=porDia[dia]||[];porDia[dia].push(i);}
     });
-    body+=`<div class="sec-title" style="margin-top:18px">📅 Plan semanal de stock</div>
+    body+=`<div class="sec-title" style="margin-top:18px">Plan semanal de stock</div>
       <div class="tiny muted" style="margin:-4px 0 8px 2px">Asegura estos productos en tus días fuertes</div>`;
     const ordenDias=[];
     for(let off=0;off<7;off++)ordenDias.push((hoyIdx+off)%7);
@@ -1213,14 +1237,14 @@ function vAsesor(){
 
   if(!insights.length){
     body=`<div class="empty" style="padding:40px 20px">
-      <span class="e-ico">🔮</span>
+      <span class="e-ico">${ico('bulb',36,'var(--faint)',1.6)}</span>
       <div style="font-weight:700;margin-bottom:6px">Aún reuniendo datos</div>
       <div class="tiny muted">Registra más ventas durante unos días y aquí verás patrones,
       predicciones de stock y consejos para reducir merma.</div></div>`;
   }
 
   return `<div class="between"><button class="link" onclick="go('inteligencia')">← Resumen</button>
-  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)" aria-label="Bloquear">🔓</button>`:''}</div>
+  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;cursor:pointer;color:var(--muted);display:grid;place-items:center" aria-label="Bloquear">${ico('unlock',18,'currentColor',1.8)}</button>`:''}</div>
   <div class="sec-title" style="margin-bottom:2px">Asesor inteligente</div>
   <div class="tiny muted" style="margin:0 0 4px 2px">Análisis de tus patrones de venta · ${hoy}</div>
   ${body}
@@ -1270,7 +1294,6 @@ function vInteligencia(){
   return `
   <!-- HERO -->
   <div class="stat-hero">
-    <span class="emj">🍉</span>
     <div class="lbl">Ganancia de hoy</div>
     <div class="val money">${money0(hoy.ganancia)}</div>
     <div class="sub">Vendiste ${money0(hoy.total)} en ${hoy.n} ticket${hoy.n===1?'':'s'} · ticket prom. ${money0(hoy.ticket)}</div>
@@ -1348,7 +1371,7 @@ function vInteligencia(){
         <span style="font-size:13px;font-weight:800;color:var(--green-d);flex-shrink:0">${money0(p.g)}</span>
       </div>`).join(''):'<div class="tiny muted">Sin ventas registradas aún</div>'}
     <div class="divider"></div>
-    <div class="b" style="font-size:13px;margin:10px 0">📉 Mayor merma (pérdida $)</div>
+    <div class="b" style="font-size:13px;margin:10px 0;display:flex;align-items:center;gap:6px">${ico('trendDown',15,'var(--rose)',1.8)} Mayor merma (pérdida $)</div>
     ${tMerma.length?tMerma.map(p=>`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
@@ -1472,7 +1495,7 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'dinero':'piez
       </div>`}
     <button class="btn primary block" style="margin-top:6px" onclick="window._qadd()">Agregar al ticket</button>
     ${cart.length===0?`<button class="btn block" style="margin-top:8px;background:var(--green-soft,#e8f5ee);color:var(--green-d);font-weight:800"
-      onclick="window._qcobrarRapido()">⚡ Cobrar ahora (efectivo)</button>`:''}`;
+      onclick="window._qcobrarRapido()">${ico('bolt',16,'#fff',1.9)} Cobrar ahora (efectivo)</button>`:''}`;
     openSheet(html);
     window._qmode=m=>{mode=m;val=m==='pieza'?1:0;render2();};
     window._qset=v=>{val=v;render2();};
@@ -1490,7 +1513,7 @@ function openQty(pid){const p=findP(pid);let mode=p.unidad==='kg'?'dinero':'piez
       if(ex){ex.cantidad+=cantidad;ex.subtotal=Math.round((ex.cantidad*p.precio_venta)*100)/100;}
       else cart.push({producto_id:p.id,nombre:p.nombre,unidad:p.unidad,
         precio:p.precio_venta,costo:p.costo,cantidad,subtotal:Math.round(subtotal*100)/100});
-      closeSheet();renderTicketBar();toast('Agregado 🛒','ok');};
+      closeSheet();renderTicketBar();toast('Agregado','ok');};
     window._qcobrarRapido=()=>{
       let cantidad = mode==='dinero' ? (p.precio_venta>0?val/p.precio_venta:0) : val;
       if(cantidad<=0){toast('Pon una cantidad','bad');return;}
@@ -1634,9 +1657,9 @@ function showSaleBar(venta){
       <div class="sb-sub">Toca para ticket, o sigue vendiendo</div>
     </div>
     <div class="sb-actions">
-      <button onclick="window._imprimirTicket('${venta.id}')" title="Imprimir">🖨️</button>
-      <button onclick="window._compartirTicketPDF('${venta.id}')" title="PDF">📄</button>
-      <button onclick="hideSaleBar();openWASheetSolo('${venta.id}')" title="WhatsApp">💬</button>
+      <button onclick="window._imprimirTicket('${venta.id}')" title="Imprimir">${ico('printer',16,'currentColor',1.8)}</button>
+      <button onclick="window._compartirTicketPDF('${venta.id}')" title="PDF">${ico('file',16,'currentColor',1.8)}</button>
+      <button onclick="hideSaleBar();openWASheetSolo('${venta.id}')" title="WhatsApp">${ico('chat',16,'currentColor',1.8)}</button>
     </div>
     <button class="sb-x" onclick="hideSaleBar()">✕</button>`;
   bar.classList.add('show');
@@ -1767,7 +1790,7 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     <div class="between"><span class="muted">Margen (sobre el precio)</span><b id="pCalcMargen">—</b></div>
     <div class="between" style="margin-top:3px"><span class="muted">Markup (sobre el costo)</span><b id="pCalcMarkup">—</b></div>
     <button onclick="window._pCalcToggle()" style="background:none;border:none;color:var(--green-d);font-size:12px;font-weight:700;padding:6px 0 0;cursor:pointer">
-      <span id="pCalcToggleTxt">❓ ¿Cómo se calcula esto?</span></button>
+      <span id="pCalcToggleTxt">¿Cómo se calcula esto?</span></button>
     <div id="pCalcExplain" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);line-height:1.5"></div>
   </div>
   <div class="grid2">
@@ -1775,13 +1798,13 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     <div class="field"><label>Avisar cuando baje a</label><input id="pMin" class="num" inputmode="decimal" value="${e.stock_min||''}" placeholder="0"></div>
   </div>
   ${p?`<p class="tiny muted" style="margin:-8px 0 14px">
-    ⚠️ Este número <b>reemplaza</b> el stock actual, no se le suma. Para agregar
+    Este número <b>reemplaza</b> el stock actual, no se le suma. Para agregar
     mercancía nueva sin perder la cuenta de lo que ya se vendió hoy, usa
     <b>"+ Compra"</b> en vez de editar este campo directamente.</p>`:''}
   <div class="field"><label class="row" style="gap:9px;justify-content:flex-start">
     <input type="checkbox" id="pPere" ${e.perecedero?'checked':''} style="width:auto"> Es perecedero (se echa a perder)</label></div>
   <div class="field" id="pVidaWrap" style="${e.perecedero?'':'display:none'}">
-    <label>⏱️ Vida útil estimada (días)</label>
+    <label>Vida útil estimada (días)</label>
     <div style="display:flex;align-items:center;gap:10px">
       <input id="pVida" type="number" inputmode="numeric" min="1" max="365" value="${e.vida_util_dias||5}"
         style="width:80px" oninput="updateVidaBar()">
@@ -1797,14 +1820,14 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
     </div>
   </div>
   <button class="btn primary block" onclick="saveProd('${e.id}',${!!p})">Guardar</button>
-  ${p?`<button class="btn ghost block" style="margin-top:8px" onclick="verHistorialStock('${e.id}')">📜 Ver historial de stock</button>`:''}
+  ${p?`<button class="btn ghost block" style="margin-top:8px" onclick="verHistorialStock('${e.id}')">${ico('doc',16,'currentColor',1.9)} Ver historial de stock</button>`:''}
   ${p?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="delProd('${e.id}')">Eliminar producto</button>`:''}`;
   openSheet(html);
   window.updateVidaBar=()=>{const v=parseInt(document.getElementById('pVida')?.value)||5;
     const bar=document.getElementById('pVidaBar');const lbl=document.getElementById('pVidaLabel');
     if(bar)bar.style.width=Math.min(100,v/30*100).toFixed(0)+'%';
     if(bar)bar.style.background=v<=4?'var(--rose)':v<=10?'var(--amber)':'var(--green)';
-    if(lbl)lbl.textContent=v<=3?'⚠️ Muy perecedero — revisa diario':v<=7?'Normal para frutas frescas':'Aguanta bien en almacén';};
+    if(lbl)lbl.textContent=v<=3?'Muy perecedero — revisa diario':v<=7?'Normal para frutas frescas':'Aguanta bien en almacén';};
   window._pCalc=()=>{
     const c=parseFloat(document.getElementById('pCosto')?.value)||0;
     const pr=parseFloat(document.getElementById('pPrecio')?.value)||0;
@@ -1829,7 +1852,7 @@ function openProd(id){const p=id?findP(id):null;const e=p?{...p}:{id:uid(),busin
         ${money(ganancia)} ÷ ${money(c)} = ${(ganancia/c).toFixed(3)} → <b>${markup.toFixed(1)}%</b>
       </div>
       <div class="tiny muted" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
-        💡 Son la misma ganancia en pesos — solo cambia contra qué número la comparas.
+        Son la misma ganancia en pesos — solo cambia contra qué número la comparas.
         El markup siempre sale más alto que el margen (excepto si es $0).
       </div>`;
   };
@@ -1840,7 +1863,7 @@ window._pCalcToggle=function(){
   if(!exp)return;
   const abierto=exp.style.display!=='none';
   exp.style.display=abierto?'none':'block';
-  txt.textContent=abierto?'❓ ¿Cómo se calcula esto?':'▲ Ocultar explicación';
+  txt.textContent=abierto?'¿Cómo se calcula esto?':'Ocultar explicación';
 };
 function saveProd(id,exists){
   const nombre=$('#pNombre').value.trim();if(!nombre){toast('Ponle nombre','bad');return;}
@@ -1891,7 +1914,7 @@ function timelineStock(pid){
 function verHistorialStock(pid){
   const p=findP(pid);if(!p)return;
   const eventos=timelineStock(pid); // más reciente primero
-  const ICONO={venta:'🛒',compra:'📦',merma:'🗑️',ajuste:'✏️'};
+  const ICONO={venta:ico('cart',20,'var(--green)',1.7),compra:ico('box',20,'var(--blue)',1.7),merma:ico('trash',20,'var(--rose)',1.7),ajuste:ico('pencil',20,'var(--muted)',1.7)};
   const real=safeNum(p.stock,0);
 
   // Saldo calculado HACIA ATRÁS desde el stock actual (que sí conocemos con certeza).
@@ -1911,7 +1934,7 @@ function verHistorialStock(pid){
 
   const avisoHTML = !eventos.length ? '' : (!tieneEntradas
     ? `<div style="background:#fff8e6;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
-         ℹ️ <b>Entradas no capturadas.</b>
+         <b>Entradas no capturadas.</b>
          <span class="tiny muted">Este producto tiene salidas (ventas/mermas) pero ninguna entrada
          registrada. El punto de partida de abajo está <b>calculado</b>, no capturado: es lo que
          debió haber para que las cuentas cierren en el stock de hoy.<br><br>
@@ -1924,7 +1947,7 @@ function verHistorialStock(pid){
 
   const avisoUnidad = unidadesDistintas.length>1
     ? `<div style="background:#fff8e6;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
-         ⚠️ <b>Unidades mezcladas.</b>
+         <b>Unidades mezcladas.</b>
          <span class="tiny muted">Este producto hoy está configurado como <b>${p.unidad}</b>,
          pero hay ventas registradas como <b>${unidadesDistintas.filter(u=>u!==p.unidad).join(', ')}</b>.
          Los números no son comparables entre sí hasta que se unifique la unidad en el producto.</span>
@@ -1956,7 +1979,7 @@ function verHistorialStock(pid){
   const inicio=Math.round(acumulado*1000)/1000;
   const filaInicio=eventos.length?`
     <div style="display:flex;gap:10px;padding:10px 0;opacity:.75">
-      <div style="font-size:18px">📍</div>
+      <div style="display:grid;place-items:center">${ico('pin',18,'var(--faint)',1.8)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13.5px;font-weight:600">Punto de partida ${tieneEntradas?'':'(calculado)'}</div>
         <div class="tiny muted">Antes del movimiento más antiguo registrado</div>
@@ -1966,11 +1989,11 @@ function verHistorialStock(pid){
       </div>
     </div>`:'';
 
-  openSheet(`<h2>📜 Historial de stock</h2>
+  openSheet(`<h2>Historial de stock</h2>
   <p class="sub">${p.nombre} · stock actual: <b>${_fmtNum(real)} ${p.unidad}</b></p>
   ${avisoUnidad}
   ${avisoHTML}
-  ${eventos.length?`<div>${filas}${filaInicio}</div>`:`<div class="empty"><span class="e-ico">📭</span>Sin movimientos registrados todavía.</div>`}
+  ${eventos.length?`<div>${filas}${filaInicio}</div>`:`<div class="empty"><span class="e-ico">${ico('inbox',36,'var(--faint)',1.6)}</span>Sin movimientos registrados todavía.</div>`}
   <button class="btn ghost block" style="margin-top:16px" onclick="openProd('${pid}')">‹ Volver al producto</button>`);
 }
 function _fmtNum(n){const r=Math.round((+n||0)*1000)/1000;return String(r);}
@@ -1996,7 +2019,7 @@ function vCompras(){
     <button class="btn primary block" onclick="guardarCompra()">Guardar compra y subir stock</button>`:''}
   <div style="height:20px"></div>`;
 }
-function compraItemsHtml(){if(!compraCart.length)return '<div class="empty" style="padding:24px"><span class="e-ico">🧾</span>Agrega lo que compraste</div>';
+function compraItemsHtml(){if(!compraCart.length)return '<div class="empty" style="padding:24px"><span class="e-ico">'+ico('receipt',36,'var(--faint)',1.6)+'</span>Agrega lo que compraste</div>';
   return compraCart.map((c,i)=>`<div class="line-item">
     <div class="li-info"><div class="li-n">${c.nombre}</div>
       <div class="li-q">${qty(c.cantidad,c.unidad)} × ${money0(c.costo)} costo</div></div>
@@ -2005,7 +2028,7 @@ function compraItemsHtml(){if(!compraCart.length)return '<div class="empty" styl
 }
 function openCompraPick(){const ps=productos().filter(p=>p.activo).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const html=`<h2>¿Qué compraste?</h2><p class="sub">Elige un producto</p>
-  <div class="search">🔎<input id="cpSearch" placeholder="Buscar..." oninput="window._cpFilter(this.value)"></div>
+  <div class="search">${ico('search',18,'var(--faint)',1.9)}<input id="cpSearch" placeholder="Buscar..." oninput="window._cpFilter(this.value)"></div>
   <div id="cpList" class="card pad" style="max-height:50vh;overflow:auto">${ps.map(p=>cpRow(p)).join('')}</div>
   <button class="btn block" style="margin-top:10px" onclick="closeSheet();openProd()">＋ Es un producto nuevo</button>`;
   openSheet(html);
@@ -2200,7 +2223,7 @@ function _renderEditTicket(id){
   const sub=_editItems.reduce((a,it)=>a+it.subtotal,0);
   const tot=Math.max(0,sub-v.descuento);
 
-  openSheet(`<h2>✏️ Editar ticket #${v.folio}</h2>
+  openSheet(`<h2>Editar ticket #${v.folio}</h2>
   <div style="margin-bottom:14px">
     ${filas||'<div class="tiny muted">Sin productos</div>'}
     <div class="between" style="padding:10px 0 0;font-weight:800">
@@ -2212,7 +2235,7 @@ function _renderEditTicket(id){
       autocomplete="off" style="border-color:var(--rose)">
   </div>
   <div style="border-radius:14px;border:1.5px solid var(--line);padding:14px;margin-bottom:10px">
-    <div class="b" style="margin-bottom:8px">➕ Agregar producto del catálogo</div>
+    <div class="b" style="margin-bottom:8px">Agregar producto del catálogo</div>
     <input id="etSearch" placeholder="Buscar producto..." autocomplete="off"
       style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px;margin-bottom:6px"
       oninput="_editSearchProd('${id}')">
@@ -2228,7 +2251,7 @@ function _renderEditTicket(id){
   </div>
 
   <div style="border-radius:14px;border:1.5px solid var(--line);padding:14px;margin-bottom:14px">
-    <div class="b" style="margin-bottom:8px">📝 Agregar nota / cargo personalizado</div>
+    <div class="b" style="margin-bottom:8px">Agregar nota / cargo personalizado</div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <input id="etNotaNombre" placeholder="Descripción" autocomplete="off"
         style="flex:2;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px">
@@ -2238,7 +2261,7 @@ function _renderEditTicket(id){
     <button class="btn block sm" onclick="_editAgregarNota('${id}')">+ Agregar nota</button>
   </div>
 
-  <button class="btn primary block" onclick="_editGuardar('${id}')">💾 Guardar cambios</button>
+  <button class="btn primary block" onclick="_editGuardar('${id}')">${ico('save',16,'#fff',1.9)} Guardar cambios</button>
   <button class="btn ghost block" style="margin-top:8px" onclick="verTicket('${id}')">Cancelar</button>`);
 }
 
@@ -2375,7 +2398,7 @@ function vCaja(){const c=cajaHoy();
   <h2 style="margin:8px 4px 14px;font-size:22px">Caja de hoy</h2>
   ${!c.abierta?`<div class="card pad"><p class="muted" style="margin-bottom:12px">${c.apertura>0?'La caja ya se cerró hoy.':'Abre la caja con el efectivo con el que arrancas.'}</p>
     <button class="btn primary block" onclick="abrirCaja()">${c.apertura>0?'Reabrir caja':'Abrir caja'}</button></div>`
-  :`<div class="stat-hero"><span class="emj">💵</span><div class="lbl">Efectivo esperado en caja</div>
+  :`<div class="stat-hero"><div class="lbl">Efectivo esperado en caja</div>
      <div class="val money">${money0(c.esperado)}</div>
      <div class="sub">Fondo ${money0(c.apertura)} + ventas efectivo ${money0(c.ventasEf)}</div></div>
    <div class="kpis"><div class="kpi"><div class="k-lbl">Entradas</div><div class="k-val money pos">${money0(c.entradas)}</div></div>
@@ -2444,11 +2467,11 @@ function vMas(){const cl=state.cloud;
   <div class="sec-title">Catálogo</div>
   <div class="card pad">
     <button class="lrow" style="width:100%;text-align:left" onclick="go('productos')">
-      <span class="l-emj">📦</span><div class="l-main"><div class="l-n">Productos</div>
+      <span class="l-emj" style="display:grid;place-items:center">${ico('box',22,'var(--muted)',1.7)}</span><div class="l-main"><div class="l-n">Productos</div>
       <div class="l-s">${productos().length} en catálogo</div></div><span class="l-r faint">›</span></button>
     <div class="divider"></div>
     <button class="lrow" style="width:100%;text-align:left" onclick="go('clientes')">
-      <span class="l-emj">👤</span><div class="l-main"><div class="l-n">Clientes recurrentes</div>
+      <span class="l-emj" style="display:grid;place-items:center">${ico('user',22,'var(--muted)',1.7)}</span><div class="l-main"><div class="l-n">Clientes recurrentes</div>
       <div class="l-s">${(state.clientes||[]).filter(c=>!c.deleted).length} registrados</div></div><span class="l-r faint">›</span></button>
   </div>
 
@@ -2458,9 +2481,9 @@ function vMas(){const cl=state.cloud;
     <div class="between">
       <div><div class="b">PIN activado</div>
         <div class="tiny muted">Protege Resumen, Rentabilidad, Gastos y Asesor</div></div>
-      <span class="chip g">${_pinUnlocked?'🔓 Desbloqueado':'🔒 Bloqueado'}</span>
+      <span class="chip g">${_pinUnlocked?'Desbloqueado':'Bloqueado'}</span>
     </div>
-    ${_pinUnlocked?`<button class="btn block sm" style="margin-top:12px" onclick="window._pinBloquear()">🔒 Bloquear ahora</button>`:''}
+    ${_pinUnlocked?`<button class="btn block sm" style="margin-top:12px" onclick="window._pinBloquear()">${ico('lock',16,'currentColor',1.9)} Bloquear ahora</button>`:''}
     <button class="btn block sm" style="margin-top:${_pinUnlocked?'8px':'12px'}" onclick="window._pinAskPassword(window._pinIniciarSetup)">Cambiar PIN</button>
     <button class="btn block sm" style="margin-top:8px;color:var(--rose)" onclick="window._pinAskPassword(window._pinQuitar)">Quitar PIN</button>
     `:`
@@ -2469,7 +2492,7 @@ function vMas(){const cl=state.cloud;
       los gastos (pueden incluir sueldos) y el asesor inteligente. El resto de la app
       (vender, inventario, etc.) queda libre.
     </div>
-    <button class="btn primary block sm" onclick="window._pinIniciarSetup()">🔒 Configurar PIN</button>
+    <button class="btn primary block sm" onclick="window._pinIniciarSetup()">${ico('lock',16,'#fff',1.9)} Configurar PIN</button>
     `}
   </div>
 
@@ -2482,13 +2505,13 @@ function vMas(){const cl=state.cloud;
         <div class="tiny muted">Última sincronización: ${_haceCuanto(state.config._lastPullAt)||'—'}</div></div>
       <span class="chip g">Nube activa</span>
     </div>
-    <button class="btn primary block sm" onclick="window._verificarCuadre()">🔍 Verificar que todo cuadre</button>
+    <button class="btn primary block sm" onclick="window._verificarCuadre()">${ico('search',16,'#fff',1.9)} Verificar que todo cuadre</button>
     <p class="tiny muted" style="margin:6px 0 12px">
       Compara este dispositivo contra la nube y te dice si hay alguna diferencia.
       Úsalo cuando quieras confirmar que no se perdió nada.</p>
     <button class="btn block sm" onclick="cloudPull(false)">↻ Descargar de la nube</button>
     <button class="btn block sm" style="margin-top:8px" onclick="window._resyncAll()">
-      ⬆️ Forzar subida ahora</button>
+      ${ico('upload',16,'currentColor',1.9)} Forzar subida ahora</button>
     <p class="tiny muted" style="margin-top:6px">
       La app sincroniza sola en segundo plano — no necesitas hacer nada.
       Estos botones son opcionales, por si quieres forzarlo manualmente.</p>
@@ -2499,12 +2522,12 @@ function vMas(){const cl=state.cloud;
     :keysBakedIn()?`
     <button class="btn primary block sm" onclick="showLogin()">Iniciar sesión</button>
     <div class="divider"></div>`:''}
-    <button class="btn block sm" onclick="exportarJSON()">⬇️ Descargar respaldo (JSON)</button>
-    <button class="btn block sm" style="margin-top:8px" onclick="document.getElementById('importFile').click()">⬆️ Restaurar respaldo</button>
+    <button class="btn block sm" onclick="exportarJSON()">${ico('download',16,'currentColor',1.9)} Descargar respaldo (JSON)</button>
+    <button class="btn block sm" style="margin-top:8px" onclick="document.getElementById('importFile').click()">${ico('upload',16,'currentColor',1.9)} Restaurar respaldo</button>
     <input type="file" id="importFile" accept=".json" class="hidden" onchange="importarJSON(this.files[0])">
   </div>
 
-  <p class="tiny faint" style="text-align:center;margin:20px 0 4px">Frutería · Control de Negocio · por Altavex 🍉</p>
+  <p class="tiny faint" style="text-align:center;margin:20px 0 4px">Frutería · Control de Negocio · por Altavex</p>
   <p class="tiny faint" style="text-align:center;margin:0 0 16px">v${APP_VERSION}</p>
   <div style="height:10px"></div>`;}
 
@@ -2516,7 +2539,7 @@ function vProductos(){const ps=productos().slice().sort((a,b)=>a.nombre.localeCo
     <div class="l-main"><div class="l-n">${p.nombre}</div>
     <div class="l-s">${p.categoria} · ${p.unidad} · margen ${margenPct(p).toFixed(0)}%</div></div>
     <div class="l-r"><div class="bb money">${money0(p.precio_venta)}</div><div class="tiny faint">stock ${qty(p.stock,p.unidad)}</div></div></div>`).join('')
-    ||'<div class="empty"><span class="e-ico">📦</span>Sin productos</div>'}</div>
+    ||'<div class="empty"><span class="e-ico">'+ico('box',36,'var(--faint)',1.6)+'</span>Sin productos</div>'}</div>
   <div style="height:14px"></div>`;
 }
 
@@ -2561,7 +2584,7 @@ function enviarWA(tel, venta){
   const nombre=venta.cliente_nombre||findCliente(tel)?.nombre||tel;
   openSheet(`
     <div style="text-align:center;padding:8px 0 20px">
-      <div style="font-size:52px;margin-bottom:10px">✅</div>
+      <div style="margin-bottom:12px;display:grid;place-items:center">${ico('checkCircle',48,'var(--green)',1.6)}</div>
       <div style="font-size:22px;font-weight:900;margin-bottom:4px">¡Venta registrada!</div>
       <div style="color:var(--muted);font-size:14px">Ticket #${venta.folio} · ${nombre}</div>
     </div>
@@ -2574,11 +2597,11 @@ function enviarWA(tel, venta){
     </div>
     <button id="pdfBtn" class="btn primary block" style="font-size:16px;padding:15px"
       onclick="window._compartirTicketPDF('${venta.id}')">
-      📄 Compartir ticket PDF por WhatsApp
+      ${ico('file',16,'#fff',1.9)} Compartir ticket PDF por WhatsApp
     </button>
     <button class="btn block" style="margin-top:8px;font-size:15px;padding:13px"
       onclick="window._imprimirTicket('${venta.id}')">
-      🖨️ Imprimir ticket
+      ${ico('printer',16,'currentColor',1.9)} Imprimir ticket
     </button>
     <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet();go('vender')">
       ✓ Ok, continuar sin enviar
@@ -2688,7 +2711,7 @@ window._compartirTicketPDF=async function(ventaId){
   }catch(e){
     if(e.name!=='AbortError')toast('Error: '+e.message.substring(0,50),'bad');
   }
-  if(btn){btn.textContent='📄 Compartir ticket PDF por WhatsApp';btn.disabled=false;}
+  if(btn){btn.textContent='Compartir ticket PDF por WhatsApp';btn.disabled=false;}
 };
 
 
@@ -2720,7 +2743,7 @@ function openWASheet(venta){
     const rows=matches.map(c=>`
       <button class="lrow" style="width:100%;text-align:left;padding:10px 0"
         id="waRow_${c.id}" onclick="window._waMarcar('${c.id}','${venta.id}')">
-        <span class="l-emj">👤</span>
+        <span class="l-emj" style="display:grid;place-items:center">${ico('user',22,'var(--muted)',1.7)}</span>
         <div class="l-main">
           <div class="l-n">${c.nombre||'Sin nombre'} <span class="chip" style="font-size:10px">#${c.num_cliente}</span></div>
           <div class="l-s">${c.telefono} &middot; ${c.num_visitas||0} visitas &middot; ${money(c.total_compras||0)} total</div>
@@ -2731,14 +2754,14 @@ function openWASheet(venta){
     if(wrap)wrap.innerHTML=rows||(q.length>=1?'<div class="tiny muted" style="padding:6px 0">No encontrado — regístralo abajo ↓</div>':'');
   };
 
-  openSheet(`<h2>✅ Venta registrada</h2>
+  openSheet(`<h2>Venta registrada</h2>
   ${resumen}
   <div style="display:flex;gap:8px;margin-bottom:16px">
     <button class="btn block" style="flex:1;font-size:13.5px;padding:12px 8px" onclick="window._imprimirTicket('${venta.id}')">
-      🖨️ Imprimir
+      ${ico('printer',16,'currentColor',1.9)} Imprimir
     </button>
     <button class="btn block" style="flex:1;font-size:13.5px;padding:12px 8px" onclick="window._compartirTicketPDF('${venta.id}')">
-      📄 PDF
+      ${ico('file',16,'currentColor',1.9)} PDF
     </button>
   </div>
   <div class="sec-title" style="margin:0 0 8px">¿Enviar ticket por WhatsApp?</div>
@@ -2751,7 +2774,7 @@ function openWASheet(venta){
     <div id="waConfirm"></div>
   </div>
   <div style="border-radius:14px;border:1.5px solid var(--green);padding:14px;margin-bottom:14px">
-    <div class="b" style="margin-bottom:8px">➕ Dar de alta cliente nuevo</div>
+    <div class="b" style="margin-bottom:8px">Dar de alta cliente nuevo</div>
     <div class="field" style="margin-bottom:10px">
       <label>Teléfono WhatsApp</label>
       <input id="waTel" type="tel" inputmode="numeric" placeholder="Ej: 8112345678" autocomplete="off"
@@ -2763,7 +2786,7 @@ function openWASheet(venta){
         style="width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px">
     </div>
     <button class="btn primary block" onclick="window._waNuevo('${venta.id}')">
-      💾 Guardar como cliente #${state.config.nextNumCliente||1} y enviar WhatsApp
+      ${ico('save',16,'#fff',1.9)} Guardar como cliente #${state.config.nextNumCliente||1} y enviar WhatsApp
     </button>
   </div>
   <button class="btn ghost block" onclick="closeSheet();go('vender')">Continuar sin WhatsApp</button>`);
@@ -2901,7 +2924,7 @@ function _rentResultsHtml(){
     </div>
   </div>
   ${r.tv>0?`<div class="card pad" style="margin-top:0">
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px">💡 ¿Dónde va cada peso que entra?</div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px">${ico('bulb',15,'var(--mango)',1.8)} ¿Dónde va cada peso que entra?</div>
     ${[['Costo mercancía',r.cm/r.tv*100,'#94a3b8'],
        ['Utilidad bruta',r.ub/r.tv*100,'#0891b2'],
        ['Merma',r.tm/r.tv*100,'var(--rose)'],
@@ -2924,7 +2947,7 @@ function vRentabilidad(){
     color:${rentPreset===k?'#fff':'var(--text)'};white-space:nowrap">${lbl}</button>`;
   return `
   <div class="between"><button class="link" onclick="go('inteligencia')">← Resumen</button>
-  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)" aria-label="Bloquear">🔓</button>`:''}</div>
+  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;cursor:pointer;color:var(--muted);display:grid;place-items:center" aria-label="Bloquear">${ico('unlock',18,'currentColor',1.8)}</button>`:''}</div>
   <div class="sec-title">Rentabilidad</div>
   <div class="card pad" style="margin-bottom:0">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -2959,14 +2982,14 @@ function vClientes(){
   if(!state.clientes)state.clientes=[];
   const cs=state.clientes.filter(c=>!c.deleted)
     .sort((a,b)=>(b.num_visitas||0)-(a.num_visitas||0));
-  const emptyNote=`<div class="empty"><span class="e-ico">👤</span>
+  const emptyNote=`<div class="empty"><span class="e-ico">${ico('user',36,'var(--faint)',1.6)}</span>
     Aún no hay clientes.<br>
     <span style="font-size:13px;color:var(--muted)">Regístralos al finalizar una venta<br>o usa el botón + aquí abajo.</span></div>`;
   const row=c=>{
     const v=c.num_visitas||0;
     const ult=c.ultima_visita?new Date(c.ultima_visita).toLocaleDateString('es-MX',{day:'numeric',month:'short'}):'—';
     return `<div class="lrow" onclick="openClienteDetalle('${c.id}')" style="cursor:pointer">
-      <span class="l-emj" style="background:var(--surface-2);width:38px;height:38px;display:grid;place-items:center;border-radius:50%;flex-shrink:0;font-size:20px">👤</span>
+      <span class="l-emj" style="background:var(--surface-2);width:38px;height:38px;display:grid;place-items:center;border-radius:50%;flex-shrink:0">${ico('user',20,'var(--muted)',1.7)}</span>
       <div class="l-main">
         <div class="l-n">${c.nombre||'Sin nombre'} <span class="chip" style="font-size:10px">#${c.num_cliente}</span></div>
         <div class="l-s">${c.telefono} · ${v} ${v===1?'visita':'visitas'} · ${money(c.total_compras||0)}</div>
@@ -2974,7 +2997,7 @@ function vClientes(){
       <div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:6px">
         <span style="font-size:11px;color:var(--muted)">${ult}</span>
         <button onclick="event.stopPropagation();openClienteForm('${c.id}')"
-          style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">✏️</button>
+          style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;cursor:pointer;display:grid;place-items:center">${ico('pencil',15,'var(--muted)',1.8)}</button>
       </div>
     </div>`;
   };
@@ -3051,7 +3074,7 @@ window.openClienteDetalle=function(cid){
   ${historial||'<div class="tiny muted">Sin compras registradas</div>'}
   <div style="height:12px"></div>
   <button class="btn primary block" style="margin-top:8px" onclick="enviarWAClienteUltima('${c.id}')">↗ Enviar último ticket por WhatsApp</button>
-  <button class="btn block" style="margin-top:8px" onclick="closeSheet();openClienteForm('${c.id}')">✏️ Editar datos del cliente</button>
+  <button class="btn block" style="margin-top:8px" onclick="closeSheet();openClienteForm('${c.id}')">${ico('pencil',16,'currentColor',1.9)} Editar datos del cliente</button>
   <button class="btn ghost block" style="margin-top:8px;color:var(--rose);font-size:12px" onclick="eliminarCliente('${c.id}')">Eliminar cliente</button>`);
 };
 
@@ -3078,10 +3101,10 @@ window.eliminarCliente=function(cid){
 
 
 /* ============================ VISTA: GASTOS ============================ */
-const GASTO_CATS_FIJO=['🏪 Renta/Local','💡 Servicios (luz/agua/internet)','👷 Nómina/Personal',
-  '📱 Suscripciones/Software','🛡️ Seguros','📦 Otro fijo'];
-const GASTO_CATS_VAR=['🛍️ Bolsas/empaques','🧹 Limpieza','⛽ Gasolina/transporte',
-  '🛒 Insumos','🔧 Mantenimiento','📦 Otro variable'];
+const GASTO_CATS_FIJO=['Renta/Local','Servicios (luz/agua/internet)','Nómina/Personal',
+  'Suscripciones/Software','Seguros','Otro fijo'];
+const GASTO_CATS_VAR=['Bolsas/empaques','Limpieza','Gasolina/transporte',
+  'Insumos','Mantenimiento','Otro variable'];
 
 function _gastoTipo(g){return g.tipo_gasto||'variable';} // compatibilidad con gastos viejos sin clasificar
 
@@ -3103,7 +3126,7 @@ function vGastos(){
       onclick="openAddGasto('${g.id}')">
       <div>
         <div style="font-weight:600;font-size:14px">${g.concepto||'Gasto'}</div>
-        <div class="tiny muted">${g.categoria?g.categoria+' · ':''}${d} ${hora}</div>
+        <div class="tiny muted">${g.categoria?limpiaCat(g.categoria)+' · ':''}${d} ${hora}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-weight:800;color:var(--rose);font-size:15px">-${money(g.monto)}</span>
@@ -3119,7 +3142,7 @@ function vGastos(){
     <div class="card pad">${lista.map(row).join('')}</div>`:'';
 
   return `<div class="between"><button class="link" onclick="go('movimientos')">← Movimientos</button>
-  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)" aria-label="Bloquear">🔓</button>`:''}</div>
+  ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;cursor:pointer;color:var(--muted);display:grid;place-items:center" aria-label="Bloquear">${ico('unlock',18,'currentColor',1.8)}</button>`:''}</div>
   <div class="kpis" style="margin-top:0">
     <div class="kpi"><div class="k-lbl">Gastos hoy</div><div class="k-val money neg">${money0(hoyG)}</div></div>
     <div class="kpi"><div class="k-lbl">Total registrado</div><div class="k-val money neg">${money0(total)}</div></div>
@@ -3130,14 +3153,14 @@ function vGastos(){
       <div style="width:${(totVar/total*100).toFixed(1)}%;background:#f59e0b"></div>
     </div>
     <div class="between tiny muted">
-      <span>🏛️ Fijos ${(totFijos/total*100).toFixed(0)}% · ${money0(totFijos)}</span>
-      <span>🔄 Variables ${(totVar/total*100).toFixed(0)}% · ${money0(totVar)}</span>
+      <span>Fijos ${(totFijos/total*100).toFixed(0)}% · ${money0(totFijos)}</span>
+      <span>Variables ${(totVar/total*100).toFixed(0)}% · ${money0(totVar)}</span>
     </div>
   </div>`:''}
   <button class="btn primary block" style="margin:14px 0" onclick="openAddGasto()">+ Registrar gasto</button>
-  ${!todos.length?'<div class="card pad"><div class="empty"><span class="e-ico">💰</span>Sin gastos registrados</div></div>':''}
-  ${seccion('🏛️ Gastos fijos',fijos,totFijos,'#7c3aed')}
-  ${seccion('🔄 Gastos variables',variables,totVar,'#f59e0b')}
+  ${!todos.length?'<div class="card pad"><div class="empty"><span class="e-ico">'+ico('coins',36,'var(--faint)',1.6)+'</span>Sin gastos registrados</div></div>':''}
+  ${seccion('Gastos fijos',fijos,totFijos,'#6d3fbf')}
+  ${seccion('Gastos variables',variables,totVar,'var(--mango)')}
   <div style="height:14px"></div>`;}
 
 function openAddGasto(id){
@@ -3148,8 +3171,8 @@ function openAddGasto(id){
   openSheet(`<h2>${g?'Editar gasto':'Registrar gasto'}</h2>
   <div class="field"><label>Tipo de gasto</label>
     <div class="seg" style="margin-top:4px">
-      <button id="gtFijo" class="${window._gastoTipoSel==='fijo'?'on':''}" onclick="window._setGastoTipo('fijo')">🏛️ Fijo</button>
-      <button id="gtVar" class="${window._gastoTipoSel==='variable'?'on':''}" onclick="window._setGastoTipo('variable')">🔄 Variable</button>
+      <button id="gtFijo" class="${window._gastoTipoSel==='fijo'?'on':''}" onclick="window._setGastoTipo('fijo')">Fijo</button>
+      <button id="gtVar" class="${window._gastoTipoSel==='variable'?'on':''}" onclick="window._setGastoTipo('variable')">Variable</button>
     </div>
     <p class="tiny muted" style="margin-top:6px">
       <b>Fijo</b>: se repite cada mes sin importar cuánto vendas (renta, nómina, luz).<br>
@@ -3163,7 +3186,7 @@ function openAddGasto(id){
   <div class="field"><label>Monto ($)</label>
     <input id="gastoMonto" type="number" inputmode="decimal" placeholder="0" value="${g?g.monto:''}"></div>
   <button class="btn primary block" onclick="window._guardarGasto()">${g?'Guardar cambios':'Guardar gasto'}</button>
-  ${g?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="window._eliminarGasto('${id}')">🗑️ Eliminar gasto</button>`:''}
+  ${g?`<button class="btn ghost block" style="margin-top:8px;color:var(--rose)" onclick="window._eliminarGasto('${id}')">${ico('trash',16,'currentColor',1.9)} Eliminar gasto</button>`:''}
   <button class="btn ghost block" style="margin-top:8px" onclick="closeSheet()">Cancelar</button>`);
   window._renderGastoCats();}
 
@@ -3242,7 +3265,7 @@ function closeSheet(){$('#modalRoot').innerHTML='';}
 function openMpSettings(){
   const nombre=state.config.terminalNombre||'Clip';
   const com=state.config.mpComision||0;
-  openSheet(`<h2>💳 Terminal de cobro</h2>
+  openSheet(`<h2>Terminal de cobro</h2>
   <p class="sub">Configura el nombre y la comisión de tu terminal física</p>
   <div class="field"><label>Nombre de tu terminal</label>
     <input id="mpNombre" placeholder="Ej: Clip, banorte, mercado pago..." value="${nombre}"></div>
@@ -3261,7 +3284,7 @@ function openMpSettings(){
   </div>
   <div class="card pad" style="background:#f0f9ff;border:1px solid #bae6fd;margin-bottom:14px">
     <p class="tiny" style="margin:0;line-height:1.5">
-      ℹ️ Esta app <b>no envía el cobro directamente</b> a tu terminal — eso solo lo permiten
+      Esta app <b>no envía el cobro directamente</b> a tu terminal — eso solo lo permiten
       apps nativas propias de cada marca. El flujo es: seleccionas "Tarjeta" al cobrar,
       cobras físicamente en tu terminal, y esta app calcula la comisión y guarda el registro.
     </p>
@@ -3397,7 +3420,7 @@ async function cloudPushAll(bid,since){
 window._verificarCuadre=async function(){
   if(!sb||!state.cloud.connected||!state.cloud.businessId){
     toast('Necesitas estar conectado a la nube','bad');return;}
-  openSheet(`<h2>🔍 Verificando cuadre...</h2>
+  openSheet(`<h2>Verificando cuadre...</h2>
     <p class="sub">Comparando este dispositivo contra la nube</p>
     <div style="text-align:center;padding:30px 0;font-size:32px">⏳</div>`);
   const dif=[];
@@ -3427,7 +3450,7 @@ window._verificarCuadre=async function(){
               caja:'Caja',clientes:'Clientes',stockLog:'Historial de stock'};
   let html;
   if(!dif.length){
-    html=`<h2>✅ Todo cuadra</h2>
+    html=`<h2>Todo cuadra</h2>
     <p class="sub">Este dispositivo y la nube tienen exactamente la misma información.</p>
     <div style="background:#eaf7ee;border-radius:10px;padding:14px;margin:14px 0;font-size:14px">
       No hay nada pendiente de subir ni de bajar. Puedes seguir vendiendo con confianza.
@@ -3446,7 +3469,7 @@ window._verificarCuadre=async function(){
       return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
         <div style="font-weight:600;font-size:13.5px">${ETIQ[dd.tabla]||dd.tabla}</div>
         <div class="tiny muted">${dd.msg}</div></div>`;}).join('');
-    html=`<h2>⚠️ Encontré ${dif.length} diferencia(s)</h2>
+    html=`<h2>Encontré ${dif.length} diferencia(s)</h2>
     <p class="sub">Entre este dispositivo y la nube</p>
     <div class="card pad" style="margin:12px 0">${filas}</div>
     <button class="btn primary block" onclick="window._arreglarCuadre()">Arreglar automáticamente</button>
@@ -3477,7 +3500,7 @@ window._resyncAll=async function(){
   try{
     const fallos=await cloudPushAll(state.cloud.businessId);
     if(fallos.length){
-      toast('⚠️ Fallo al subir: '+fallos.join(', '),'bad');
+      toast('Fallo al subir: '+fallos.join(', '),'bad');
     }else{
       _syncFailCount=0;setSync(true,'Nube');
       toast('✓ Todos tus datos se subieron a la nube','ok');
@@ -3485,7 +3508,7 @@ window._resyncAll=async function(){
   }catch(e){
     toast('Error: '+e.message.substring(0,60),'bad');
   }
-  if(btn){btn.textContent='⬆️ Subir todos mis datos a la nube';btn.disabled=false;}
+  if(btn){btn.textContent='Subir todos mis datos a la nube';btn.disabled=false;}
 };
 async function cloudPull(silent){
   if(!sb||!state.cloud.businessId)return;
@@ -3506,7 +3529,7 @@ async function cloudPull(silent){
   // debe decir la verdad, no asumir éxito.
   if(fallaron===0)state.config._lastPullAt=new Date().toISOString();
   save();refrescarIndicadorSync();render();
-  if(!silent)toast(fallaron?('⚠️ '+fallaron+' tabla(s) no bajaron'):'Sincronizado ✓', fallaron?'bad':'ok');
+  if(!silent)toast(fallaron?(fallaron+' tabla(s) no bajaron'):'Sincronizado ✓', fallaron?'bad':'ok');
 }
 
 // Indicador honesto: dice hace cuánto fue la última sincronización COMPLETA exitosa,
@@ -3522,12 +3545,12 @@ function _haceCuanto(iso){
 }
 function refrescarIndicadorSync(){
   if(!state.cloud.connected){setSync(false,'Local');return;}
-  if(_syncFailCount>0){setSync(true,'⚠️ Sin sincronizar');return;}
+  if(_syncFailCount>0){setSync(true,'Sin sincronizar');return;}
   const txt=_haceCuanto(state.config._lastPullAt);
   if(!txt){setSync(true,'Nube');return;}
   const min=Math.floor((Date.now()-new Date(state.config._lastPullAt).getTime())/60000);
   // Más de 15 min sin lograr sincronizar es señal de que algo no anda bien
-  setSync(min<15, min<15?('Nube · '+txt):('⚠️ '+txt));
+  setSync(min<15, min<15?('Nube · '+txt):txt);
 }
 setInterval(refrescarIndicadorSync,60*1000); // refresca el "hace X min" cada minuto
 
@@ -3556,9 +3579,9 @@ async function push(table,row){
     if(error){
       console.warn('Fallo al sincronizar '+table+':',error);
       _syncFailCount++;
-      setSync(true,'⚠️ Sin sincronizar');
+      setSync(true,'Sin sincronizar');
       // Solo molestamos con un toast la primera vez por sesión, para no saturar
-      if(_syncFailCount===1)toast('⚠️ No se pudo guardar en la nube — revisa tu conexión','bad');
+      if(_syncFailCount===1)toast('No se pudo guardar en la nube — revisa tu conexión','bad');
     }else if(_syncFailCount>0){
       // Un guardado posterior sí funcionó — la conexión se recuperó sola, quitamos la alerta de inmediato
       _syncFailCount=0;setSync(true,'Nube');
@@ -3566,8 +3589,8 @@ async function push(table,row){
   }catch(e){
     console.warn('Fallo al sincronizar '+table+':',e);
     _syncFailCount++;
-    setSync(true,'⚠️ Sin sincronizar');
-    if(_syncFailCount===1)toast('⚠️ No se pudo guardar en la nube — revisa tu conexión','bad');
+    setSync(true,'Sin sincronizar');
+    if(_syncFailCount===1)toast('No se pudo guardar en la nube — revisa tu conexión','bad');
   }
 }
 let _rtDebounce=null;
@@ -3599,11 +3622,11 @@ async function cloudLogout(){
     try{
       const fallos=await cloudPushAll(state.cloud.businessId);
       if(fallos.length){
-        toast('⚠️ No se pudo guardar todo en la nube. Espera a tener internet antes de cerrar sesión.','bad');
+        toast('No se pudo guardar todo en la nube. Espera a tener internet antes de cerrar sesión.','bad');
         return; // NO cerramos sesión ni borramos nada — evita perder datos que aún no llegaron a la nube
       }
     }catch(e){
-      toast('⚠️ Sin conexión — no cierres sesión ahorita o podrías perder información sin guardar.','bad');
+      toast('Sin conexión — no cierres sesión ahorita o podrías perder información sin guardar.','bad');
       return;
     }
   }
@@ -3636,12 +3659,12 @@ function openChartFS(title,svgEl){
   document.body.appendChild(ov);
 }
 window.openChartFS=openChartFS;
-const WMO={0:'Despejado ☀️',1:'Mayormente despejado 🌤️',2:'Parcialmente nublado ⛅',3:'Nublado ☁️',
-  45:'Neblina 🌫️',48:'Neblina ❄️',51:'Llovizna 🌦️',53:'Llovizna 🌦️',55:'Llovizna fuerte 🌧️',
-  61:'Lluvia ligera 🌧️',63:'Lluvia 🌧️',65:'Lluvia fuerte 🌧️',
-  71:'Nieve ligera 🌨️',73:'Nieve 🌨️',75:'Nieve fuerte 🌨️',
-  80:'Chubascos 🌦️',81:'Chubascos 🌧️',82:'Chubascos fuertes ⛈️',
-  95:'Tormenta ⛈️',96:'Tormenta con granizo ⛈️',99:'Tormenta fuerte ⛈️'};
+const WMO={0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
+  45:'Neblina',48:'Neblina',51:'Llovizna',53:'Llovizna',55:'Llovizna fuerte',
+  61:'Lluvia ligera',63:'Lluvia',65:'Lluvia fuerte',
+  71:'Nieve ligera',73:'Nieve',75:'Nieve fuerte',
+  80:'Chubascos',81:'Chubascos',82:'Chubascos fuertes',
+  95:'Tormenta',96:'Tormenta con granizo',99:'Tormenta fuerte'};
 
 function updateInfoBar(){
   const h=new Date().getHours();
@@ -3722,8 +3745,8 @@ async function _autoResync(){
     // (se queda con su fecha vieja, fuera de la ventana "desde"); todo lo demás sigue sano.
     state.config._lastAutoSyncAt=marcaTiempo;save();
     if(fallos.length){
-      setSync(true,'⚠️ Sin sincronizar');
-      if(_syncFailCount===0){_syncFailCount=1;toast('⚠️ Un registro no se pudo subir a la nube','bad');}
+      setSync(true,'Sin sincronizar');
+      if(_syncFailCount===0){_syncFailCount=1;toast('Un registro no se pudo subir a la nube','bad');}
     }else if(_syncFailCount>0){
       _syncFailCount=0;refrescarIndicadorSync();toast('✓ Todo tu información ya está al día en la nube','ok');
     }
