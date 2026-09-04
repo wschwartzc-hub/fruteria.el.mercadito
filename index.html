@@ -3,25 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1f9d55">
+<meta name="theme-color" content="#17864A">
 <title>Frutería · Control de Negocio</title>
 <style>
 /* ============================ TOKENS ============================ */
 :root{
-  --bg:#f6f8f4; --surface:#ffffff; --surface-2:#f1f5ef;
-  --ink:#15241b; --muted:#5d6f63; --faint:#8a9890;
-  --line:#e4ebe2; --line-2:#d6e0d3;
-  --green:#1f9d55; --green-d:#15803d; --green-soft:#e7f6ec;
-  --mango:#f59e0b; --mango-soft:#fef3da;
-  --rose:#e11d48; --rose-soft:#fce8ec;
+  --bg:#f7f9f6; --surface:#ffffff; --surface-2:#f0f4ee;
+  --ink:#16241c; --muted:#5b6c61; --faint:#8c9a92;
+  --line:#e5ebe3; --line-2:#d7e0d4;
+  --green:#17864a; --green-d:#0f6337; --green-soft:#e8f4ec;
+  --mango:#d18a0b; --mango-soft:#fbf0dc;
+  --rose:#c81d42; --rose-soft:#fbe9ed;
   --blue:#2563eb; --blue-soft:#e6efff;
-  --r:16px; --r-sm:11px;
-  --sh:0 1px 2px rgba(20,40,28,.06), 0 8px 24px rgba(20,40,28,.06);
-  --sh-lg:0 12px 40px rgba(20,40,28,.18);
+  --r:14px; --r-sm:11px;
+  --sh:0 1px 2px rgba(20,40,28,.05);
+  --sh-lg:0 12px 32px rgba(20,40,28,.20);
   --safe-b:env(safe-area-inset-bottom,0px);
   --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+input[type=checkbox],input[type=radio],input[type=range],progress{accent-color:var(--green)}
 html,body{margin:0;padding:0;height:100%;overflow:hidden}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{
@@ -39,20 +40,22 @@ h1,h2,h3,p{margin:0}
 /* ============================ APP SHELL ============================ */
 #app{max-width:560px;margin:0 auto;height:100%;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
 .topbar{
-  background:rgba(246,248,244,.95);backdrop-filter:saturate(1.4) blur(10px);
-  border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:10px;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);padding:11px 16px;display:flex;align-items:center;gap:10px;
 }
 .topbar .brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:-.02em;font-size:17px}
 .topbar .brand .logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
-  background:linear-gradient(150deg,var(--green),var(--green-d));color:#fff;font-size:17px}
+  background:var(--green);color:#fff;font-size:17px}
+.topbar .brand .logo svg{width:17px;height:17px}
 .topbar .spacer{flex:1}
 .sync-pill{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);
   background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 10px}
 .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
 .sync-dot.on{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
 .sync-dot.off{background:var(--mango)}
-.icon-btn{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--surface);
-  border:1px solid var(--line);font-size:18px}
+.icon-btn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--surface);
+  border:1px solid var(--line);color:var(--muted)}
+.icon-btn svg{width:17px;height:17px}
 
 main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px calc(80px + var(--safe-b));}
 .view{animation:fade .25s ease}
@@ -62,24 +65,25 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .nav{
   position:fixed;left:0;right:0;bottom:0;z-index:40;
   max-width:560px;margin:0 auto;padding:8px 8px calc(8px + var(--safe-b));
-  background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  background:var(--surface);border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(5,1fr);gap:2px;
   -webkit-transform:translateZ(0);transform:translateZ(0);will-change:transform;
 }
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border-radius:12px;
   color:var(--faint);font-size:10.5px;font-weight:700;letter-spacing:.01em}
-.nav button .ni{font-size:21px;line-height:1}
-.nav button.active{color:var(--green-d)}
-.nav button.active .ni{transform:translateY(-1px)}
-.nav button.sell{color:var(--green-d)}
-.nav button.sell .ni{background:linear-gradient(150deg,var(--green),var(--green-d));width:50px;height:50px;
-  border-radius:16px;display:grid;place-items:center;margin-top:-20px;box-shadow:0 8px 20px rgba(31,157,85,.45);font-size:30px;line-height:1}
-.nav button.sell.active{color:var(--green-d)}
+.nav button .ni{line-height:1;display:grid;place-items:center;height:24px}
+.nav button .ni svg{width:22px;height:22px}
+.nav button.active{color:var(--green)}
+.nav button.sell{color:var(--green)}
+.nav button.sell .ni{background:var(--green);width:100%;height:42px;border-radius:13px;
+  display:grid;place-items:center;margin-top:0;box-shadow:none}
+.nav button.sell .ni svg{stroke:#fff}
+.nav button.sell.active{color:var(--green)}
 
 /* ============================ CARDS / GENERIC ============================ */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
 .pad{padding:16px}
-.sec-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);
+.sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);
   margin:22px 4px 10px}
 .sec-title:first-child{margin-top:2px}
 .row{display:flex;align-items:center;gap:12px}
@@ -91,10 +95,11 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .pos{color:var(--green-d)}.neg{color:var(--rose)}
 .divider{height:1px;background:var(--line);margin:12px 0}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:15px;
-  padding:13px 18px;border-radius:13px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);transition:.12s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:14.5px;
+  padding:13px 18px;border-radius:12px;background:var(--surface);color:var(--ink);border:1px solid var(--line-2);transition:.12s}
 .btn:active{transform:scale(.98)}
-.btn.primary{background:linear-gradient(150deg,var(--green),var(--green-d));color:#fff;border:none;box-shadow:0 6px 16px rgba(31,157,85,.32)}
+.btn.primary{background:var(--green);color:#fff;border:none;box-shadow:none}
+.btn svg{width:16px;height:16px;flex-shrink:0}
 .btn.rose{background:var(--rose);color:#fff;border:none}
 .btn.ghost{background:transparent}
 .btn.block{display:flex;width:100%}
@@ -102,12 +107,13 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;
   background:var(--surface-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
 .chip.g{background:var(--green-soft);color:var(--green-d);border-color:transparent}
-.chip.m{background:var(--mango-soft);color:#9a6700;border-color:transparent}
+.chip.m{background:var(--mango-soft);color:#8a5c07;border-color:transparent}
 .chip.r{background:var(--rose-soft);color:var(--rose);border-color:transparent}
 .chip.b{background:var(--blue-soft);color:var(--blue);border-color:transparent}
 
 .empty{text-align:center;padding:40px 20px;color:var(--faint)}
 .empty .e-ico{font-size:42px;display:block;margin-bottom:10px;opacity:.85}
+.empty .e-ico svg{margin:0 auto}
 
 .field{margin-bottom:13px}
 .field label{display:block;font-size:12.5px;font-weight:800;color:var(--muted);margin:0 2px 6px}
@@ -118,15 +124,16 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 
 /* ============================ STATS ============================ */
-.stat-hero{background:linear-gradient(155deg,#1c8f4e,#0f6b34);color:#fff;border-radius:20px;padding:18px;box-shadow:var(--sh);position:relative;overflow:hidden}
-.stat-hero .emj{position:absolute;right:-6px;top:-10px;font-size:96px;opacity:.13;transform:rotate(-12deg)}
-.stat-hero .lbl{font-size:13px;font-weight:700;opacity:.9}
-.stat-hero .val{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
-.stat-hero .sub{font-size:13px;opacity:.92;margin-top:4px}
+.stat-hero{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.stat-hero .emj{display:none}
+.stat-hero .lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.stat-hero .val{font-size:38px;font-weight:700;letter-spacing:-.025em;margin-top:3px;line-height:1.05}
+.stat-hero .sub{font-size:12.5px;color:var(--muted);margin-top:5px}
 .kpis{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:11px}
-.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px}
-.kpi .k-lbl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
-.kpi .k-val{font-size:21px;font-weight:800;letter-spacing:-.02em;margin-top:3px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 14px;box-shadow:var(--sh)}
+.kpi .k-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.kpi .k-val{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-top:3px}
 .kpi .k-sub{font-size:12px;color:var(--muted);margin-top:1px}
 
 /* ============================ PRODUCT GRID (POS) ============================ */
@@ -136,12 +143,12 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
   border:1.5px solid var(--line);color:var(--muted);white-space:nowrap}
 .cat-pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.pcard{background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:11px 8px 10px;text-align:center;
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 9px 9px;text-align:center;
   position:relative;transition:.1s;box-shadow:var(--sh)}
 .pcard:active{transform:scale(.96)}
 .pcard .pemj{font-size:34px;line-height:1;display:block;margin-bottom:5px}
 .pcard .pn{font-size:12.5px;font-weight:800;line-height:1.15;min-height:29px;display:flex;align-items:center;justify-content:center}
-.pcard .pp{font-size:12px;font-weight:800;color:var(--green-d);margin-top:3px}
+.pcard .pp{font-size:14.5px;font-weight:800;color:var(--green);margin-top:3px;letter-spacing:-.02em}
 .pcard .pu{font-size:10.5px;color:var(--faint);font-weight:700}
 .pcard.out{opacity:.45}
 .pcard .badge{position:absolute;top:-5px;right:-5px;background:var(--rose);color:#fff;font-size:10px;font-weight:800;
@@ -190,7 +197,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
    parte de arriba (título + botón cerrar) quedaba físicamente fuera de pantalla, obligando
    a hacer scroll hacia arriba para alcanzarla. dvh sí descuenta la barra del navegador.
    Se deja 100vh justo antes como respaldo para navegadores que no soportan dvh. */
-.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:20px 20px 0 0;
   max-height:calc(100vh - 40px - env(safe-area-inset-top,0px));
   max-height:calc(100dvh - 40px - env(safe-area-inset-top,0px));
   overflow:hidden;position:relative;
@@ -245,7 +252,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 /* pay methods */
 .pays{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:8px}
 .pays button{padding:14px 6px;border-radius:14px;background:var(--surface-2);border:2px solid transparent;font-weight:800;font-size:13px;display:flex;flex-direction:column;gap:5px;align-items:center}
-.pays button .pico{font-size:23px}
+.pays button .pico{font-size:23px;display:grid;place-items:center}
 .pays button.on{border-color:var(--green);background:var(--green-soft);color:var(--green-d)}
 
 /* toast */
@@ -273,9 +280,9 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 /* login */
 .login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
   padding:36px 28px 40px;max-width:420px;margin:0 auto;background:#ffffff}
-.login .llogo{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;font-size:38px;
-  margin:0 auto 14px;background:linear-gradient(150deg,var(--green),var(--green-d));
-  box-shadow:0 12px 30px rgba(31,157,85,.35)}
+.login .llogo{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;
+  margin:0 auto 16px;background:var(--green);box-shadow:none}
+.login .llogo svg{width:32px;height:32px}
 .login .l-biz{text-align:center;font-size:22px;font-weight:900;color:var(--ink);
   letter-spacing:-.03em;margin-bottom:4px}
 .login h1{text-align:center;font-size:15px;font-weight:600;color:var(--muted);margin:0 0 28px}
@@ -284,9 +291,9 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 .login .field input{background:#f7f8f9;border:1.5px solid #e8eae6;border-radius:13px;
   font-size:16px;padding:13px 16px;color:#111}
 .login .field input:focus{border-color:var(--green);background:#fff;box-shadow:0 0 0 3px rgba(31,157,85,.12)}
-.login #lgBtn{margin-top:6px;padding:15px;font-size:16px;border-radius:14px;font-weight:800;
-  letter-spacing:.01em;box-shadow:0 6px 18px rgba(31,157,85,.35)}
-.login #lgToggle{margin-top:10px;background:#f0f0f0;color:#444;border:none;border-radius:14px;
+.login #lgBtn{margin-top:6px;padding:15px;font-size:16px;border-radius:12px;font-weight:700;
+  letter-spacing:.01em;box-shadow:none}
+.login #lgToggle{margin-top:10px;background:var(--surface-2);color:var(--muted);border:none;border-radius:12px;
   padding:13px;font-size:14px;font-weight:700;width:100%;cursor:pointer}
 .login #lgToggle:hover{background:#e8e8e8}
 .link{color:var(--green-d);font-weight:800;background:none}
@@ -304,7 +311,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 
 <!-- ===================== LOGIN (solo si activas nube) ===================== -->
 <div id="loginScreen" class="login hidden">
-  <div class="llogo">🍉</div>
+  <div class="llogo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-7.5 5.5-13.5 14.5-14.5C20.5 13.5 15 20 6.5 20 5.5 20 5 19.7 5 19z"/><path d="M5.5 19.2C8.5 15 12 11.8 16.5 9.5"/></svg></div>
   <div class="l-biz">Frutería El Mercadito</div>
   <h1 id="loginTitle">Inicia sesión para continuar</h1>
   <div class="field"><label>Correo</label><input id="lgEmail" type="email" inputmode="email" placeholder="tucorreo@gmail.com" autocomplete="email"></div>
@@ -319,15 +326,15 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
 <div id="app" class="hidden">
 <div id="fixedHeader" style="position:fixed;top:0;left:0;right:0;max-width:560px;margin:0 auto;z-index:30;">
   <div class="topbar">
-    <div class="brand"><div class="logo">🍉</div><span id="bizName">Frutería</span></div>
+    <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-7.5 5.5-13.5 14.5-14.5C20.5 13.5 15 20 6.5 20 5.5 20 5 19.7 5 19z"/><path d="M5.5 19.2C8.5 15 12 11.8 16.5 9.5"/></svg></div><span id="bizName">Frutería</span></div>
     <div class="spacer"></div>
     <div class="sync-pill" id="syncPill" onclick="openCloud()"><span class="sync-dot" id="syncDot"></span><span id="syncTxt">Local</span></div>
-    <button class="icon-btn" onclick="go('mas')">⚙️</button>
+    <button class="icon-btn" onclick="go('mas')" aria-label="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.7a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09A1.7 1.7 0 0 0 21 10.1h.09a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/></svg></button>
   </div>
   <div id="infoBar" style="display:flex;align-items:center;justify-content:space-between;
     padding:6px 16px;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);
     border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)">
-    <span id="infoGreet">👋 Bienvenido</span>
+    <span id="infoGreet">Bienvenido</span>
     <span id="infoClima" style="font-weight:600">—</span>
   </div>
 </div>
@@ -342,11 +349,11 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px c
   </div>
 
   <nav class="nav">
-    <button data-v="inteligencia" onclick="go('inteligencia')"><span class="ni">📊</span>Resumen</button>
-    <button data-v="inventario" onclick="go('inventario')"><span class="ni">📦</span>Inventario</button>
-    <button class="sell" data-v="vender" onclick="go('vender')"><span class="ni">🛒</span>Vender</button>
-    <button data-v="movimientos" onclick="go('movimientos')"><span class="ni">🔄</span>Movimientos</button>
-    <button data-v="mas" onclick="go('mas')"><span class="ni">⋯</span>Más</button>
+    <button data-v="inteligencia" onclick="go('inteligencia')"><span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6.5 20v-6"/><path d="M12 20V7"/><path d="M17.5 20v-9"/></svg></span>Resumen</button>
+    <button data-v="inventario" onclick="go('inventario')"><span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5v-7z"/><path d="M3 8.5 12 13l9-4.5"/><path d="M12 13v7"/></svg></span>Inventario</button>
+    <button class="sell" data-v="vender" onclick="go('vender')"><span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2.2l2.3 10.8h10L19.7 7H6.2"/><circle cx="9.5" cy="19.3" r="1.5"/><circle cx="17" cy="19.3" r="1.5"/></svg></span>Vender</button>
+    <button data-v="movimientos" onclick="go('movimientos')"><span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h13l-3.3-3.3"/><path d="M20 15.5H7l3.3 3.3"/></svg></span>Movimientos</button>
+    <button data-v="mas" onclick="go('mas')"><span class="ni"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg></span>M&aacute;s</button>
   </nav>
 </div>
 
@@ -373,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.6.3';
+const APP_VERSION = '4.7.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -393,6 +400,35 @@ const CATS=['Fruta','Verdura','Abarrote','Lácteo','Otros'];
 const CAT_COLOR={Fruta:'#f59e0b',Verdura:'#16a34a',Abarrote:'#92703f',Lácteo:'#2563eb',Otros:'#8b5cf6'};
 const catBadge=c=>{const col=CAT_COLOR[c]||'#6b7280';
   return `<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:800;background:${col}1f;color:${col};white-space:nowrap;flex-shrink:0">${c||'—'}</span>`;};
+/* Set de iconos de trazo (reemplaza a los emoji en la interfaz).
+   Un solo lugar: cambiar aqui el trazo o la retícula afecta a toda la app. */
+const ICO={
+  bars:'<path d="M3 20h18"/><path d="M6.5 20v-6"/><path d="M12 20V7"/><path d="M17.5 20v-9"/>',
+  box:'<path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5v-7z"/><path d="M3 8.5 12 13l9-4.5"/><path d="M12 13v7"/>',
+  cart:'<path d="M3 4h2.2l2.3 10.8h10L19.7 7H6.2"/><circle cx="9.5" cy="19.3" r="1.5"/><circle cx="17" cy="19.3" r="1.5"/>',
+  swap:'<path d="M4 8.5h13l-3.3-3.3"/><path d="M20 15.5H7l3.3 3.3"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  plus:'<path d="M12 5.5v13M5.5 12h13"/>',
+  minus:'<path d="M5.5 12h13"/>',
+  trash:'<path d="M4 6.5h16"/><path d="M9 6.5V4.5h6v2"/><path d="M6.5 6.5 7.5 20h9l1-13.5"/>',
+  truck:'<path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 10h4l3 3v2.5h-7z"/><circle cx="7" cy="17.5" r="1.7"/><circle cx="17" cy="17.5" r="1.7"/>',
+  cash:'<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.7v4.6M18 9.7v4.6"/>',
+  card:'<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/><path d="M6 14.5h4"/>',
+  tag:'<path d="M11 3.5H20.5V13L12 21.5 3.5 13z"/><circle cx="16.5" cy="7.5" r="1.4"/>',
+  doc:'<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/>',
+  bulb:'<path d="M9 18h6"/><path d="M10 21.5h4"/><path d="M12 2.5a6.5 6.5 0 0 0-3.8 11.8c.5.4.8 1 .8 1.7h6c0-.7.3-1.3.8-1.7A6.5 6.5 0 0 0 12 2.5z"/>',
+  unlock:'<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 7.6-1.7"/>',
+  lock:'<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/>',
+  down:'<path d="M12 5v13"/><path d="M6.5 12.5 12 18.5l5.5-6"/>',
+  up:'<path d="M12 19V6"/><path d="M6.5 11.5 12 5.5l5.5 6"/>',
+  expand:'<path d="M9 4.5H4.5V9"/><path d="M15 4.5h4.5V9"/><path d="M9 19.5H4.5V15"/><path d="M15 19.5h4.5V15"/>',
+  basket:'<path d="M3 9.5h18l-1.8 9.5H4.8z"/><path d="M8 9.5 10.5 4M16 9.5 13.5 4"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>'
+};
+/* size en px; color acepta cualquier valor CSS. */
+function ico(name,size,color,w){return '<svg width="'+(size||20)+'" height="'+(size||20)+'" viewBox="0 0 24 24" '+
+  'fill="none" stroke="'+(color||'currentColor')+'" stroke-width="'+(w||1.8)+'" stroke-linecap="round" '+
+  'stroke-linejoin="round" style="display:inline-block;vertical-align:-.15em;flex-shrink:0">'+ICO[name]+'</svg>';}
 const todayKey = d => new Date(d).toLocaleDateString('en-CA'); // YYYY-MM-DD local
 function startOfDay(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
 function daysAgo(n){const x=new Date();x.setHours(0,0,0,0);x.setDate(x.getDate()-n);return x;}
@@ -1204,7 +1240,7 @@ function asesorResumenHTML(){
       </div>
       <div style="font-size:12px;line-height:1.35;color:var(--muted)">${i.texto}</div>
     </div>`;};
-  return `<div class="sec-title">🔮 Asesor inteligente</div>
+  return `<div class="sec-title" style="display:flex;align-items:center;gap:6px">${ico('bulb',14,'var(--green)',1.8)} Asesor inteligente</div>
   <div class="card pad">
     ${insights.map(card).join('')}
     <button class="btn block sm" style="margin-top:10px" onclick="go('asesor')">
@@ -1252,7 +1288,7 @@ function vInteligencia(){
       <div class="k-sub muted">${productos().length} productos</div></div>
   </div>
   <button class="btn block" style="margin:8px 0 14px;font-size:13px" onclick="go('rentabilidad')">
-    📊 Ver análisis de rentabilidad →
+    ${ico('bars',16,'currentColor',1.9)} Ver análisis de rentabilidad →
   </button>
   ${asesorResumenHTML()}
   <div class="sec-title">Comportamiento de ventas</div>
@@ -1261,14 +1297,14 @@ function vInteligencia(){
       <div class="b" style="font-size:13px">Por hora del día
         ${maxHora>0?`<span class="chip g" style="font-size:11px;margin-left:6px">Pico: ${bestHour.h}:00h</span>`:''}</div>
       <button onclick="openChartFS('Ventas por hora',document.getElementById('chartHora'))"
-        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">⛶ Ampliar</button>
+        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">${ico('expand',14,'currentColor',1.9)} Ampliar</button>
     </div>
     <div id="chartHora">${svgBars(horaAgg.map(h=>h.v),horaAgg.map(h=>h.h%6===0?h.h+'h':''),{color:'#1f9d55',h:72,active:bestHour.h,chartId:'chartHora'})}</div>
     <div class="between" style="margin:14px 0 10px">
       <div class="b" style="font-size:13px">Por día de la semana
         ${diaAgg.some(d=>d.v>0)?`<span class="chip g" style="font-size:11px;margin-left:6px">Mejor: ${bestDay.n}</span>`:''}</div>
       <button onclick="openChartFS('Ventas por día de semana',document.getElementById('chartDia'))"
-        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">⛶ Ampliar</button>
+        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer">${ico('expand',14,'currentColor',1.9)} Ampliar</button>
     </div>
     <div id="chartDia">${svgBars(diaAgg.map(d=>d.v),diaAgg.map(d=>d.n),{color:'#0891b2',h:72,active:diaAgg.reduce((b,d,i)=>d.v>diaAgg[b].v?i:b,0),chartId:'chartDia'})}</div>
   </div>
@@ -1281,7 +1317,7 @@ function vInteligencia(){
         ${Object.keys(DASH_M).map(k=>togBtn(k)).join('')}
       </div>
       <button onclick="openChartFS('Tendencia mensual',document.getElementById('dashSvgWrap'))"
-        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer;flex-shrink:0;margin-left:6px">⛶</button>
+        style="background:var(--surface-2);border:none;border-radius:8px;padding:4px 8px;font-size:13px;cursor:pointer;flex-shrink:0;margin-left:6px">${ico('expand',14,'currentColor',1.9)}</button>
     </div>
     <div id="dashSvgWrap">${svgLines(buildSeries(mes),mes.map(m=>m.lbl))}</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
@@ -1372,7 +1408,7 @@ function vVender(){
   if(posOcultarAgotados) list=list.filter(p=>p.stock>0);
   list=list.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)); // A–Z siempre, igual en todos los dispositivos
   return `
-  <div class="search">🔎<input id="posSearch" placeholder="Buscar producto..." value="${posSearch}"
+  <div class="search">${ico('search',18,'var(--faint)',1.9)}<input id="posSearch" placeholder="Buscar producto..." value="${posSearch}"
        oninput="posSearch=this.value;updatePosGrid()"></div>
   <div class="cats" id="posCats">${cats.map(c=>`<button class="cat-pill ${c===posCat?'active':''}"
        onclick="posCat='${c}';render()">${c}</button>`).join('')}</div>
@@ -1384,7 +1420,7 @@ function vVender(){
     </label>
   </div>
   <div class="pgrid" id="posGrid">${posCards(list)}</div>
-  ${list.length===0?`<div class="empty"><span class="e-ico">🧺</span>No hay productos aquí.<br>
+  ${list.length===0?`<div class="empty"><span class="e-ico">${ico('basket',36,'var(--faint)',1.6)}</span>No hay productos aquí.<br>
     <button class="link" onclick="go('productos')">Agregar productos</button></div>`:''}
   <div style="height:40px"></div>`;
 }
@@ -1498,9 +1534,9 @@ function openCobro(){payMethod='efectivo';cartDiscount=0;
    </div>
    <label class="field" style="margin-bottom:8px"><label class="b tiny">Método de pago</label></label>
    <div class="pays">
-     <button class="${payMethod==='efectivo'?'on':''}" onclick="payMethod='efectivo';window._payUpd()"><span class="pico">💵</span>Efectivo</button>
-     <button class="${payMethod==='transferencia'?'on':''}" onclick="payMethod='transferencia';window._payUpd()"><span class="pico">📲</span>Transfer</button>
-     <button class="${payMethod==='tarjeta'?'on':''}" onclick="payMethod='tarjeta';window._payUpd()"><span class="pico">💳</span>Tarjeta</button>
+     <button class="${payMethod==='efectivo'?'on':''}" onclick="payMethod='efectivo';window._payUpd()"><span class="pico">${ico('cash',21,'currentColor',1.8)}</span>Efectivo</button>
+     <button class="${payMethod==='transferencia'?'on':''}" onclick="payMethod='transferencia';window._payUpd()"><span class="pico">${ico('swap',21,'currentColor',1.8)}</span>Transfer</button>
+     <button class="${payMethod==='tarjeta'?'on':''}" onclick="payMethod='tarjeta';window._payUpd()"><span class="pico">${ico('card',21,'currentColor',1.8)}</span>Tarjeta</button>
    </div>
    <div id="terminalNote" style="display:${payMethod==='tarjeta'?'block':'none'}">${terminalNoteHtml(tot)}</div>
    <button class="btn primary block" style="margin-top:14px;font-size:17px;padding:16px" onclick="finalizarVenta()">
@@ -1641,7 +1677,7 @@ function _invRows(ps){
           <div class="l-r"><div class="bb num">${qty(p.stock,p.unidad)}</div>
             <div class="tiny faint">${money0(p.stock*p.costo)}</div></div>
         </div>`;}).join('')
-    : '<div class="empty" style="padding:20px 0"><span class="e-ico">&#x1F50D;</span>Sin resultados</div>';}
+    : '<div class="empty" style="padding:20px 0"><span class="e-ico">'+ico('search',34,'var(--faint)',1.6)+'</span>Sin resultados</div>';}
 
 
 window._invSearch=()=>{
@@ -1685,12 +1721,12 @@ function vInventario(){
       <div class="k-sub muted">${bajos.length} bajos · ${riesgo.length} en riesgo</div></div>
   </div>
   <div class="row" style="gap:9px;margin:14px 0">
-    <button class="btn primary" style="flex:1" onclick="go('compras')">＋ Compra</button>
-    <button class="btn" style="flex:1" onclick="go('merma')">🗑️ Merma</button>
-    <button class="btn" style="flex:1" onclick="openProd()">＋ Producto</button>
+    <button class="btn primary" style="flex:1" onclick="go('compras')">${ico('truck',16,'#fff',1.9)} Compra</button>
+    <button class="btn" style="flex:1" onclick="go('merma')">${ico('trash',16,'currentColor',1.9)} Merma</button>
+    <button class="btn" style="flex:1" onclick="openProd()">${ico('plus',16,'currentColor',2)} Producto</button>
   </div>
   <div class="search" style="margin-bottom:12px">
-    <span style="color:var(--muted)">🔍</span>
+    ${ico('search',18,'var(--faint)',1.9)}
     <input id="invQ" placeholder="Buscar producto..." value="${invSearch}"
       autocomplete="off" autocorrect="off" spellcheck="false"
       oninput="window._invSearch()"
@@ -1699,8 +1735,8 @@ function vInventario(){
   </div>
   <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
     ${fbtn('todos','Todos','var(--ink)')}
-    ${bajos.length?fbtn('bajo','🔴 Pedir más ('+bajos.length+')','#dc2626'):''}
-    ${riesgo.length?fbtn('riesgo','🟡 Vender pronto ('+riesgo.length+')','#f59e0b'):''}
+    ${bajos.length?fbtn('bajo','Pedir más ('+bajos.length+')','var(--rose)'):''}
+    ${riesgo.length?fbtn('riesgo','Vender pronto ('+riesgo.length+')','var(--mango)'):''}
   </div>
   <div style="display:flex;gap:6px;margin-bottom:14px">
     ${btn('alpha','A–Z')}
@@ -2052,10 +2088,10 @@ function saveMerma(pid){const p=findP(pid);const cant=parseFloat($('#mCant').val
 
 /* ============================ VISTA: MOVIMIENTOS ============================ */
 function vMovimientos(){
-  const acc=(emoji,title,sub,view,color)=>`
+  const acc=(icon,title,sub,view,color,stroke)=>`
     <button class="lrow" style="width:100%;text-align:left;padding:13px 0" onclick="go('${view}')">
-      <span class="l-emj" style="width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
-        font-size:22px;background:${color};flex-shrink:0">${emoji}</span>
+      <span class="l-emj" style="width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+        background:${color};flex-shrink:0">${ico(icon,20,stroke,1.7)}</span>
       <div class="l-main">
         <div class="l-n" style="font-size:15px">${title}</div>
         <div class="l-s">${sub}</div>
@@ -2065,19 +2101,13 @@ function vMovimientos(){
   return `
   <div class="sec-title">Acciones</div>
   <div class="card pad">
-    ${acc('🚚','Compras','Reabastecer inventario','compras','#e8f5ee')}
-    <div class="divider"></div>
-    ${acc('🗑️','Merma','Registrar producto perdido','merma','#fff4f4')}
-    <div class="divider"></div>
-    ${acc('💵','Caja','Corte y control de efectivo','caja','#fffbe8')}
-    <div class="divider"></div>
-    ${acc('💸','Gastos','Bolsas, servicios, personal...','gastos','#fdf4ff')}
-    <div class="divider"></div>
-    ${acc('🔮','Asesor inteligente','Consejos para optimizar y reducir merma','asesor','#f3e8ff')}
-    <div class="divider"></div>
-    ${acc('💳','Terminal de cobro','Comisión de tu terminal (Clip, etc.)','mpSettings','#fffde7')}
-    <div class="divider"></div>
-    ${acc('📜','Ventas','Historial de tickets','historial','#f0f4ff')}
+    ${acc('truck','Compras','Reabastecer inventario','compras','var(--green-soft)','var(--green)')}
+    ${acc('trash','Merma','Registrar producto perdido','merma','var(--rose-soft)','var(--rose)')}
+    ${acc('cash','Caja','Corte y control de efectivo','caja','var(--mango-soft)','var(--mango)')}
+    ${acc('tag','Gastos','Bolsas, servicios, personal...','gastos','#f3ecfb','#6d3fbf')}
+    ${acc('bulb','Asesor inteligente','Consejos para optimizar y reducir merma','asesor','var(--green-soft)','var(--green)')}
+    ${acc('card','Terminal de cobro','Comisión de tu terminal (Clip, etc.)','mpSettings','var(--blue-soft)','var(--blue)')}
+    ${acc('doc','Ventas','Historial de tickets','historial','var(--blue-soft)','var(--blue)')}
   </div>
   <div class="sec-title">Actividad reciente</div>
   <div class="card pad">${actividadHtml()}</div>
@@ -2085,12 +2115,12 @@ function vMovimientos(){
 }
 function actividadHtml(){
   const ev=[];
-  ventas().slice(-30).forEach(v=>ev.push({t:v.fecha,ico:'🛒',n:'Venta #'+v.folio,s:(v.items||[]).length+' productos · '+v.metodo_pago,a:'+'+money0(v.total),cls:'pos'}));
-  compras().slice(-20).forEach(c=>ev.push({t:c.fecha,ico:'🚚',n:'Compra'+(c.proveedor?' · '+c.proveedor:''),s:(c.items||[]).length+' productos',a:'−'+money0(c.total),cls:'muted'}));
-  mermas().slice(-20).forEach(m=>ev.push({t:m.fecha,ico:'🗑️',n:'Merma · '+m.nombre,s:qty(m.cantidad,m.unidad)+' · '+m.motivo,a:'−'+money0(m.valor_perdido),cls:'neg'}));
+  ventas().slice(-30).forEach(v=>ev.push({t:v.fecha,ico:ico('cart',20,'var(--green)',1.7),n:'Venta #'+v.folio,s:(v.items||[]).length+' productos · '+v.metodo_pago,a:'+'+money0(v.total),cls:'pos'}));
+  compras().slice(-20).forEach(c=>ev.push({t:c.fecha,ico:ico('truck',20,'var(--muted)',1.7),n:'Compra'+(c.proveedor?' · '+c.proveedor:''),s:(c.items||[]).length+' productos',a:'−'+money0(c.total),cls:'muted'}));
+  mermas().slice(-20).forEach(m=>ev.push({t:m.fecha,ico:ico('trash',20,'var(--rose)',1.7),n:'Merma · '+m.nombre,s:qty(m.cantidad,m.unidad)+' · '+m.motivo,a:'−'+money0(m.valor_perdido),cls:'neg'}));
   ev.sort((a,b)=>new Date(b.t)-new Date(a.t));
-  if(!ev.length)return '<div class="empty"><span class="e-ico">🔄</span>Sin movimientos todavía</div>';
-  return ev.slice(0,40).map(e=>`<div class="lrow"><span class="l-emj">${e.ico}</span>
+  if(!ev.length)return '<div class="empty"><span class="e-ico">'+ico('swap',34,'var(--faint)',1.6)+'</span>Sin movimientos todavía</div>';
+  return ev.slice(0,40).map(e=>`<div class="lrow"><span class="l-emj" style="display:grid;place-items:center">${e.ico}</span>
     <div class="l-main"><div class="l-n">${e.n}</div><div class="l-s">${e.s} · ${fmtDate(e.t)}</div></div>
     <div class="l-r bb money ${e.cls}">${e.a}</div></div>`).join('');
 }
@@ -2356,7 +2386,10 @@ function vCaja(){const c=cajaHoy();
    <button class="btn rose block" onclick="cerrarCaja()">Hacer corte y cerrar caja</button>`}
   <div class="sec-title">Movimientos de hoy</div>
   <div class="card pad">${c.movs.length?c.movs.slice().reverse().map(m=>`<div class="lrow">
-    <span class="l-emj">${m.tipo==='apertura'?'🔓':m.tipo==='cierre'?'🔒':m.tipo==='entrada'?'⬇️':'⬆️'}</span>
+    <span class="l-emj" style="display:grid;place-items:center">${
+      m.tipo==='apertura'?ico('unlock',20,'var(--green)',1.7):
+      m.tipo==='cierre'?ico('lock',20,'var(--muted)',1.7):
+      m.tipo==='entrada'?ico('down',20,'var(--green)',1.9):ico('up',20,'var(--rose)',1.9)}</span>
     <div class="l-main"><div class="l-n">${({apertura:'Apertura',cierre:'Corte/cierre',entrada:'Entrada',salida:'Salida'})[m.tipo]}</div>
     <div class="l-s">${m.concepto||''} · ${fmtDate(m.fecha)}</div></div>
     <div class="l-r bb money ${m.tipo==='salida'?'neg':'pos'}">${m.tipo==='salida'?'−':''}${money0(m.monto)}</div></div>`).join('')
@@ -3615,7 +3648,7 @@ function updateInfoBar(){
   const greet=h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches';
   const nombre=state.member.nombre||'';
   const el=document.getElementById('infoGreet');
-  if(el)el.textContent=(nombre?`${greet}, ${nombre} 👋`:`${greet} 👋`);
+  if(el)el.textContent=(nombre?`${greet}, ${nombre}`:greet);
 }
 
 async function cargarClima(){
