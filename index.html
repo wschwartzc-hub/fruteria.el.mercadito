@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.8.0';
+const APP_VERSION = '4.8.1';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -622,8 +622,8 @@ function _buildIdx14(){
   ventas().forEach(v=>{
     if(new Date(v.fecha)<since)return;
     (v.items||[]).forEach(i=>{
-      if(!i.producto_id)return;
-      idx.set(i.producto_id,(idx.get(i.producto_id)||0)+(+i.cantidad||0));
+      if(!productoCanonicoId(i.producto_id))return;
+      idx.set(productoCanonicoId(i.producto_id),(idx.get(productoCanonicoId(i.producto_id))||0)+(+i.cantidad||0));
     });
   });
   _idx14=idx;_idx14Version=_stateVersion;
@@ -639,7 +639,7 @@ function soldUnits(pid, sinceDate){
   // Camino lento (rango de fecha distinto, poco frecuente): escaneo directo como antes.
   let u=0;
   ventas().forEach(v=>{if(new Date(v.fecha)<sinceDate)return;
-    (v.items||[]).forEach(i=>{if(i.producto_id===pid)u+=+i.cantidad||0;});});
+    (v.items||[]).forEach(i=>{if(productoCanonicoId(i.producto_id)===pid)u+=+i.cantidad||0;});});
   return u;
 }
 
@@ -958,19 +958,37 @@ window._dashToggle=function(k){
   if(btnsEl)btnsEl.innerHTML=Object.keys(DASH_M).map(k=>togBtn(k)).join('');
 };
 
+// ── Producto canónico ──────────────────────────────────────────────────────
+// El 5-6 de agosto el catálogo se borró y se volvió a crear: el historial de cada
+// producto quedó partido entre un id borrado (julio) y el id activo (agosto en adelante).
+// Para rankings, Asesor e historial, un producto borrado se representa por el activo
+// que lleva su mismo nombre (sin emoji, acentos ni mayúsculas). No se toca ningún dato.
+function nombreBase(n){return String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\p{L}\p{N} ]/gu,'').replace(/\s+/g,' ').trim().toLowerCase();}
+let _canonVersion=-1,_canon=null;
+function productoCanonicoId(pid){
+  if(_canonVersion!==_stateVersion){
+    _canon=new Map();const activos=new Map();
+    (state.productos||[]).forEach(p=>{if(!p.deleted){const b=nombreBase(p.nombre);if(b&&!activos.has(b))activos.set(b,p.id);}});
+    (state.productos||[]).forEach(p=>{if(p.deleted){const a=activos.get(nombreBase(p.nombre));if(a&&a!==p.id)_canon.set(p.id,a);}});
+    _canonVersion=_stateVersion;
+  }
+  return _canon.get(pid)||pid;
+}
 function topByGanancia(n=5){
   const map={};
-  ventas().forEach(v=>(v.items||[]).forEach(i=>{if(!map[i.producto_id]){
-    const cat=findP(i.producto_id)?.categoria||'Otros';
-    map[i.producto_id]={nombre:i.nombre,categoria:cat,g:0,u:0};}
-    map[i.producto_id].g+=(i.precio-i.costo)*i.cantidad; map[i.producto_id].u+=i.cantidad;}));
+  ventas().forEach(v=>(v.items||[]).forEach(i=>{
+    const p=findP(productoCanonicoId(i.producto_id));
+    const k=nombreBase(p?p.nombre:i.nombre)||i.producto_id; // mismo nombre = misma fila, aunque el id haya cambiado
+    if(!map[k])map[k]={nombre:p?p.nombre:i.nombre,categoria:p?.categoria||'Otros',g:0,u:0};
+    map[k].g+=(i.precio-i.costo)*i.cantidad; map[k].u+=i.cantidad;}));
   return Object.values(map).sort((a,b)=>b.g-a.g).slice(0,n);}
 
 function topByMerma(n=5){
   const map={};
-  mermas().forEach(m=>{const k=m.producto_id||m.nombre;
-    const cat=m.producto_id?findP(m.producto_id)?.categoria:null;
-    if(!map[k])map[k]={nombre:m.nombre,categoria:cat||'Otros',v:0};
+  mermas().forEach(m=>{
+    const p=m.producto_id?findP(productoCanonicoId(m.producto_id)):null;
+    const k=nombreBase(p?p.nombre:m.nombre)||m.producto_id||m.nombre;
+    if(!map[k])map[k]={nombre:p?p.nombre:m.nombre,categoria:p?.categoria||'Otros',v:0};
     map[k].v+=m.valor_perdido;});
   return Object.values(map).sort((a,b)=>b.v-a.v).slice(0,n);}
 
@@ -1033,7 +1051,7 @@ function _buildIdx42(dias=42){
     const f=new Date(v.fecha); if(f<desde)return;
     const dia=f.getDay(), hr=f.getHours();
     (v.items||[]).forEach(i=>{
-      const pid=i.producto_id;if(!pid)return;
+      const pid=productoCanonicoId(i.producto_id);if(!pid)return;
       let e=idx.get(pid);
       if(!e){e={porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),totalUnid:0,totalVentas:0};idx.set(pid,e);}
       e.porDia[dia].unid+=+i.cantidad||0;
@@ -1904,16 +1922,16 @@ function saveProd(id,exists){
 function timelineStock(pid){
   const eventos=[];
   ventas().forEach(v=>(v.items||[]).forEach(i=>{
-    if(i.producto_id===pid)eventos.push({fecha:v.fecha,tipo:'venta',delta:-(+i.cantidad||0),
+    if(productoCanonicoId(i.producto_id)===pid)eventos.push({fecha:v.fecha,tipo:'venta',delta:-(+i.cantidad||0),
       detalle:'Ticket #'+v.folio,usuario:v.usuario,unidad:i.unidad,
       editado:!!(v.ediciones&&v.ediciones.length)});}));
   compras().forEach(c=>(c.items||[]).forEach(i=>{
-    if(i.producto_id===pid)eventos.push({fecha:c.fecha,tipo:'compra',delta:+i.cantidad||0,
+    if(productoCanonicoId(i.producto_id)===pid)eventos.push({fecha:c.fecha,tipo:'compra',delta:+i.cantidad||0,
       detalle:c.proveedor?('Compra a '+c.proveedor):'Compra',usuario:c.usuario,unidad:i.unidad});}));
   mermas().forEach(m=>{
-    if(m.producto_id===pid)eventos.push({fecha:m.fecha,tipo:'merma',delta:-(+m.cantidad||0),
+    if(productoCanonicoId(m.producto_id)===pid)eventos.push({fecha:m.fecha,tipo:'merma',delta:-(+m.cantidad||0),
       detalle:m.motivo||'Merma',usuario:m.usuario,unidad:m.unidad});});
-  (state.stockLog||[]).filter(l=>l.producto_id===pid&&!l.deleted).forEach(l=>{
+  (state.stockLog||[]).filter(l=>productoCanonicoId(l.producto_id)===pid&&!l.deleted).forEach(l=>{
     eventos.push({fecha:l.fecha,tipo:'ajuste',delta:l.stock_despues-l.stock_antes,
       detalle:'Editado a mano: '+l.stock_antes+' → '+l.stock_despues,usuario:l.usuario});});
   eventos.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)); // más reciente primero
