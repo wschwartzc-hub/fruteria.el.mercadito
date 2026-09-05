@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.8.1';
+const APP_VERSION = '4.9.0';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -445,7 +445,9 @@ const ICO={
   bolt:'<path d="M13.5 3 5.5 13.5h5l-.5 7.5 8-10.5h-5z"/>',
   pin:'<path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 4.8 6.5 12 6.5 12s6.5-7.2 6.5-12A6.5 6.5 0 0 0 12 2.5z"/><circle cx="12" cy="9" r="2.3"/>',
   store:'<path d="M4 9.5V20h16V9.5"/><path d="M3 9.5 5 4h14l2 5.5a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/>',
-  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>'
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>',
+  shield:'<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9.3 12.2 1.9 1.9 3.6-3.8"/>',
+  chevR:'<path d="m9 6 6 6-6 6"/>',
 };
 /* Quita el emoji inicial de categorias guardadas antes de v4.7 */
 const limpiaCat=t=>String(t||'').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]+\s*/u,'');
@@ -1049,14 +1051,15 @@ function _buildIdx42(dias=42){
   const idx=new Map();
   ventas().forEach(v=>{
     const f=new Date(v.fecha); if(f<desde)return;
-    const dia=f.getDay(), hr=f.getHours();
+    const dia=f.getDay(), hr=f.getHours(), sem=Math.min(5,Math.floor((f-desde)/(7*864e5)));
     (v.items||[]).forEach(i=>{
       const pid=productoCanonicoId(i.producto_id);if(!pid)return;
       let e=idx.get(pid);
-      if(!e){e={porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),totalUnid:0,totalVentas:0};idx.set(pid,e);}
+      if(!e){e={porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),porSemana:Array(6).fill(0),totalUnid:0,totalVentas:0};idx.set(pid,e);}
       e.porDia[dia].unid+=+i.cantidad||0;
       e.porDia[dia].ventas++;
       e.porDia[dia].horas[hr]+=+i.cantidad||0;
+      e.porSemana[sem]+=+i.cantidad||0;
       e.totalUnid+=+i.cantidad||0; e.totalVentas++;
     });
   });
@@ -1065,7 +1068,7 @@ function _buildIdx42(dias=42){
 
 function analizarProducto(pid, dias=42){
   if(_idx42Version!==_stateVersion)_buildIdx42(dias);
-  const e=_idx42.get(pid)||{porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),totalUnid:0,totalVentas:0};
+  const e=_idx42.get(pid)||{porDia:Array(7).fill(0).map(()=>({unid:0,ventas:0,horas:Array(24).fill(0)})),porSemana:Array(6).fill(0),totalUnid:0,totalVentas:0};
   const semanas=Math.max(1,Math.ceil(dias/7));
   const promDia=e.porDia.map((d,i)=>({
     dia:i, unidPorSemana:d.unid/semanas, ventas:d.ventas,
@@ -1073,7 +1076,7 @@ function analizarProducto(pid, dias=42){
     pico:Math.max(...d.horas)
   }));
   const avgDiario=e.totalUnid/dias;
-  return {pid, totalUnid:e.totalUnid, totalVentas:e.totalVentas, avgDiario, promDia, semanas};
+  return {pid, totalUnid:e.totalUnid, totalVentas:e.totalVentas, avgDiario, promDia, semanas, porSemana:e.porSemana};
 }
 
 // Detecta el día más fuerte de un producto vs su promedio
@@ -1088,215 +1091,361 @@ function diaFuerteProducto(analisis){
   return {dia:mejor.dia, unidPorSemana:mejor.unidPorSemana, ratio, horaPico:mejor.horaPico, pico:mejor.pico};
 }
 
-// Genera todos los insights accionables, ordenados por urgencia
-function generarInsights(){
-  const out=[];
-  const ps=productos().filter(p=>p.activo);
-  const hoy=new Date().getDay();
-  const manana=(hoy+1)%7;
+/* ============================ ASESOR ============================
+   Reglas que hacen los consejos más seguros (se explican al usuario en "Cómo se calculan"):
+   1. Sin 3 semanas de ventas en total y 10 ventas del producto, no hay predicción: el
+      producto va a vigilancia o se calla ("Reuniendo datos").
+   2. Cada consejo enseña de dónde sale (stock, ritmo, vida útil, número de ventas) y
+      su confianza: alta/media/baja según cuántas ventas hay y qué tan estable es el patrón.
+   3. Nunca se sugiere un precio debajo de costo + margen mínimo; el piso se muestra.
+   4. La lista de compra resta lo que ya tienes y pone tope por vida útil.
+   5. Máximo 3 acciones por día, ordenadas por pesos en juego; el resto va a vigilancia.
+   6. "No aplica" calla ese consejo para ese producto durante 30 días.
+   7. Nada se aplica solo: cada botón hace una cosa concreta y visible. */
+const ASESOR={SEMANAS_MIN:3, VENTAS_MIN:10, MARGEN_MIN:0.25, MAX_ACCIONES:3, RESERVA:1.15, IGNORAR_DIAS:30, DESCUENTO:0.15};
+const _MESES_A=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-  // ── 1. PATRONES DE DEMANDA POR DÍA (preventivo de stock) ──────────────
+function _semanasDeDatos(){ // semanas completas de historial desde la primera venta (tope 6)
+  let primera=null;
+  ventas().forEach(v=>{const f=new Date(v.fecha).getTime();if(f&&(!primera||f<primera))primera=f;});
+  if(!primera)return 0;
+  const dias=Math.floor((Date.now()-primera)/864e5);
+  return Math.max(0,Math.min(6,Math.floor((dias+1)/7)));
+}
+function confianzaProducto(a){
+  const n=a.totalVentas;
+  if(n<ASESOR.VENTAS_MIN)return {nivel:'baja',n,estable:true};
+  const con=(a.porSemana||[]).filter(x=>x>0);
+  const m=con.reduce((x,y)=>x+y,0)/(con.length||1);
+  const cv=con.length>=2?Math.sqrt(con.reduce((x,y)=>x+(y-m)*(y-m),0)/con.length)/(m||1):1;
+  const estable=cv<0.5;
+  let nivel=n>=30?'alta':'media';
+  if(!estable)nivel=nivel==='alta'?'media':'baja';
+  return {nivel,n,estable};
+}
+function _asesorVetado(p,tipo){
+  const t=(state.config.asesorIgnorar||{})[p.id+':'+tipo];
+  return !!t&&(Date.now()-new Date(t).getTime())<ASESOR.IGNORAR_DIAS*864e5;
+}
+
+// Cuánto conviene tener para cubrir lo que queda de hoy y todo mañana, con 15% de reserva y
+// tope por vida útil (nunca más de lo que se vende antes de que se pierda).
+function necesidadManana(p,a,dMan){
+  const avg=a.avgDiario, vida=+p.vida_util_dias||5, manana=a.promDia[dMan].unidPorSemana;
+  let n=Math.ceil(Math.max(manana+avg,2*avg)*ASESOR.RESERVA);
+  if(p.perecedero)n=Math.min(n,Math.ceil(Math.max(manana+avg,avg*vida)));
+  return n;
+}
+let _asesorVersion=-1,_asesorCache=null;
+function asesorCalcular(){
+  if(_asesorVersion===_stateVersion&&_asesorCache)return _asesorCache;
+  const hoy=new Date(), dHoy=hoy.getDay(), dMan=(dHoy+1)%7;
+  const ps=productos().filter(p=>p.activo!==false);
+  const conVentas=ps.filter(p=>analizarProducto(p.id).totalVentas>0);
+  const res={
+    semanas:_semanasDeDatos(), suficiente:false,
+    sinCosto:conVentas.filter(p=>!(+p.costo>0)).length, conVentas:conVentas.length,
+    bajoMin:ps.filter(p=>+p.stock_min>0&&+p.stock<+p.stock_min).sort((a,b)=>(+a.stock-+a.stock_min)-(+b.stock-+b.stock_min)),
+    nMermas:mermas().length, acciones:[], vigilancia:[], compra:[], totalCompra:0
+  };
+  res.suficiente=res.semanas>=ASESOR.SEMANAS_MIN&&conVentas.length>0;
+  _asesorVersion=_stateVersion;_asesorCache=res;
+  if(!res.suficiente)return res;
+
+  const acciones=[], vig=res.vigilancia;
   ps.forEach(p=>{
     const a=analizarProducto(p.id);
-    if(a.totalVentas<5)return; // pocos datos
-    const df=diaFuerteProducto(a);
-    if(!df)return;
-    const stockNecesario=Math.ceil(df.unidPorSemana*1.15); // 15% buffer
-    const esHoy=df.dia===hoy, esManana=df.dia===manana;
-    const horaTxt=df.horaPico>0?` (pico ${df.horaPico}:00h)`:'';
-    out.push({
-      tipo:'demanda',
-      urgencia: esHoy?100 : esManana?90 : 40,
-      categoria:p.categoria,
-      titulo:`${DIAS_FULL[df.dia]}: día fuerte de ${p.nombre}`,
-      texto:`Vendes ${df.unidPorSemana.toFixed(1)} ${p.unidad} los ${DIAS_SHORT[df.dia].toLowerCase()}${horaTxt} — ${df.ratio.toFixed(1)}× tu promedio. Asegura ≥${stockNecesario} ${p.unidad} ese día.${esHoy?' — ES HOY':esManana?' — Es mañana':''}`,
-      stockNecesario, stockActual:p.stock
-    });
-  });
-
-  // ── 2. RIESGO DE MERMA (sobre-stock perecedero) ───────────────────────
-  ps.forEach(p=>{
-    if(!p.perecedero||p.stock<=0)return;
-    const a=analizarProducto(p.id);
-    if(a.avgDiario<=0){
-      // Perecedero con stock pero SIN ventas recientes = riesgo alto
-      if(p.stock>0)out.push({
-        tipo:'merma_sin_venta', urgencia:85, categoria:p.categoria, titulo:`${p.nombre}: sin ventas pero con stock`,
-        texto:`Tienes ${qty(p.stock,p.unidad)} de ${p.nombre} (perecedero, vida ${p.vida_util_dias||5}d) pero no se ha vendido en 2 semanas. Riesgo de pérdida: ${money(p.stock*p.costo)}. Considera promoción o bajar precio.`
-      });
+    const stock=+p.stock||0, costo=+p.costo||0, precio=+p.precio_venta||0, vida=+p.vida_util_dias||5;
+    if(a.totalVentas<ASESOR.VENTAS_MIN){
+      if(p.perecedero&&stock>0&&a.totalVentas>0)
+        vig.push({p,chip:'Sin consejo aún',kind:'',texto:`Solo ${a.totalVentas} venta${a.totalVentas===1?'':'s'} en 6 semanas: aún no digo nada.`});
       return;
     }
-    const diasParaVender=p.stock/a.avgDiario;
-    const vida=p.vida_util_dias||5;
-    if(diasParaVender>vida){
-      const seVencera=p.stock-(a.avgDiario*vida);
-      const perdida=seVencera*p.costo;
-      out.push({
-        tipo:'merma', urgencia:75, categoria:p.categoria, titulo:`${p.nombre}: vas a perder producto`,
-        texto:`Tienes ${qty(p.stock,p.unidad)} pero solo vendes ${a.avgDiario.toFixed(1)} ${p.unidad}/día. Al ritmo actual ~${qty(seVencera,p.unidad)} se van a echar a perder antes de venderse (≈${money(perdida)}). Baja el precio o haz combo.`
-      });
-    }
-  });
+    const avg=a.avgDiario; if(avg<=0)return;
+    const conf=confianzaProducto(a), df=diaFuerteProducto(a);
 
-  // ── 3. PREDICCIÓN DE AGOTAMIENTO (quedarse sin stock) ─────────────────
+    // 1) Merma: perecedero con más stock del que se vende en su vida útil
+    if(p.perecedero&&stock>0){
+      const vendible=avg*vida, sobra=stock-vendible;
+      if(sobra>0.05*stock&&sobra*costo>=20){
+        const riesgo=sobra*costo;
+        const piso=costo>0?Math.ceil(costo*(1+ASESOR.MARGEN_MIN)):0;
+        let sugerido=null;
+        if(costo>0&&precio>piso){sugerido=Math.max(piso,Math.round(precio*(1-ASESOR.DESCUENTO)));if(sugerido>=precio)sugerido=null;}
+        if(!_asesorVetado(p,'merma'))acciones.push({tipo:'merma',p,tono:'r',ico:'alert',impacto:riesgo,
+          impactoTxt:money0(riesgo)+' en riesgo',impactoKind:'r',
+          titulo:`${p.nombre}: te sobran ${qty(sobra,p.unidad)}`,
+          evidencia:`${qty(stock,p.unidad)} en stock · vendes ${qty(avg,p.unidad)} al día · dura ${vida} días. Unos <b>${qty(sobra,p.unidad)} no alcanzan</b> a venderse.`,
+          conf,piso,sugerido,precio,costo,stock,avg,vida,sobra,vendible,
+          accion:sugerido?('Bajar a '+money0(sugerido)):'Ver opciones'});
+        return;
+      }
+    }
+    // 2) Compra por día fuerte (hoy o mañana), con tope por vida útil
+    if(df&&(df.dia===dHoy||df.dia===dMan)){
+      const necesario=necesidadManana(p,a,dMan);
+      const faltan=Math.ceil(necesario-stock);
+      if(faltan>0){
+        const cuando=df.dia===dHoy?'hoy':'mañana';
+        if(!_asesorVetado(p,'compra'))acciones.push({tipo:'compra',p,tono:'m',ico:'cart',impacto:faltan*precio,
+          impactoTxt:money0(faltan*precio)+' de venta en juego',impactoKind:'m',
+          titulo:`Compra ${qty(faltan,p.unidad)} de ${p.nombre} para ${cuando}`,
+          evidencia:`${cuando==='hoy'?'Hoy':'Mañana'} ${DIAS_FULL[df.dia].toLowerCase()} es su día fuerte: vendes ${qty(df.unidPorSemana,p.unidad)}${df.horaPico>0?' (pico '+df.horaPico+':00)':''}, ${df.ratio.toFixed(1)}× tu promedio. Tienes ${qty(stock,p.unidad)} y necesitas ${qty(necesario,p.unidad)} con reserva.`,
+          conf,faltan,necesario,stock,avg,accion:'Anotar en la compra'});
+        return;
+      }
+    }
+    // 3) Se agota en 2 días o menos
+    if(stock>0){
+      const dias=stock/avg;
+      if(dias<=2){
+        const perdida=Math.max(0,2-dias)*avg*precio; // venta que se pierde hasta pasado mañana
+        const faltan=Math.max(1,Math.ceil(avg*2*ASESOR.RESERVA-stock));
+        const cuando=dias<1?'hoy':dias<2?'mañana':'pasado mañana';
+        if(!_asesorVetado(p,'agotamiento'))acciones.push({tipo:'agotamiento',p,tono:'m',ico:'clock',impacto:perdida,
+          impactoTxt:money0(perdida)+' de venta',impactoKind:'m',
+          titulo:`${p.nombre} se acaba ${cuando}`,
+          evidencia:`${qty(stock,p.unidad)} · vendes ${qty(avg,p.unidad)} al día${df?`. El ${DIAS_FULL[df.dia].toLowerCase()} vendes ${df.ratio.toFixed(1)}× más`:''}. Para hoy y mañana necesitas ${qty(faltan+stock,p.unidad)}.`,
+          conf,faltan,stock,avg,accion:'Anotar en la compra'});
+        return;
+      }
+    }
+    // 4) Vigilancia: ritmo justo o rotación lenta
+    if(p.perecedero&&stock>0&&stock/avg>vida*0.8)
+      vig.push({p,chip:'Revisar '+DIAS_SHORT[(dHoy+2)%7].toLowerCase(),kind:'m',texto:`${qty(stock,p.unidad)} duran ${Math.round(stock/avg)} días, vida ${vida}. Ritmo justo.`});
+    else if(stock>0&&avg<0.3&&stock*costo>100)
+      vig.push({p,chip:'Rotación lenta',kind:'m',texto:`${money0(stock*costo)} en stock y se vende ${qty(avg,p.unidad)} al día.`});
+  });
+  acciones.sort((a,b)=>b.impacto-a.impacto);
+  res.acciones=acciones.slice(0,ASESOR.MAX_ACCIONES);
+  acciones.slice(ASESOR.MAX_ACCIONES).forEach(a=>vig.unshift({p:a.p,chip:'Después',kind:'m',texto:a.titulo}));
+  vig.sort((x,y)=>(y.kind==='m')-(x.kind==='m'));
+  res.vigilancia=vig.slice(0,8);
+
+  // 5) Lista de compra de mañana: resta lo que tienes, tope por vida útil, mínimos del catálogo
+  const anotado=state.config.listaCompra||{};
   ps.forEach(p=>{
     const a=analizarProducto(p.id);
-    if(a.avgDiario<=0||p.stock<=0)return;
-    const diasRestantes=p.stock/a.avgDiario;
-    if(diasRestantes<=2 && p.stock>0){
-      out.push({
-        tipo:'agotamiento', urgencia:70, categoria:p.categoria, titulo:`${p.nombre}: se agota pronto`,
-        texto:`Te queda ${qty(p.stock,p.unidad)} (~${diasRestantes.toFixed(1)} días al ritmo actual). Reabastece pronto para no perder ventas.`
-      });
+    const stock=+p.stock||0, costo=+p.costo||0, vida=+p.vida_util_dias||5, avg=a.avgDiario;
+    let necesario=0;
+    if(a.totalVentas>=ASESOR.VENTAS_MIN&&avg>0){
+      necesario=necesidadManana(p,a,dMan);
     }
+    if(+p.stock_min>0)necesario=Math.max(necesario,+p.stock_min);
+    let comprar=Math.max(0,Math.ceil(necesario-stock));
+    const manual=+anotado[p.id]||0;
+    if(manual>0)comprar=Math.max(comprar,manual);
+    if(comprar>0)res.compra.push({p,tienes:stock,necesitas:Math.max(necesario,stock+comprar),comprar,costo:comprar*costo,anotado:manual>0,urgente:+p.stock_min>0&&stock<+p.stock_min});
   });
-
-  // ── 4. PRODUCTOS LENTOS (capital estancado) ───────────────────────────
-  const lentos=ps.filter(p=>{
-    const a=analizarProducto(p.id);
-    return a.totalVentas>0 && a.avgDiario<0.3 && p.stock>0 && (p.stock*p.costo)>100;
-  }).map(p=>{const a=analizarProducto(p.id);return {p,a};})
-    .sort((x,y)=>(y.p.stock*y.p.costo)-(x.p.stock*x.p.costo)).slice(0,2);
-  lentos.forEach(({p,a})=>{
-    out.push({
-      tipo:'lento', urgencia:30, categoria:p.categoria, titulo:`${p.nombre}: rotación lenta`,
-      texto:`Tienes ${money(p.stock*p.costo)} en stock de ${p.nombre} pero se vende lento (${a.avgDiario.toFixed(1)} ${p.unidad}/día). Considera reducir cuánto compras o promocionarlo.`
-    });
-  });
-
-  // ── 5. PRODUCTO ESTRELLA (reforzar lo que funciona) ───────────────────
-  const conVentas=ps.map(p=>({p,a:analizarProducto(p.id)})).filter(x=>x.a.totalVentas>=5);
-  if(conVentas.length){
-    const estrella=conVentas.reduce((b,x)=>x.a.totalUnid>b.a.totalUnid?x:b,conVentas[0]);
-    out.push({
-      tipo:'estrella', urgencia:20, categoria:estrella.p.categoria,
-      titulo:`${estrella.p.nombre} es tu producto estrella`,
-      texto:`Vendiste ${estrella.a.totalUnid.toFixed(0)} ${estrella.p.unidad} en 6 semanas. Nunca lo dejes faltar — es lo que más mueve tu negocio.`
-    });
-  }
-
-  return out.sort((a,b)=>b.urgencia-a.urgencia);
+  res.compra.sort((x,y)=>(y.anotado-x.anotado)||(y.costo-x.costo));
+  res.totalCompra=res.compra.reduce((s,r)=>s+r.costo,0);
+  res.compra=res.compra.slice(0,12);
+  return res;
 }
 
+/* ---------- acciones ---------- */
+function asesorAccion(i){
+  const a=asesorCalcular().acciones[i];if(!a)return;
+  if(a.tipo==='merma')return asesorDetalle(i);
+  anotarCompra(a.p.id,a.faltan);
+}
+function anotarCompra(pid,cant){
+  const p=findP(pid);if(!p)return;
+  const l=state.config.listaCompra||(state.config.listaCompra={});
+  l[pid]=Math.max(+l[pid]||0,+cant||0);
+  save();closeSheet();toast(`${qty(l[pid],p.unidad)} de ${p.nombre} en la lista de compra`,'ok');render();
+}
+function quitarDeCompra(pid){
+  const l=state.config.listaCompra;if(l&&l[pid]){delete l[pid];save();render();}
+}
+function asesorIgnorar(pid,tipo){
+  const ig=state.config.asesorIgnorar||(state.config.asesorIgnorar={});
+  ig[pid+':'+tipo]=now();
+  save();closeSheet();toast('Entendido. No lo vuelvo a sugerir en 30 días.');render();
+}
+function asesorAplicarPrecio(pid,precio){
+  const p=findP(pid);if(!p)return;
+  const piso=Math.ceil((+p.costo||0)*(1+ASESOR.MARGEN_MIN));
+  if(+p.costo>0&&precio<piso){toast('Ese precio queda debajo del piso seguro','bad');return;}
+  const antes=+p.precio_venta||0;
+  p.precio_venta=precio;p.updated_at=now();
+  save();push('productos',p);closeSheet();
+  toast(`${p.nombre} ahora a ${money0(precio)} (antes ${money0(antes)}). Lo regresas en Inventario cuando quieras.`,'ok');
+  render();
+}
+async function copiarListaCompra(){
+  const r=asesorCalcular();
+  const man=new Date();man.setDate(man.getDate()+1);
+  const txt=`Compra para ${DIAS_FULL[man.getDay()].toLowerCase()} ${man.getDate()} de ${_MESES_A[man.getMonth()]}:\n`+
+    r.compra.map(c=>`- ${qty(c.comprar,c.p.unidad)} ${c.p.nombre}`).join('\n')+(r.totalCompra?`\nAprox. ${money0(r.totalCompra)}`:'');
+  try{await navigator.clipboard.writeText(txt);toast('Lista copiada, pégala en WhatsApp o donde quieras','ok');}
+  catch(e){openSheet(`<h2>Lista de compra</h2><textarea readonly style="width:100%;min-height:200px;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit">${txt}</textarea>`);}
+}
 
-/* ============================ VISTA: ASESOR INTELIGENTE ============================ */
-function vAsesor(){
-  const insights=generarInsights();
-  const hoy=DIAS_FULL[new Date().getDay()];
-  // Agrupar por tipo
-  const grupos={
-    demanda:{titulo:'Prepárate por día',sub:'Asegura stock en tus días fuertes',items:[]},
-    merma:{titulo:'Evita perder producto',sub:'Stock que no alcanzarás a vender',items:[]},
-    merma_sin_venta:{titulo:'Evita perder producto',sub:'',items:[]},
-    agotamiento:{titulo:'Reabastece pronto',sub:'Productos por agotarse',items:[]},
-    lento:{titulo:'Rotación lenta',sub:'Capital estancado',items:[]},
-    estrella:{titulo:'⭐ Tus ganadores',sub:'Lo que más mueve tu negocio',items:[]}
-  };
-  insights.forEach(i=>{
-    const g=i.tipo==='merma_sin_venta'?'merma':i.tipo;
-    if(grupos[g])grupos[g].items.push(i);
-  });
-
-  const card=i=>{
-    const color=i.urgencia>=90?'#dc2626':i.urgencia>=70?'#f59e0b':i.urgencia>=40?'#0891b2':'#16a34a';
-    const bg=i.urgencia>=90?'#fef2f2':i.urgencia>=70?'#fffbeb':i.urgencia>=40?'#f0f9ff':'#f0fdf4';
-    return `<div style="display:flex;gap:11px;padding:13px;background:${bg};border-radius:12px;
-      margin-bottom:8px;border-left:3px solid ${color}">
+/* ---------- piezas de interfaz ---------- */
+function _confHTML(conf){
+  const dots=conf.nivel==='alta'?3:conf.nivel==='media'?2:1;
+  const col=conf.nivel==='alta'?'var(--green)':conf.nivel==='media'?'var(--mango)':'var(--faint)';
+  return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)"><span style="display:inline-flex;gap:3px">${[0,1,2].map(i=>`<span style="width:6px;height:6px;border-radius:50%;background:${i<dots?col:'var(--line)'}"></span>`).join('')}</span>Confianza ${conf.nivel} · ${conf.n} ventas${conf.estable===false?', patrón irregular':''}</span>`;
+}
+function _tileHTML(tono,icon){
+  const t={r:['var(--rose-soft)','var(--rose)'],m:['var(--mango-soft)','var(--mango)'],g:['var(--green-soft)','var(--green)']}[tono]||['var(--surface-2)','var(--muted)'];
+  return `<span style="width:36px;height:36px;border-radius:10px;background:${t[0]};display:grid;place-items:center;flex-shrink:0">${ico(icon,19,t[1],1.9)}</span>`;
+}
+function _pisoHTML(a){
+  if(a.tipo!=='merma'||!a.piso)return '';
+  return `<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)">${ico('shield',13,'var(--green)',1.9)}Piso seguro ${money0(a.piso)}: costo ${money0(a.costo)} más tu margen mínimo</div>`;
+}
+function _accionCard(a,i){
+  return `<div class="card pad" style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px">
+    <div style="display:flex;gap:11px;align-items:flex-start">${_tileHTML(a.tono,a.ico)}
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
-          <span style="font-weight:800;font-size:14px;color:${color}">${i.titulo}</span>
-          ${catBadge(i.categoria)}
-        </div>
-        <div style="font-size:13px;line-height:1.4;color:var(--ink)">${i.texto}</div>
-      </div>
-    </div>`;};
-
-  let body='';
-
-  // ── DEMANDA: tabla semanal agrupada por día (más útil que 12 tarjetas) ──
-  if(grupos.demanda.items.length){
-    const hoyIdx=new Date().getDay();
-    const porDia={};
-    grupos.demanda.items.forEach(i=>{
-      const dia=DIAS_FULL.findIndex(df=>i.titulo.includes(df));
-      if(dia>=0){porDia[dia]=porDia[dia]||[];porDia[dia].push(i);}
-    });
-    body+=`<div class="sec-title" style="margin-top:18px">Plan semanal de stock</div>
-      <div class="tiny muted" style="margin:-4px 0 8px 2px">Asegura estos productos en tus días fuertes</div>`;
-    const ordenDias=[];
-    for(let off=0;off<7;off++)ordenDias.push((hoyIdx+off)%7);
-    ordenDias.forEach(dia=>{
-      if(!porDia[dia]||!porDia[dia].length)return;
-      const esHoy=dia===hoyIdx, esManana=dia===(hoyIdx+1)%7;
-      const tag=esHoy?'<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;margin-left:6px">HOY</span>':
-                esManana?'<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;margin-left:6px">MAÑANA</span>':'';
-      const bg=esHoy?'#fef2f2':esManana?'#fffbeb':'#fff';
-      const border=esHoy?'#dc2626':esManana?'#f59e0b':'var(--line)';
-      const rows=porDia[dia].map(i=>{
-        const m=i.texto.match(/Asegura ≥(\d+) (\w+)/);
-        const stock=m?`${m[1]} ${m[2]}`:'';
-        const horaM=i.texto.match(/pico (\d+):00h/);
-        const hora=horaM?`${horaM[1]}:00h`:'';
-        const nombre=i.titulo.split(': día fuerte de ')[1]||i.titulo;
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">
-          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:13px;font-weight:700">${nombre}</span>
-            ${catBadge(i.categoria)}
-          </div>
-          ${hora?`<span class="tiny muted">${hora}</span>`:''}
-          <span style="font-weight:800;font-size:13px;color:var(--green-d)">≥${stock}</span>
-        </div>`;}).join('');
-      body+=`<div style="background:${bg};border:1.5px solid ${border};border-radius:12px;padding:12px;margin-bottom:8px">
-        <div style="font-weight:800;font-size:14px">${DIAS_FULL[dia]}${tag}</div>
-        ${rows}
-      </div>`;
-    });
+        <div style="font-size:15.5px;font-weight:700;line-height:1.25;letter-spacing:-.01em">${a.titulo}</div>
+        <div style="font-size:12.5px;line-height:1.4;color:var(--muted);margin-top:3px">${a.evidencia}</div>
+      </div></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="chip ${a.impactoKind}">${a.impactoTxt}</span>${_confHTML(a.conf)}</div>
+    ${_pisoHTML(a)}
+    <div style="display:flex;gap:8px">
+      <button class="btn primary sm" style="flex:1" onclick="asesorAccion(${i})">${a.accion}</button>
+      <button class="btn sm ghost" onclick="asesorDetalle(${i})">Ver por qué</button>
+    </div></div>`;
+}
+function _barraHTML(lbl,val,pct,col){
+  return `<div style="display:flex;flex-direction:column;gap:4px">
+    <div class="between" style="font-size:12px;color:var(--muted)"><span>${lbl}</span><b style="color:var(--ink)">${val}</b></div>
+    <div style="height:10px;border-radius:5px;background:var(--surface-2);overflow:hidden"><div style="width:${Math.max(2,Math.min(100,pct)).toFixed(0)}%;height:10px;border-radius:5px;background:${col}"></div></div></div>`;
+}
+function asesorDetalle(i){
+  const a=asesorCalcular().acciones[i];if(!a)return;
+  const p=a.p, u=p.unidad;
+  let porque='', opciones='', primario='';
+  if(a.tipo==='merma'){
+    porque=`${_barraHTML('Tienes en stock',qty(a.stock,u),100,'var(--rose)')}
+      ${_barraHTML(`Lo que vendes en ${a.vida} días (su vida útil)`,qty(a.vendible,u),a.vendible/a.stock*100,'var(--green)')}
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.45">Sobran <b style="color:var(--ink)">${qty(a.sobra,u)}</b>. A tu costo de ${money0(a.costo)} son <b style="color:var(--ink)">${money0(a.impacto)}</b> que se echarían a perder. El ritmo de ${qty(a.avg,u)} al día viene de ${a.conf.n} ventas en 6 semanas${a.conf.estable?' y casi no varía entre semanas':', aunque varía bastante entre semanas'}.</div>`;
+    const op=(t,s,sel,nota)=>`<div style="display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border-radius:12px;border:${sel?'1.5px solid var(--green);background:var(--green-soft)':'1px solid var(--line)'}">
+      <span style="width:20px;height:20px;border-radius:50%;flex-shrink:0;${sel?'background:var(--green);display:grid;place-items:center':'border:1.5px solid var(--line)'}">${sel?ico('checkCircle',14,'#fff',2.2):''}</span>
+      <div style="flex:1"><div style="font-size:14.5px;font-weight:700">${t}</div><div style="font-size:12.5px;color:var(--muted);line-height:1.4">${s}</div>
+      ${nota?`<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--green-d);margin-top:4px">${ico('shield',13,'var(--green)',1.9)}${nota}</div>`:''}</div></div>`;
+    opciones=(a.sugerido?op(`Bajar el precio a ${money0(a.sugerido)} por ${a.vida} días`,`${money0(a.precio-a.sugerido)} menos por ${u==='kg'?'kilo':'pieza'} para que salga antes de que se pierda.`,true,`Nunca abajo de ${money0(a.piso)}: costo ${money0(a.costo)} más margen mínimo del ${Math.round(ASESOR.MARGEN_MIN*100)}%`)
+      :op('Bajar el precio no conviene',a.costo>0?`Ya estás en ${money0(a.precio)}, cerca del piso seguro de ${money0(a.piso)}.`:'Sin costo capturado no puedo calcular un piso seguro.',false))
+      +op('Ofrécelo en combo o por mayoreo',`Empuja ${qty(a.sobra,u)} juntando con otro producto que también te sobre.`,false)
+      +op('Compra menos la próxima vez',`Con ${qty(Math.ceil(a.vendible),u)} cubres ${a.vida} días sin que sobre.`,false);
+    primario=a.sugerido?`<button class="btn primary block" onclick="asesorAplicarPrecio('${p.id}',${a.sugerido})">Aplicar precio ${money0(a.sugerido)}</button>`
+      :`<button class="btn primary block" onclick="closeSheet()">Entendido</button>`;
+  }else{
+    const nec=a.tipo==='compra'?a.necesario:a.faltan+a.stock;
+    porque=`${_barraHTML('Tienes en stock',qty(a.stock,u),a.stock/nec*100,'var(--mango)')}
+      ${_barraHTML(a.tipo==='compra'?'Lo que necesitas con reserva':'Lo que necesitas para hoy y mañana',qty(nec,u),100,'var(--green)')}
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.45">${a.evidencia} Basado en ${a.conf.n} ventas en 6 semanas.</div>`;
+    opciones=`<div style="font-size:13px;color:var(--muted);line-height:1.5">Al anotarlo, aparece en tu lista de compra de mañana con la cantidad ya calculada. La cantidad respeta la vida útil del producto: nunca más de lo que vendes antes de que se pierda.</div>`;
+    primario=`<button class="btn primary block" onclick="anotarCompra('${p.id}',${a.faltan})">Anotar ${qty(a.faltan,u)} en la compra</button>`;
   }
+  openSheet(`<div style="display:flex;gap:11px;align-items:flex-start;margin-bottom:14px">${_tileHTML(a.tono,a.ico)}
+    <div><h2 style="margin:0 0 6px;font-size:19px;line-height:1.2">${a.titulo}</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ${a.impactoKind}">${a.impactoTxt}</span>${_confHTML(a.conf)}</div></div></div>
+    <div class="sec-title">Por qué</div>
+    <div style="display:flex;flex-direction:column;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:14px">${porque}</div>
+    <div class="sec-title">Qué puedes hacer</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${opciones}</div>
+    ${primario}
+    <button class="btn block ghost" style="margin-top:8px;color:var(--muted)" onclick="asesorIgnorar('${p.id}','${a.tipo}')">No aplica · no volver a mostrar</button>
+    <p class="tiny faint" style="text-align:center;margin:10px 0 0">Se recalcula con cada venta que registras</p>`);
+}
+function asesorComoSeCalcula(){
+  const li=t=>`<li style="margin-bottom:8px;line-height:1.45">${t}</li>`;
+  openSheet(`<h2>Cómo se calculan los consejos</h2>
+    <ol style="padding-left:20px;font-size:13.5px;color:var(--ink);margin:12px 0">
+      ${li(`Sin <b>${ASESOR.SEMANAS_MIN} semanas de ventas</b> y <b>${ASESOR.VENTAS_MIN} ventas</b> de un producto, no hay predicción para él. Prefiero callar a equivocarme.`)}
+      ${li('Cada consejo enseña de dónde sale: stock, ritmo de venta, vida útil y cuántas ventas hay detrás. La confianza es <b>alta</b> con 30 ventas o más y un patrón estable; baja si el patrón cambia mucho entre semanas.')}
+      ${li(`Nunca sugiero un precio debajo de tu <b>costo más ${Math.round(ASESOR.MARGEN_MIN*100)}%</b> de margen. Ese piso se muestra en el mismo consejo.`)}
+      ${li('La lista de compra resta lo que ya tienes, agrega 15% de reserva y pone <b>tope por vida útil</b>: nunca más de lo que vendes antes de que se pierda.')}
+      ${li(`Máximo <b>${ASESOR.MAX_ACCIONES} acciones por día</b>, ordenadas por pesos en riesgo o en juego. Lo demás queda en vigilancia.`)}
+      ${li(`"No aplica" calla ese consejo para ese producto durante ${ASESOR.IGNORAR_DIAS} días.`)}
+      ${li('Nada cambia solo: cada botón hace una cosa concreta que puedes revertir en Inventario.')}
+    </ol>
+    <p class="tiny muted">Los productos borrados y vueltos a crear con el mismo nombre cuentan como uno solo para el historial.</p>
+    <button class="btn block ghost" style="margin-top:10px" onclick="closeSheet()">Cerrar</button>`);
+}
 
-  // ── Resto de grupos como tarjetas individuales ──
-  ['merma','agotamiento','lento','estrella'].forEach(key=>{
-    const g=grupos[key];
-    if(!g.items.length)return;
-    body+=`<div class="sec-title" style="margin-top:18px">${g.titulo}</div>
-      ${g.sub?`<div class="tiny muted" style="margin:-4px 0 8px 2px">${g.sub}</div>`:''}
-      ${g.items.map(card).join('')}`;
-  });
-
-  if(!insights.length){
-    body=`<div class="empty" style="padding:40px 20px">
-      <span class="e-ico">${ico('bulb',36,'var(--faint)',1.6)}</span>
-      <div style="font-weight:700;margin-bottom:6px">Aún reuniendo datos</div>
-      <div class="tiny muted">Registra más ventas durante unos días y aquí verás patrones,
-      predicciones de stock y consejos para reducir merma.</div></div>`;
-  }
-
+/* ---------- vista ---------- */
+function _asesorCabecera(r){
+  const hoy=new Date();
   return `<div class="between"><button class="link" onclick="go('inteligencia')">← Resumen</button>
   ${state.config.pinHash?`<button onclick="window._pinBloquear()" style="background:none;border:none;cursor:pointer;color:var(--muted);display:grid;place-items:center" aria-label="Bloquear">${ico('unlock',18,'currentColor',1.8)}</button>`:''}</div>
-  <div class="sec-title" style="margin-bottom:2px">Asesor inteligente</div>
-  <div class="tiny muted" style="margin:0 0 4px 2px">Análisis de tus patrones de venta · ${hoy}</div>
-  ${body}
-  <div style="height:20px"></div>`;
+  <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="font-size:22px;font-weight:800;letter-spacing:-.02em">Asesor</span>
+    ${r.suficiente?`<span class="chip g">${r.semanas} semanas de datos</span>`:`<span class="chip m">Reuniendo datos</span>`}</div>
+  <div class="tiny muted" style="margin:2px 0 14px 2px">${DIAS_FULL[hoy.getDay()]} ${hoy.getDate()} de ${_MESES_A[hoy.getMonth()]} · se actualiza con cada venta</div>`;
+}
+function _asesorPocosDatos(r){
+  const barra=(lbl,val,pct,col)=>`<div style="display:flex;flex-direction:column;gap:5px;padding:10px 0;border-top:1px solid var(--line)">
+    <div class="between" style="font-size:13px"><span class="b">${lbl}</span><span class="muted">${val}</span></div>
+    <div style="height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden"><div style="width:${pct.toFixed(0)}%;height:6px;border-radius:3px;background:${col}"></div></div></div>`;
+  const conCosto=r.conVentas-r.sinCosto;
+  const fila=(col,t,s,onclick)=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)${onclick?';cursor:pointer':''}" ${onclick?`onclick="${onclick}"`:''}>
+    <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>
+    <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600">${t}</div><div class="tiny muted">${s}</div></div>${onclick?ico('chevR',16,'var(--faint)',2):''}</div>`;
+  return `<div class="card pad" style="margin-bottom:14px">
+    <div style="display:flex;gap:10px;align-items:center">${_tileHTML('g','bulb')}
+      <div><div style="font-size:15.5px;font-weight:700">Los consejos llegan en unos días</div>
+      <div class="tiny muted">No adivino con pocos datos: prefiero callar a equivocarme.</div></div></div>
+    <div style="margin-top:12px">
+      ${barra('Ventas registradas',`${r.semanas} semana${r.semanas===1?'':'s'} de ${ASESOR.SEMANAS_MIN}`,Math.min(100,r.semanas/ASESOR.SEMANAS_MIN*100),'var(--green)')}
+      ${barra('Costos capturados',r.conVentas?`${conCosto} de ${r.conVentas} productos`:'Aún nada',r.conVentas?conCosto/r.conVentas*100:0,'var(--green)')}
+      ${barra('Mermas registradas',r.nMermas?`${r.nMermas}`:'Aún ninguna',Math.min(100,r.nMermas*20),'var(--mango)')}
+    </div></div>
+    <div class="sec-title">Mientras tanto</div>
+    <div class="tiny muted" style="margin:-4px 0 8px 2px">Hechos, no predicciones</div>
+    <div class="card pad" style="padding-top:2px;padding-bottom:2px">
+      ${r.bajoMin.slice(0,4).map(p=>fila('var(--rose)',`${p.nombre} bajo el mínimo`,`Tienes ${qty(p.stock,p.unidad)}, tu mínimo es ${qty(p.stock_min,p.unidad)}`,`openProd('${p.id}')`)).join('')}
+      ${r.sinCosto?fila('var(--mango)',`${r.sinCosto} producto${r.sinCosto===1?'':'s'} con ventas y sin costo`,'Sin costo no puedo calcular ganancia ni piso de precio',`go('inventario')`):''}
+      ${fila('var(--green)','Registra la merma cuando tires producto','Así aprendo cuánto dura cada cosa en tu local')}
+    </div>`;
+}
+function _listaCompraHTML(r){
+  const man=new Date();man.setDate(man.getDate()+1);
+  const filas=r.compra.map(c=>`<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr .9fr;gap:6px;align-items:center;padding:9px 0;border-top:1px solid var(--line)">
+      <div style="min-width:0"><div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.p.nombre}</div>${c.anotado?`<button class="link" style="font-size:11px;padding:0" onclick="quitarDeCompra('${c.p.id}')">Anotado · quitar</button>`:''}</div>
+      <span style="font-size:13px;color:var(--muted)">${qty(c.tienes,c.p.unidad)}</span>
+      <span style="font-size:13px;color:var(--muted)">${qty(c.necesitas,c.p.unidad)}</span>
+      <span style="font-size:13.5px;font-weight:700;text-align:right;color:${c.urgente?'var(--rose)':'var(--ink)'}">+${qty(c.comprar,c.p.unidad)}</span></div>`).join('');
+  return `<div class="sec-title" style="margin-top:18px">Compra de mañana</div>
+    <div class="tiny muted" style="margin:-4px 0 8px 2px">${DIAS_FULL[man.getDay()]} · cubre hoy y mañana, resta lo que ya tienes y respeta la vida útil</div>
+    <div class="card pad" style="padding-top:6px;padding-bottom:12px">
+      ${r.compra.length?`<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr .9fr;gap:6px;padding:8px 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)"><span>Producto</span><span>Tienes</span><span>Necesitas</span><span style="text-align:right">Comprar</span></div>${filas}
+      <div class="between" style="padding-top:12px;margin-top:4px;border-top:1px solid var(--line)"><span class="tiny muted">Compra estimada <b style="color:var(--ink)">${money0(r.totalCompra)}</b></span><button class="btn sm" onclick="copiarListaCompra()">Copiar lista</button></div>`
+      :`<div class="tiny muted" style="padding:12px 0 6px">Según tus ventas, mañana no te falta nada. Si quieres agregar algo, usa "Anotar en la compra" desde una acción.</div>`}
+    </div>`;
+}
+function vAsesor(){
+  const r=asesorCalcular();
+  if(!r.suficiente)return _asesorCabecera(r)+_asesorPocosDatos(r)+'<div style="height:20px"></div>';
+  const acciones=r.acciones.length?r.acciones.map(_accionCard).join('')
+    :`<div class="card pad" style="display:flex;gap:11px;align-items:center;margin-bottom:10px">${_tileHTML('g','checkCircle')}<div><div style="font-size:15px;font-weight:700">Hoy no hay nada urgente</div><div class="tiny muted">Ni sobra producto ni falta nada para mañana según tus ventas.</div></div></div>`;
+  const vig=r.vigilancia.length?`<div class="sec-title" style="margin-top:18px">En vigilancia</div>
+    <div class="tiny muted" style="margin:-4px 0 8px 2px">Se avisa solo si cambia algo</div>
+    <div class="card pad" style="padding-top:2px;padding-bottom:2px">${r.vigilancia.map(v=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+      <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600">${v.p.nombre}</div><div class="tiny muted">${v.texto}</div></div><span class="chip ${v.kind}">${v.chip}</span></div>`).join('')}</div>`:'';
+  return _asesorCabecera(r)+`
+    <div class="between"><div class="sec-title" style="margin:0">Para hoy</div><span class="tiny faint b">${r.acciones.length?r.acciones.length+(r.acciones.length===1?' acción':' acciones')+', nada más':''}</span></div>
+    <div style="height:8px"></div>${acciones}${_listaCompraHTML(r)}${vig}
+    <button class="link" style="display:flex;align-items:center;gap:8px;padding:14px 2px 18px;font-size:13px;font-weight:600;color:var(--muted)" onclick="asesorComoSeCalcula()">${ico('help',16,'var(--muted)',1.8)}Cómo se calculan estos consejos</button>`;
 }
 
-// Versión compacta para el dashboard (top 3 insights más urgentes)
+// Versión compacta para el Resumen
 function asesorResumenHTML(){
-  const insights=generarInsights().filter(i=>i.urgencia>=40).slice(0,3);
-  if(!insights.length)return '';
-  const card=i=>{
-    const color=i.urgencia>=90?'#dc2626':i.urgencia>=70?'#f59e0b':'#0891b2';
-    return `<div style="padding:11px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:13px;color:${color}">${i.titulo}</span>
-        ${catBadge(i.categoria)}
-      </div>
-      <div style="font-size:12px;line-height:1.35;color:var(--muted)">${i.texto}</div>
-    </div>`;};
-  return `<div class="sec-title" style="display:flex;align-items:center;gap:6px">${ico('bulb',14,'var(--green)',1.8)} Asesor inteligente</div>
-  <div class="card pad">
-    ${insights.map(card).join('')}
-    <button class="btn block sm" style="margin-top:10px" onclick="go('asesor')">
-      Ver todos los consejos →</button>
-  </div>`;
+  const r=asesorCalcular();
+  const cab=`<div class="between" style="margin-bottom:8px"><span class="sec-title" style="margin:0;display:inline-flex;align-items:center;gap:6px">${ico('bulb',14,'var(--green)',1.8)} Asesor</span>
+    ${r.suficiente?`<span class="tiny faint b">${r.semanas} semanas de datos</span>`:''}</div>`;
+  if(!r.suficiente)return cab+`<div class="card pad" style="display:flex;gap:10px;align-items:center;cursor:pointer" onclick="go('asesor')">${_tileHTML('g','bulb')}
+    <div style="flex:1"><div class="b" style="font-size:14px">Reuniendo datos</div><div class="tiny muted">${r.semanas} de ${ASESOR.SEMANAS_MIN} semanas de ventas. Mientras, hechos sin predicciones.</div></div>${ico('chevR',16,'var(--faint)',2)}</div>`;
+  const filas=r.acciones.map(a=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+    <span style="width:8px;height:8px;border-radius:50%;background:${a.tono==='r'?'var(--rose)':'var(--mango)'};flex-shrink:0"></span>
+    <span style="flex:1;font-size:13.5px;font-weight:600;line-height:1.3">${a.titulo}</span>
+    <span style="font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap">${a.impactoTxt.replace(' en juego','').replace(' de venta','')}</span></div>`).join('');
+  return cab+`<div class="card pad" style="padding-top:4px">
+    <div style="padding:10px 0 2px;font-size:15px;font-weight:700">${r.acciones.length?`${r.acciones.length} ${r.acciones.length===1?'acción':'acciones'} para hoy`:'Hoy no hay nada urgente'}</div>${filas}
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary sm" style="flex:1" onclick="go('asesor')">${r.acciones.length?'Ver acciones':'Ver Asesor'}</button><button class="btn sm ghost" onclick="go('asesor')">Lista de compra</button></div></div>`;
 }
 
 
