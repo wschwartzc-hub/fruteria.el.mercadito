@@ -49,6 +49,7 @@ export function createMonito(id, x, y, opts = {}) {
     beans: 0, fartCloud: 0,
     jetpack: null, thrusting: false,   // jetpack = { fuel } cuando la traes puesta
     mallet: null, malletHit: false,    // mallet = { uses } cuando traes mazo
+    karate: 0,                         // segundos restantes de banda karateka
     stocks: CFG.match.stocks, score: 0, respawnTimer: 0,
     justLanded: false,
   };
@@ -72,6 +73,9 @@ export function createJetpackItem(id, x, y) {
 
 export function createMalletItem(id, x, y) {
   return { id, x, y, vx: 0, vy: 0, w: CFG.mallet.w, h: CFG.mallet.h, state: 'falling', ttl: CFG.mallet.ttl, spin: 0 };
+}
+export function createKarateItem(id, x, y) {
+  return { id, x, y, vx: 0, vy: 0, w: CFG.karate.w, h: CFG.karate.h, state: 'falling', ttl: CFG.karate.ttl, spin: 0 };
 }
 export function createBird(id, x, y, dir) {
   return { id, x, y, dir, vx: dir * CFG.bird.speed, vy: 0, w: 34, h: 22, state: 'flying', flap: 0, scared: false, hit: [] };
@@ -105,6 +109,10 @@ export class World {
     this.malletsEnabled = opts.mallets ?? true;
     this.nextMalletIn = CFG.mallet.firstAt;
     this.malletSeq = 0;
+    this.karates = [];
+    this.karatesEnabled = opts.karates ?? true;
+    this.nextKarateIn = CFG.karate.firstAt;
+    this.karateSeq = 0;
     this.birds = [];
     this.birdsEnabled = opts.birds ?? true;
     this.nextBirdIn = CFG.bird.firstAt;
@@ -149,16 +157,24 @@ export class World {
     this.updateBeans(dt);
     this.updateJetpacks(dt);
     this.updateMallets(dt);
+    this.updateKarates(dt);
     this.updateBirds(dt);
     for (const m of this.monitos) this.checkFall(m);
     this.checkWin();
   }
 
   // ---------- máquina de estados del monito ----------
+  // Con banda karateka el golpe completo dura el 40 %.
+  punchTiming(m) {
+    const p = CFG.punch, k = m.karate > 0 ? CFG.karate.speedMul : 1;
+    return { windup: p.windup * k, active: p.active * k, recovery: p.recovery * k };
+  }
+
   updateMonito(m, inp, dt) {
     m.t += dt;
     m.thrusting = false;
     if (m.invuln > 0) m.invuln -= dt;
+    if (m.karate > 0) { m.karate -= dt; if (m.karate <= 0) { m.karate = 0; this.emit('karateEnd', { id: m.id }); } }
 
     switch (m.state) {
       case S.DEAD:
@@ -190,7 +206,7 @@ export class World {
         if (this.canRescue(m) && inp.jump) { this.jetpackSave(m, inp, dt); return; }
         return; // ya no hay control: sólo cae
       case S.PUNCH: {
-        const p = CFG.punch;
+        const p = this.punchTiming(m);
         this.groundFriction(m, dt);
         if (m.t >= p.windup + p.active + p.recovery) this.setState(m, m.onGround ? S.IDLE : S.JUMP);
         return;
@@ -286,7 +302,7 @@ export class World {
 
   resolvePunch(m) {
     if (m.state !== S.PUNCH || m.punchHit) return;
-    const p = CFG.punch;
+    const p = this.punchTiming(m);
     if (m.t < p.windup || m.t > p.windup + p.active) return;
     const hb = this.punchBox(m);
     let hit = false;
@@ -412,6 +428,47 @@ export class World {
       }
     }
     this.mallets = this.mallets.filter((it) => it.state !== 'gone');
+  }
+
+  // ---------- banda karateka ----------
+  spawnKarate(x) {
+    const it = createKarateItem(this.karateSeq++, x ?? this.roof.x + 80 + this.rng() * (this.roof.w - 160), -60);
+    this.karates.push(it);
+    this.emit('karateSpawn', { karateId: it.id, x: it.x });
+    return it;
+  }
+
+  updateKarates(dt) {
+    if (this.karatesEnabled && !this.over) {
+      this.nextKarateIn -= dt;
+      if (this.nextKarateIn <= 0) {
+        this.spawnKarate();
+        this.nextKarateIn = CFG.karate.spawnMin + this.rng() * (CFG.karate.spawnMax - CFG.karate.spawnMin);
+      }
+    }
+    for (const it of this.karates) {
+      if (it.state === 'falling') {
+        const prevY = it.y;
+        it.vy += CFG.gravity * 0.4 * dt; it.vy = Math.min(it.vy, 300);
+        it.spin += 3 * dt; it.x += Math.sin(it.spin) * 40 * dt; it.y += it.vy * dt;
+        if (this.overRoof(it.x) && it.y >= this.roof.y && prevY <= this.roof.y + 0.5) { it.y = this.roof.y; it.vy = 0; it.state = 'rest'; }
+        else if (it.y > this.deathY) it.state = 'gone';
+      } else if (it.state === 'rest') {
+        it.ttl -= dt;
+        if (it.ttl <= 0) { it.state = 'gone'; continue; }
+      }
+      if (it.state === 'gone') continue;
+      const ib = boxOf(it);
+      for (const m of this.monitos) {
+        if (!CAN_EAT.has(m.state)) continue;
+        if (!overlaps(ib, boxOf(m))) continue;
+        m.karate = CFG.karate.duration;
+        it.state = 'gone';
+        this.emit('karatePickup', { id: m.id, karateId: it.id, x: m.x, y: m.y - m.h });
+        break;
+      }
+    }
+    this.karates = this.karates.filter((it) => it.state !== 'gone');
   }
 
   // ---------- palomas ----------
@@ -848,7 +905,7 @@ export class World {
 
   die(m) {
     m.stocks -= 1;
-    m.jetpack = null; m.thrusting = false; m.mallet = null;
+    m.jetpack = null; m.thrusting = false; m.mallet = null; m.karate = 0;
     m.vx = 0; m.vy = 0;
     m.respawnTimer = CFG.match.respawnDelay;
     m.koTimer = 0; m.combo.count = 0; m.combo.attackerId = null;

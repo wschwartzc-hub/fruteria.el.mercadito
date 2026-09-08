@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "Nunito", "Trebuchet MS", sans-serif; color: #3a2a25; }
+    a { color: #7a4bb6; } a:hover { color: #5c3590; }
+  </style>
+</helmet>
+<div style="width: 960px; height: 640px; box-sizing: border-box; background: #fffdf7; padding: 36px 40px; display: flex; flex-direction: column; gap: 16px;">
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <div style="font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: #9a63d6;">Menú principal en celular</div>
+    <div style="font-family: 'Baloo 2', 'Trebuchet MS', sans-serif; font-weight: 800; font-size: 34px; line-height: 1;">Todo en una sola pantalla, sin scroll</div>
+  </div>
+  <img src="menu.png" style="width: 844px; height: 385px; display: block; border: 3px solid #3a2a25; border-radius: 18px;">
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; font-size: 13px; line-height: 1.45;">
+    <div><strong>Rejilla de 2 columnas</strong> de 640 px máximo: el botón verde de "en línea" va primero y ocupa las dos columnas; los cuatro modos locales debajo, todos de 46 px de alto en teléfono y 56 px en pantallas grandes.</div>
+    <div><strong>Un solo color fuerte:</strong> amarillo para el modo recomendado, verde sólo para jugar en línea, blanco para el resto. Sombra dura de 4 px que se aplasta al tocar.</div>
+    <div><strong>Reglas en un panel oscuro</strong> translúcido para que se lean sobre el edificio. Subtítulos de los botones se ocultan en pantallas de menos de 520 px de alto.</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

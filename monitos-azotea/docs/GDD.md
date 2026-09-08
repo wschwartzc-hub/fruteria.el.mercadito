@@ -124,7 +124,14 @@ presionando botones en vez de mirar.
   que un golpe, pero **no cuenta para el combo**) y sale volando asustada
   soltando plumas. Se esquiva saltando.
 
-### 2.11 En línea
+### 2.11 Banda karateka
+- Cada 16 a 26 s cae una **banda roja**. Se recoge al pisarla y dura **6 s**:
+  el golpe completo (aviso, impacto y recuperación) dura el 40 % de lo
+  normal, así que se pueden encadenar los 4 golpes del combo en un
+  parpadeo. Se ve la banda en la cabeza con las puntas al viento, líneas de
+  velocidad al golpear y una barra roja de tiempo sobre la cabeza.
+
+### 2.12 En línea
 - Sala con código de 4 letras. Hasta **8 jugadores** (uno por animal). El
   anfitrión decide cuándo empezar y puede agregar bots.
 - Nadie repite animal dentro de una sala.
@@ -133,7 +140,7 @@ presionando botones en vez de mirar.
   un halo amarillo bajo los pies y tu tarjeta del HUD va resaltada.
 - Si alguien se desconecta, su monito lo controla un bot. Ver `docs/ONLINE.md`.
 
-### 2.12 Condición de victoria
+### 2.13 Condición de victoria
 - Cada monito tiene **3 vidas**. Pierde una al caer del edificio.
 - Gana el último con vidas. Se muestra un marcador de "KOs" (combos de 4 y
   explosiones que provocaste) para picar el orgullo.
@@ -219,7 +226,10 @@ láminas de personajes, expresiones, escenario y controles está en `design/`.
 ## 6. Interfaz
 - Tarjetas por jugador arriba: color, nombre, vidas, KOs.
 - Sobre cada monito: nombre, contador de combo `n/4` y anillo de tiempo de KO.
-- Menú inicial con controles; pantalla de victoria con revancha.
+- Menú inicial en una rejilla de dos columnas: "Jugar en línea" arriba a
+  todo lo ancho, los cuatro modos locales debajo, reglas en un panel oscuro
+  translúcido. Cabe completo en un teléfono en horizontal sin scroll.
+  Pantalla de victoria con revancha.
 
 ## 7. Estructura del proyecto
 

@@ -54,6 +54,8 @@ export function botInput(world, me, time) {
   // mazo en el piso: también vale oro
   const mz = world.mallets.find((it) => it.state === 'rest' && Math.abs(it.x - me.x) < 320);
   if (mz && !me.mallet) { safeGoTo(mz.x); return inp; }
+  const kb = world.karates.find((it) => it.state === 'rest' && Math.abs(it.x - me.x) < 260);
+  if (kb && me.karate <= 0) { safeGoTo(kb.x); return inp; }
   // jet pack en el piso: vale oro
   const jp = world.jetpacks.find((j) => j.state === 'rest' && Math.abs(j.x - me.x) < 320);
   if (jp && !me.jetpack) { safeGoTo(jp.x); return inp; }

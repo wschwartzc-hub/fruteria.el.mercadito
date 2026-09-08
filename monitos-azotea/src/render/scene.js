@@ -179,6 +179,23 @@ export function drawMalletItem(ctx, it, roof, time) {
   }
 }
 
+export function drawKarateItem(ctx, it, roof, time) {
+  if (it.state === 'gone') return;
+  const bob = it.state === 'rest' ? Math.sin(time * 4) * 2 : 0;
+  ctx.save(); ctx.translate(it.x, it.y - it.h / 2 + bob); ctx.rotate(it.state === 'falling' ? Math.sin(it.spin) * 0.4 : 0);
+  ctx.fillStyle = '#e53935'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(-18, -8, 36, 16, 5); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-16, 2); ctx.quadraticCurveTo(-30, 6, -34, 20); ctx.lineTo(-26, 20); ctx.quadraticCurveTo(-24, 10, -14, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-12, 6); ctx.quadraticCurveTo(-22, 14, -20, 26); ctx.lineTo(-12, 24); ctx.quadraticCurveTo(-14, 14, -8, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(4, 0, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  if (it.state === 'rest') {
+    const k = (Math.sin(time * 6) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
+    ctx.beginPath(); ctx.moveTo(it.x + 24, it.y - 40); ctx.lineTo(it.x + 27, it.y - 34); ctx.lineTo(it.x + 33, it.y - 32); ctx.lineTo(it.x + 27, it.y - 30); ctx.lineTo(it.x + 24, it.y - 24); ctx.lineTo(it.x + 21, it.y - 30); ctx.lineTo(it.x + 15, it.y - 32); ctx.lineTo(it.x + 21, it.y - 34); ctx.closePath(); ctx.fill();
+  }
+}
+
 export function drawBird(ctx, b, time) {
   if (b.state === 'gone') return;
   ctx.save(); ctx.translate(b.x, b.y - b.h / 2); ctx.scale(b.dir, 1);

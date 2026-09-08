@@ -21,6 +21,8 @@
 - [x] Combo que baja de uno en uno en vez de reiniciarse.
 - [x] Tamaño de pantalla robusto en iOS (teclado, barra), loop protegido
       contra errores, canal sin orden y aviso de señal en línea.
+- [x] Banda karateka: golpes al 40 % del tiempo durante 6 s.
+- [x] Menú rediseñado en rejilla; arreglo del error al quedar KO el jugador local.
 - [x] Resaltado "TÚ" sobre tu monito, animales únicos por sala y arreglo de
       los botones de invitados tras una revancha.
 

@@ -100,6 +100,15 @@ export const CFG = {
     launchX: 560, launchY: 520,
   },
 
+  karate: {
+    w: 36, h: 22,
+    firstAt: 15,
+    spawnMin: 16, spawnMax: 26,
+    ttl: 12,
+    duration: 6,           // segundos de furia karateka
+    speedMul: 0.4,         // el golpe dura 40 % (windup, activo y recuperación)
+  },
+
   bird: {
     firstAt: 9,
     spawnMin: 10, spawnMax: 18,

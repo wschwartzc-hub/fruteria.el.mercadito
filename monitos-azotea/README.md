@@ -5,7 +5,8 @@ león, zorro, panda…) se empujan a golpes en la azotea de una torre. Combo de
 4 golpes = sale volando y queda desmayado; cárgalo y aviéntalo al vacío antes
 de que despierte. Del cielo caen barriles que explotan, frijoles que te dejan tirar un pedo que
 desmaya a los cercanos, y mochilas jet pack para volar de regreso cuando te
-avientan, mazos que barren por abajo (¡salta!) y palomas que estorban. Si te
+avientan, mazos que barren por abajo (¡salta!), bandas karatekas para golpear
+a toda velocidad y palomas que estorban. Si te
 desmayan, machaca golpe para despertar antes.
 
 ## Jugar

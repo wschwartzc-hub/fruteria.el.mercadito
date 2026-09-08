@@ -246,6 +246,17 @@ export function drawMallet(ctx, x, y, angle, scale = 1) {
   ctx.restore();
 }
 
+// Banda karateka roja con las puntas al viento.
+export function drawHeadband(ctx, x, y, r, dir, time) {
+  ctx.fillStyle = '#e53935'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(x - r * 1.02, y - r * 0.62, r * 2.04, r * 0.3, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + dir * r * 0.25, y - r * 0.47, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  const w1 = Math.sin(time * 14) * 5, w2 = Math.cos(time * 12) * 5;
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath(); ctx.moveTo(x - dir * r * 0.95, y - r * 0.55); ctx.quadraticCurveTo(x - dir * r * 1.5, y - r * 0.6 + w1, x - dir * r * 1.9, y - r * 0.2 + w1); ctx.lineTo(x - dir * r * 1.75, y - r * 0.05 + w1); ctx.quadraticCurveTo(x - dir * r * 1.4, y - r * 0.35 + w1, x - dir * r * 0.95, y - r * 0.35); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - dir * r * 0.95, y - r * 0.5); ctx.quadraticCurveTo(x - dir * r * 1.4, y - r * 0.2 + w2, x - dir * r * 1.7, y + r * 0.25 + w2); ctx.lineTo(x - dir * r * 1.5, y + r * 0.35 + w2); ctx.quadraticCurveTo(x - dir * r * 1.3, y - r * 0.05 + w2, x - dir * r * 0.95, y - r * 0.32); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
 export function drawShadow(ctx, m, roof) {
   if (m.state === S.DEAD || m.state === S.CARRIED) return;
   if (m.x <= roof.x || m.x >= roof.x + roof.w) return;
@@ -322,7 +333,8 @@ export function drawMonito(ctx, m, time, cfg) {
   const swing = Math.sin(a.walk) * 10;
   switch (st) {
     case S.PUNCH: {
-      const p = cfg.punch, t = m.t;
+      const kk = m.karate > 0 ? cfg.karate.speedMul : 1;
+      const p = { windup: cfg.punch.windup * kk, active: cfg.punch.active * kk, recovery: cfg.punch.recovery * kk, range: cfg.punch.range }, t = m.t;
       let ext = 0;
       if (t < p.windup) ext = -0.5 * (t / p.windup);
       else if (t < p.windup + p.active) ext = 1;
@@ -379,8 +391,13 @@ export function drawMonito(ctx, m, time, cfg) {
   else if (st === S.WALK) expr = 'happy';
   else if (st === S.JUMP) expr = 'worried';
   drawHead(ctx, m.species, dir * 2, headY - headR * 0.35, headR, dir, expr, a.blink, c);
+  if (m.karate > 0) drawHeadband(ctx, dir * 2, headY - headR * 0.35, headR, dir, time);
 
   ctx.restore();
+  if (m.karate > 0 && st === S.PUNCH) { // líneas de velocidad
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { const yy = m.y - H * 0.7 + i * 12; ctx.beginPath(); ctx.moveTo(m.x - dir * (30 + i * 6), yy); ctx.lineTo(m.x - dir * (52 + i * 6), yy); ctx.stroke(); }
+  }
 
   if (st === S.KO) birds(ctx, m.x + dir * W * 0.6, m.y - H * 0.55, time);
   if (st === S.CARRIED) birds(ctx, m.x + dir * W * 0.6, m.y - H * 0.45, time);

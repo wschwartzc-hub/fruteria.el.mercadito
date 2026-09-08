@@ -18,13 +18,20 @@
   .ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(20,18,30,.55); text-align: center; padding: 16px; overflow-y: auto; }
   .ov > * { flex-shrink: 0; }
   .ov[hidden] { display: none; }
-  .menu-grid { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: min(92vw, 640px); }
+  .menu-grid .btn { width: 100%; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .menu-grid .btn.online { grid-column: 1 / -1; }
+  .menu-grid .btn small { margin-top: 2px; }
+  .rules-box { width: min(92vw, 640px); background: rgba(20,18,30,.62); border: 2px solid rgba(255,255,255,.25); border-radius: 14px; padding: 8px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .rules-box .rules, .rules-box .keys { margin: 0; max-width: none; }
   /* teléfonos en horizontal: todo más compacto y en dos columnas */
   @media (max-height: 520px) {
     .ov { gap: 6px; padding: 8px 16px; }
     .title { font-size: clamp(22px, 4.5vh, 34px); margin-bottom: 4px; }
-    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(92vw, 640px); }
-    .btn { min-width: 0; width: 100%; padding: 10px 12px; font-size: 15px; border-width: 2px; }
+    .menu-grid { gap: 8px; }
+    .menu-grid .btn { min-height: 46px; padding: 6px 12px; font-size: 15px; border-width: 2px; box-shadow: 0 4px 0 var(--ink); }
+    .btn { min-width: 0; width: auto; padding: 10px 12px; font-size: 15px; border-width: 2px; }
+    .rules-box { padding: 6px 12px; gap: 2px; }
     .btn small, body.touch .btn small, body:not(.touch) .btn small { display: none; }
     .rules { font-size: 11px; max-width: 640px; margin: 2px 0 0; line-height: 1.3; }
     .keys { font-size: 10px; margin: 0; }
@@ -125,15 +132,17 @@
 <div id="menu" class="ov">
   <h1 class="title">MONITOS EN LA AZOTEA</h1>
   <div class="menu-grid">
+    <button class="btn online" id="btn-online">🌐 Jugar en línea con amigos <small>crea una sala con código o únete a una</small></button>
     <button class="btn primary" data-mode="solo1">1 jugador vs Bot</button>
     <button class="btn" data-mode="solo2">1 jugador vs 2 Bots</button>
     <button class="btn" data-mode="duo">2 jugadores <small class="touch-only">misma pantalla, cada uno en su mitad</small><small class="kbd-only">teclado: WASD+F/G y flechas+,/.</small></button>
     <button class="btn" data-mode="duo2">2 jugadores + 2 Bots</button>
   </div>
-  <button class="btn online" id="btn-online">🌐 Jugar en línea con amigos <small>crea una sala con código o únete a una</small></button>
-  <p class="rules">4 golpes seguidos = ¡a volar y desmayado! Levanta al desmayado y aviéntalo al vacío. Cómete los frijoles que caen y tira un pedo: todos los que estén cerca se desmayan. Cuidado con los barriles.</p>
-  <p class="keys touch-only">Joystick: mover · ⬆️ salto · 👊 golpe · ✋ agarrar / aventar · 💨 pedo (con frijol)</p>
-  <p class="keys kbd-only">J1: A/D · W salto · F golpe · G agarrar · H pedo &nbsp;|&nbsp; J2: ←/→ · ↑ · , · . · / &nbsp;|&nbsp; Gamepad: A · X · B · Y</p>
+  <div class="rules-box">
+    <p class="rules">4 golpes seguidos = ¡a volar! Levanta al desmayado y aviéntalo al vacío. Del cielo caen barriles, frijoles (pedo), jet packs, mazos y bandas karatekas. Si te desmayan, machaca golpe.</p>
+    <p class="keys touch-only">Joystick: mover · ⬆️ salto (mantén para el jet pack) · 👊 golpe · ✋ agarrar / aventar · 💨 pedo</p>
+    <p class="keys kbd-only">J1: A/D · W salto · F golpe · G agarrar · H pedo &nbsp;|&nbsp; J2: ←/→ · ↑ · , · . · / &nbsp;|&nbsp; Gamepad: A · X · B · Y</p>
+  </div>
 </div>
 
 <div id="over" class="ov" hidden>
@@ -285,6 +294,15 @@ const CFG = {
     launchX: 560, launchY: 520,
   },
 
+  karate: {
+    w: 36, h: 22,
+    firstAt: 15,
+    spawnMin: 16, spawnMax: 26,
+    ttl: 12,
+    duration: 6,           // segundos de furia karateka
+    speedMul: 0.4,         // el golpe dura 40 % (windup, activo y recuperación)
+  },
+
   bird: {
     firstAt: 9,
     spawnMin: 10, spawnMax: 18,
@@ -306,7 +324,7 @@ return { CFG };
 })();
 
 // ---- src/core/world.js ----
-const { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, createMalletItem, createBird, boxOf, overlaps, World } = (() => {
+const { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, createMalletItem, createKarateItem, createBird, boxOf, overlaps, World } = (() => {
 // Núcleo del juego: física simple + reglas + máquinas de estado.
 // Es JS puro sin canvas ni DOM para poder probarlo con `node --test`.
 // El renderer sólo lee el estado y consume `world.drain()` (eventos).
@@ -357,6 +375,7 @@ function createMonito(id, x, y, opts = {}) {
     beans: 0, fartCloud: 0,
     jetpack: null, thrusting: false,   // jetpack = { fuel } cuando la traes puesta
     mallet: null, malletHit: false,    // mallet = { uses } cuando traes mazo
+    karate: 0,                         // segundos restantes de banda karateka
     stocks: CFG.match.stocks, score: 0, respawnTimer: 0,
     justLanded: false,
   };
@@ -380,6 +399,9 @@ function createJetpackItem(id, x, y) {
 
 function createMalletItem(id, x, y) {
   return { id, x, y, vx: 0, vy: 0, w: CFG.mallet.w, h: CFG.mallet.h, state: 'falling', ttl: CFG.mallet.ttl, spin: 0 };
+}
+function createKarateItem(id, x, y) {
+  return { id, x, y, vx: 0, vy: 0, w: CFG.karate.w, h: CFG.karate.h, state: 'falling', ttl: CFG.karate.ttl, spin: 0 };
 }
 function createBird(id, x, y, dir) {
   return { id, x, y, dir, vx: dir * CFG.bird.speed, vy: 0, w: 34, h: 22, state: 'flying', flap: 0, scared: false, hit: [] };
@@ -413,6 +435,10 @@ class World {
     this.malletsEnabled = opts.mallets ?? true;
     this.nextMalletIn = CFG.mallet.firstAt;
     this.malletSeq = 0;
+    this.karates = [];
+    this.karatesEnabled = opts.karates ?? true;
+    this.nextKarateIn = CFG.karate.firstAt;
+    this.karateSeq = 0;
     this.birds = [];
     this.birdsEnabled = opts.birds ?? true;
     this.nextBirdIn = CFG.bird.firstAt;
@@ -457,16 +483,24 @@ class World {
     this.updateBeans(dt);
     this.updateJetpacks(dt);
     this.updateMallets(dt);
+    this.updateKarates(dt);
     this.updateBirds(dt);
     for (const m of this.monitos) this.checkFall(m);
     this.checkWin();
   }
 
   // ---------- máquina de estados del monito ----------
+  // Con banda karateka el golpe completo dura el 40 %.
+  punchTiming(m) {
+    const p = CFG.punch, k = m.karate > 0 ? CFG.karate.speedMul : 1;
+    return { windup: p.windup * k, active: p.active * k, recovery: p.recovery * k };
+  }
+
   updateMonito(m, inp, dt) {
     m.t += dt;
     m.thrusting = false;
     if (m.invuln > 0) m.invuln -= dt;
+    if (m.karate > 0) { m.karate -= dt; if (m.karate <= 0) { m.karate = 0; this.emit('karateEnd', { id: m.id }); } }
 
     switch (m.state) {
       case S.DEAD:
@@ -498,7 +532,7 @@ class World {
         if (this.canRescue(m) && inp.jump) { this.jetpackSave(m, inp, dt); return; }
         return; // ya no hay control: sólo cae
       case S.PUNCH: {
-        const p = CFG.punch;
+        const p = this.punchTiming(m);
         this.groundFriction(m, dt);
         if (m.t >= p.windup + p.active + p.recovery) this.setState(m, m.onGround ? S.IDLE : S.JUMP);
         return;
@@ -594,7 +628,7 @@ class World {
 
   resolvePunch(m) {
     if (m.state !== S.PUNCH || m.punchHit) return;
-    const p = CFG.punch;
+    const p = this.punchTiming(m);
     if (m.t < p.windup || m.t > p.windup + p.active) return;
     const hb = this.punchBox(m);
     let hit = false;
@@ -720,6 +754,47 @@ class World {
       }
     }
     this.mallets = this.mallets.filter((it) => it.state !== 'gone');
+  }
+
+  // ---------- banda karateka ----------
+  spawnKarate(x) {
+    const it = createKarateItem(this.karateSeq++, x ?? this.roof.x + 80 + this.rng() * (this.roof.w - 160), -60);
+    this.karates.push(it);
+    this.emit('karateSpawn', { karateId: it.id, x: it.x });
+    return it;
+  }
+
+  updateKarates(dt) {
+    if (this.karatesEnabled && !this.over) {
+      this.nextKarateIn -= dt;
+      if (this.nextKarateIn <= 0) {
+        this.spawnKarate();
+        this.nextKarateIn = CFG.karate.spawnMin + this.rng() * (CFG.karate.spawnMax - CFG.karate.spawnMin);
+      }
+    }
+    for (const it of this.karates) {
+      if (it.state === 'falling') {
+        const prevY = it.y;
+        it.vy += CFG.gravity * 0.4 * dt; it.vy = Math.min(it.vy, 300);
+        it.spin += 3 * dt; it.x += Math.sin(it.spin) * 40 * dt; it.y += it.vy * dt;
+        if (this.overRoof(it.x) && it.y >= this.roof.y && prevY <= this.roof.y + 0.5) { it.y = this.roof.y; it.vy = 0; it.state = 'rest'; }
+        else if (it.y > this.deathY) it.state = 'gone';
+      } else if (it.state === 'rest') {
+        it.ttl -= dt;
+        if (it.ttl <= 0) { it.state = 'gone'; continue; }
+      }
+      if (it.state === 'gone') continue;
+      const ib = boxOf(it);
+      for (const m of this.monitos) {
+        if (!CAN_EAT.has(m.state)) continue;
+        if (!overlaps(ib, boxOf(m))) continue;
+        m.karate = CFG.karate.duration;
+        it.state = 'gone';
+        this.emit('karatePickup', { id: m.id, karateId: it.id, x: m.x, y: m.y - m.h });
+        break;
+      }
+    }
+    this.karates = this.karates.filter((it) => it.state !== 'gone');
   }
 
   // ---------- palomas ----------
@@ -1156,7 +1231,7 @@ class World {
 
   die(m) {
     m.stocks -= 1;
-    m.jetpack = null; m.thrusting = false; m.mallet = null;
+    m.jetpack = null; m.thrusting = false; m.mallet = null; m.karate = 0;
     m.vx = 0; m.vy = 0;
     m.respawnTimer = CFG.match.respawnDelay;
     m.koTimer = 0; m.combo.count = 0; m.combo.attackerId = null;
@@ -1184,11 +1259,11 @@ class World {
   }
 }
 
-return { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, createMalletItem, createBird, boxOf, overlaps, World };
+return { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, createMalletItem, createKarateItem, createBird, boxOf, overlaps, World };
 })();
 
 // ---- src/render/monito.js ----
-const { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawMallet, drawShadow, drawFartCloud, drawMonito } = (() => {
+const { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawMallet, drawHeadband, drawShadow, drawFartCloud, drawMonito } = (() => {
 // Dibujo vectorial de los monitos: cuerpo de gelatina + cabeza de animal
 // estilo "flat" (contorno grueso, ojitos de punto, cachetes rosas).
 
@@ -1436,6 +1511,17 @@ function drawMallet(ctx, x, y, angle, scale = 1) {
   ctx.restore();
 }
 
+// Banda karateka roja con las puntas al viento.
+function drawHeadband(ctx, x, y, r, dir, time) {
+  ctx.fillStyle = '#e53935'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(x - r * 1.02, y - r * 0.62, r * 2.04, r * 0.3, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + dir * r * 0.25, y - r * 0.47, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  const w1 = Math.sin(time * 14) * 5, w2 = Math.cos(time * 12) * 5;
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath(); ctx.moveTo(x - dir * r * 0.95, y - r * 0.55); ctx.quadraticCurveTo(x - dir * r * 1.5, y - r * 0.6 + w1, x - dir * r * 1.9, y - r * 0.2 + w1); ctx.lineTo(x - dir * r * 1.75, y - r * 0.05 + w1); ctx.quadraticCurveTo(x - dir * r * 1.4, y - r * 0.35 + w1, x - dir * r * 0.95, y - r * 0.35); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - dir * r * 0.95, y - r * 0.5); ctx.quadraticCurveTo(x - dir * r * 1.4, y - r * 0.2 + w2, x - dir * r * 1.7, y + r * 0.25 + w2); ctx.lineTo(x - dir * r * 1.5, y + r * 0.35 + w2); ctx.quadraticCurveTo(x - dir * r * 1.3, y - r * 0.05 + w2, x - dir * r * 0.95, y - r * 0.32); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
 function drawShadow(ctx, m, roof) {
   if (m.state === S.DEAD || m.state === S.CARRIED) return;
   if (m.x <= roof.x || m.x >= roof.x + roof.w) return;
@@ -1512,7 +1598,8 @@ function drawMonito(ctx, m, time, cfg) {
   const swing = Math.sin(a.walk) * 10;
   switch (st) {
     case S.PUNCH: {
-      const p = cfg.punch, t = m.t;
+      const kk = m.karate > 0 ? cfg.karate.speedMul : 1;
+      const p = { windup: cfg.punch.windup * kk, active: cfg.punch.active * kk, recovery: cfg.punch.recovery * kk, range: cfg.punch.range }, t = m.t;
       let ext = 0;
       if (t < p.windup) ext = -0.5 * (t / p.windup);
       else if (t < p.windup + p.active) ext = 1;
@@ -1569,14 +1656,19 @@ function drawMonito(ctx, m, time, cfg) {
   else if (st === S.WALK) expr = 'happy';
   else if (st === S.JUMP) expr = 'worried';
   drawHead(ctx, m.species, dir * 2, headY - headR * 0.35, headR, dir, expr, a.blink, c);
+  if (m.karate > 0) drawHeadband(ctx, dir * 2, headY - headR * 0.35, headR, dir, time);
 
   ctx.restore();
+  if (m.karate > 0 && st === S.PUNCH) { // líneas de velocidad
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { const yy = m.y - H * 0.7 + i * 12; ctx.beginPath(); ctx.moveTo(m.x - dir * (30 + i * 6), yy); ctx.lineTo(m.x - dir * (52 + i * 6), yy); ctx.stroke(); }
+  }
 
   if (st === S.KO) birds(ctx, m.x + dir * W * 0.6, m.y - H * 0.55, time);
   if (st === S.CARRIED) birds(ctx, m.x + dir * W * 0.6, m.y - H * 0.45, time);
 }
 
-return { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawMallet, drawShadow, drawFartCloud, drawMonito };
+return { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawMallet, drawHeadband, drawShadow, drawFartCloud, drawMonito };
 })();
 
 // ---- src/render/effects.js ----
@@ -1646,6 +1738,7 @@ class Effects {
         this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
         break;
       }
+      case 'karatePickup': this.text(ev.x, ev.y - 20, '¡KARATE!', '#ff5a5a', 32); this.ring(ev.x, ev.y + 30, 60, '#ff5a5a'); this.stars(ev.x, ev.y + 20, 6); break;
       case 'malletPickup': this.text(ev.x, ev.y - 20, '¡MAZO!', '#ff8c42', 30); this.stars(ev.x, ev.y + 20, 5); break;
       case 'malletHit':
         this.text(ev.x, ev.y - 50, '¡PUM!', '#ff6b35', 44); this.stars(ev.x, ev.y, 10);
@@ -1770,7 +1863,7 @@ return { Effects };
 })();
 
 // ---- src/render/scene.js ----
-const { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawBird, drawBarrel } = (() => {
+const { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird, drawBarrel } = (() => {
 // Escenario según la referencia: torre cartoon con piso alto morado, pisos
 // amarillos, toldos en las ventanas, barandal y bandera en la azotea, árbol
 // al lado, ciudad lavanda al fondo. También barriles y frijoles.
@@ -1951,6 +2044,23 @@ function drawMalletItem(ctx, it, roof, time) {
   }
 }
 
+function drawKarateItem(ctx, it, roof, time) {
+  if (it.state === 'gone') return;
+  const bob = it.state === 'rest' ? Math.sin(time * 4) * 2 : 0;
+  ctx.save(); ctx.translate(it.x, it.y - it.h / 2 + bob); ctx.rotate(it.state === 'falling' ? Math.sin(it.spin) * 0.4 : 0);
+  ctx.fillStyle = '#e53935'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(-18, -8, 36, 16, 5); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-16, 2); ctx.quadraticCurveTo(-30, 6, -34, 20); ctx.lineTo(-26, 20); ctx.quadraticCurveTo(-24, 10, -14, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-12, 6); ctx.quadraticCurveTo(-22, 14, -20, 26); ctx.lineTo(-12, 24); ctx.quadraticCurveTo(-14, 14, -8, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(4, 0, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  if (it.state === 'rest') {
+    const k = (Math.sin(time * 6) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
+    ctx.beginPath(); ctx.moveTo(it.x + 24, it.y - 40); ctx.lineTo(it.x + 27, it.y - 34); ctx.lineTo(it.x + 33, it.y - 32); ctx.lineTo(it.x + 27, it.y - 30); ctx.lineTo(it.x + 24, it.y - 24); ctx.lineTo(it.x + 21, it.y - 30); ctx.lineTo(it.x + 15, it.y - 32); ctx.lineTo(it.x + 21, it.y - 34); ctx.closePath(); ctx.fill();
+  }
+}
+
 function drawBird(ctx, b, time) {
   if (b.state === 'gone') return;
   ctx.save(); ctx.translate(b.x, b.y - b.h / 2); ctx.scale(b.dir, 1);
@@ -2009,7 +2119,7 @@ function drawBarrel(ctx, b, roof, time) {
   ctx.restore();
 }
 
-return { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawBird, drawBarrel };
+return { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird, drawBarrel };
 })();
 
 // ---- src/bot.js ----
@@ -2069,6 +2179,8 @@ function botInput(world, me, time) {
   // mazo en el piso: también vale oro
   const mz = world.mallets.find((it) => it.state === 'rest' && Math.abs(it.x - me.x) < 320);
   if (mz && !me.mallet) { safeGoTo(mz.x); return inp; }
+  const kb = world.karates.find((it) => it.state === 'rest' && Math.abs(it.x - me.x) < 260);
+  if (kb && me.karate <= 0) { safeGoTo(kb.x); return inp; }
   // jet pack en el piso: vale oro
   const jp = world.jetpacks.find((j) => j.state === 'rest' && Math.abs(j.x - me.x) < 320);
   if (jp && !me.jetpack) { safeGoTo(jp.x); return inp; }
@@ -2369,11 +2481,12 @@ const r1 = (v) => Math.round(v * 10) / 10;
 function encodeSnapshot(world, events) {
   return {
     t: 'snap', time: r1(world.time), over: world.over, winnerId: world.winnerId,
-    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0, m.mallet ? m.mallet.uses : -1]),
+    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0, m.mallet ? m.mallet.uses : -1, r1(m.karate)]),
     b: world.barrels.map((b) => [b.id, r1(b.x), r1(b.y), b.state, b.armed ? 1 : 0, r1(b.fuse), r1(b.spin), r1(b.t)]),
     f: world.beans.map((b) => [b.id, r1(b.x), r1(b.y), b.state, r1(b.spin)]),
     j: world.jetpacks.map((j) => [j.id, r1(j.x), r1(j.y), j.state, r1(j.spin)]),
     k: world.mallets.map((it) => [it.id, r1(it.x), r1(it.y), it.state, r1(it.spin)]),
+    q: world.karates.map((it) => [it.id, r1(it.x), r1(it.y), it.state, r1(it.spin)]),
     p: world.birds.map((b) => [b.id, r1(b.x), r1(b.y), b.dir, r1(b.flap)]),
     ev: events.map((e) => { const { t, ...rest } = e; return rest; }),
   };
@@ -2385,7 +2498,7 @@ class Replica {
     this.roof = { ...CFG.roof };
     this.time = 0; this.over = false; this.winnerId = null;
     this.monitos = players.map((p, i) => { const m = createMonito(i, this.roof.x + 100, this.roof.y, { species: p.species, name: p.name }); m.justLanded = false; return m; });
-    this.barrels = []; this.beans = []; this.jetpacks = []; this.mallets = []; this.birds = [];
+    this.barrels = []; this.beans = []; this.jetpacks = []; this.mallets = []; this.karates = []; this.birds = [];
     this.prev = null; this.next = null; this.prevAt = 0; this.nextAt = 0;
     this.events = [];
   }
@@ -2400,7 +2513,7 @@ class Replica {
       [, m.tx, m.ty, m.vx, m.vy, m.facing, m.state, m.t, m.koTimer, m.invuln, m.beans, m.fartCloud, m.stocks, m.score, m.combo.count, m.combo.lastAt] = row;
       m.onGround = row[16] === 1; m.carriedById = row[17] < 0 ? null : row[17];
       m.jetpack = row[18] >= 0 ? { fuel: row[18] } : null; m.thrusting = row[19] === 1;
-      m.mallet = row[20] >= 0 ? { uses: row[20] } : null;
+      m.mallet = row[20] >= 0 ? { uses: row[20] } : null; m.karate = row[21] || 0;
       if (m.x == null || m.state === 'dead') { m.x = m.tx; m.y = m.ty; }
       m.px = m.x; m.py = m.y; // punto de partida de la interpolación
       if (Math.hypot(m.tx - m.x, m.ty - m.y) > 200) { m.px = m.tx; m.py = m.ty; } // teletransporte (respawn)
@@ -2409,6 +2522,7 @@ class Replica {
     this.beans = snap.f.map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.bean.w, h: CFG.bean.h, state, spin }));
     this.jetpacks = (snap.j || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.jetpack.w, h: CFG.jetpack.h, state, spin }));
     this.mallets = (snap.k || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.mallet.w, h: CFG.mallet.h, state, spin }));
+    this.karates = (snap.q || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.karate.w, h: CFG.karate.h, state, spin }));
     this.birds = (snap.p || []).map(([id, x, y, dir, flap]) => ({ id, x, y, dir, flap, w: 34, h: 22, state: 'flying' }));
     this.events.push(...snap.ev.map((e) => ({ t: snap.time, ...e })));
   }
@@ -2994,6 +3108,7 @@ class Game {
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
       for (const j of w.jetpacks) drawJetpackItem(ctx, j, roof, this.time);
       for (const it of w.mallets) drawMalletItem(ctx, it, roof, this.time);
+      for (const it of w.karates) drawKarateItem(ctx, it, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
@@ -3061,12 +3176,17 @@ class Game {
         ctx.lineWidth = 4; ctx.strokeStyle = OUTLINE; ctx.strokeText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
         ctx.fillStyle = '#ff8c42'; ctx.fillText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
       }
+      if (m.karate > 0) { // tiempo de furia karateka
+        const k = Math.min(1, m.karate / CFG.karate.duration);
+        ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY + 8, 44, 8, 4); ctx.fill();
+        ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.roundRect(m.x - 20, topY + 10, 40 * k, 4, 2); ctx.fill();
+      }
       if (m.jetpack) { // medidor de gasolina
         const k = Math.max(0, Math.min(1, m.jetpack.fuel / CFG.jetpack.fuel));
         ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY - 2, 44, 8, 4); ctx.fill();
         ctx.fillStyle = k > 0.3 ? '#ff8c42' : '#ff3d3d'; ctx.beginPath(); ctx.roundRect(m.x - 20, topY, 40 * k, 4, 2); ctx.fill();
       }
-      if ((m.state === S.KO || m.state === S.CARRIED) && m.id === mine && Math.floor(this.time * 4) % 2 === 0) {
+      if ((m.state === S.KO || m.state === S.CARRIED) && tag && Math.floor(this.time * 4) % 2 === 0) {
         ctx.font = '900 16px "Arial Black", Impact, sans-serif';
         ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText('¡MACHACA GOLPE!', m.x, topY - 48);
         ctx.fillStyle = '#ffd23f'; ctx.fillText('¡MACHACA GOLPE!', m.x, topY - 48);

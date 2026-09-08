@@ -63,6 +63,7 @@ export class Effects {
         this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
         break;
       }
+      case 'karatePickup': this.text(ev.x, ev.y - 20, '¡KARATE!', '#ff5a5a', 32); this.ring(ev.x, ev.y + 30, 60, '#ff5a5a'); this.stars(ev.x, ev.y + 20, 6); break;
       case 'malletPickup': this.text(ev.x, ev.y - 20, '¡MAZO!', '#ff8c42', 30); this.stars(ev.x, ev.y + 20, 5); break;
       case 'malletHit':
         this.text(ev.x, ev.y - 50, '¡PUM!', '#ff6b35', 44); this.stars(ev.x, ev.y, 10);

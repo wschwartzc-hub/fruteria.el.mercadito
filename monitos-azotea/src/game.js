@@ -2,7 +2,7 @@
 import { CFG } from './core/config.js';
 import { World, S, SPECIES } from './core/world.js';
 import { drawMonito, drawShadow, stepMonitoAnim, drawHead, drawFartCloud, OUTLINE } from './render/monito.js';
-import { drawBackground, drawBarrel, drawBean, drawJetpackItem, drawMalletItem, drawBird } from './render/scene.js';
+import { drawBackground, drawBarrel, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { botInput } from './bot.js';
 import { TouchControls } from './touch.js';
@@ -422,6 +422,7 @@ export class Game {
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
       for (const j of w.jetpacks) drawJetpackItem(ctx, j, roof, this.time);
       for (const it of w.mallets) drawMalletItem(ctx, it, roof, this.time);
+      for (const it of w.karates) drawKarateItem(ctx, it, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
@@ -489,12 +490,17 @@ export class Game {
         ctx.lineWidth = 4; ctx.strokeStyle = OUTLINE; ctx.strokeText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
         ctx.fillStyle = '#ff8c42'; ctx.fillText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
       }
+      if (m.karate > 0) { // tiempo de furia karateka
+        const k = Math.min(1, m.karate / CFG.karate.duration);
+        ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY + 8, 44, 8, 4); ctx.fill();
+        ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.roundRect(m.x - 20, topY + 10, 40 * k, 4, 2); ctx.fill();
+      }
       if (m.jetpack) { // medidor de gasolina
         const k = Math.max(0, Math.min(1, m.jetpack.fuel / CFG.jetpack.fuel));
         ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY - 2, 44, 8, 4); ctx.fill();
         ctx.fillStyle = k > 0.3 ? '#ff8c42' : '#ff3d3d'; ctx.beginPath(); ctx.roundRect(m.x - 20, topY, 40 * k, 4, 2); ctx.fill();
       }
-      if ((m.state === S.KO || m.state === S.CARRIED) && m.id === mine && Math.floor(this.time * 4) % 2 === 0) {
+      if ((m.state === S.KO || m.state === S.CARRIED) && tag && Math.floor(this.time * 4) % 2 === 0) {
         ctx.font = '900 16px "Arial Black", Impact, sans-serif';
         ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText('¡MACHACA GOLPE!', m.x, topY - 48);
         ctx.fillStyle = '#ffd23f'; ctx.fillText('¡MACHACA GOLPE!', m.x, topY - 48);

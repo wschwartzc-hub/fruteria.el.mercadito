@@ -223,6 +223,7 @@ Spawn: `nextBarrelIn` empieza en 5 s y después toma valores en [6, 12] s.
 | `jetpackEmpty` | id, x, y | ¡SIN GAS! |
 | `mash` | id, x, y | estrellita por cada toque |
 | `malletSpawn` / `malletLand` / `malletPickup` | id / x, y | ¡MAZO! |
+| `karateSpawn` / `karatePickup` / `karateEnd` | id / x, y | ¡KARATE! + anillo rojo |
 | `malletSwing` | id | — (pose) |
 | `malletHit` | attackerId, victimId, x, y, dir | ¡PUM!, anillo, shake fuerte |
 | `malletBroken` | id, x, y | ¡SE ROMPIÓ! |
@@ -276,6 +277,7 @@ Prioridades, de mayor a menor:
 |---|---|---|
 | `combo.window` / `decay` | 2.2 s / 0.7 s | Qué tan fácil es encadenar 4 |
 | `mallet.heightFrac` | 0.45 | Qué tan fácil es saltar el mazo |
+| `karate.duration` / `speedMul` | 6 s / 0.4 | Cuánto dura y cuánto acelera la banda |
 | `bird.lowChance` | 0.65 | Cuántas palomas molestan |
 | `punch.hitstun` | 0.28 s | Tiempo sin control tras un golpe |
 | `ko.duration` | 3 s | Ventana para cargar al desmayado |
