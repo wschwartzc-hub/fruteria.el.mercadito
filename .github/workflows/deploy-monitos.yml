@@ -1,0 +1,34 @@
+# Publica el juego Monitos en la Azotea en Netlify cada vez que cambia.
+# Necesita el secreto NETLIFY_AUTH_TOKEN (Netlify → User settings → Applications →
+# Personal access tokens) guardado en GitHub → Settings → Secrets → Actions.
+name: Publicar Monitos en la Azotea
+
+on:
+  push:
+    branches: [main, claude/monitos-rooftop-game-wmoxxd]
+    paths: ['monitos-azotea/**', '.github/workflows/deploy-monitos.yml']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: 36de83c4-0c51-4349-b136-fd8601f37eb3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pruebas y empaquetado
+        working-directory: monitos-azotea
+        run: |
+          npm test
+          node scripts/bundle.mjs
+      - name: Publicar en Netlify
+        if: env.NETLIFY_AUTH_TOKEN != ''
+        working-directory: monitos-azotea
+        run: npx --yes netlify-cli@17 deploy --prod --dir=dist --site="$NETLIFY_SITE_ID" --message="GitHub Actions ${{ github.sha }}"
+      - name: Sin token de Netlify
+        if: env.NETLIFY_AUTH_TOKEN == ''
+        run: echo "Falta el secreto NETLIFY_AUTH_TOKEN; el juego se empaquetó pero no se publicó."

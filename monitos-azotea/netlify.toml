@@ -1,0 +1,9 @@
+# Despliegue en Netlify: genera el archivo único y publica la carpeta dist.
+[build]
+  command = "node scripts/bundle.mjs"
+  publish = "dist"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"

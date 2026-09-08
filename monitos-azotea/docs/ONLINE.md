@@ -44,6 +44,17 @@ marca "(se fue)". Si el anfitrión cierra, la sala termina para todos.
   `monitos-azotea-CODIGO`. El código usa letras y números sin
   ambigüedad (sin 0/O ni 1/I).
 
+## Dónde está publicado
+- Sitio en Netlify: **https://monitos-azotea.netlify.app** (proyecto
+  `monitos-azotea`, id `36de83c4-0c51-4349-b136-fd8601f37eb3`).
+- Se publica solo con el workflow `.github/workflows/deploy-monitos.yml`
+  cuando cambia `monitos-azotea/` en `main` o en la rama del juego. Para que
+  funcione hay que guardar en GitHub el secreto `NETLIFY_AUTH_TOKEN` (token
+  personal de Netlify).
+- A mano: en app.netlify.com → proyecto monitos-azotea → Deploys, arrastrar
+  la carpeta `monitos-azotea/dist`. O "Link repository" con base directory
+  `monitos-azotea` (el `netlify.toml` ya trae el comando y la carpeta).
+
 ## Requisitos
 - El juego debe abrirse desde una **página publicada con https** (Netlify,
   GitHub Pages, cualquier hosting estático). La versión embebida como

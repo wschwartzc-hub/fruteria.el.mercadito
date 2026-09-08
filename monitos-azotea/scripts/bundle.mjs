@@ -68,5 +68,6 @@ ${boot}
 `;
   mkdirSync(join(root, 'dist'), { recursive: true });
   writeFileSync(join(root, 'dist/monitos-azotea.html'), full);
-  console.log('dist/monitos-azotea.html', full.length, 'bytes');
+  writeFileSync(join(root, 'dist/index.html'), full); // para publicar la carpeta dist tal cual
+  console.log('dist/monitos-azotea.html + dist/index.html', full.length, 'bytes');
 }
