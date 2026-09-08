@@ -17,6 +17,10 @@ npm start          # http://localhost:5173
 
 En GitHub Pages funciona directo.
 
+**La forma más fácil:** `npm run build` genera `dist/monitos-azotea.html`, un
+solo archivo sin dependencias. Ese sí se abre con doble clic, se manda por
+WhatsApp o se sube a cualquier lado. Ya viene generado en el repo.
+
 ### Controles
 
 Pensado para celular en horizontal (se pone en pantalla completa al tocar un modo):
@@ -63,6 +67,7 @@ src/render/         → monitos vectoriales, escenario, efectos
 src/bot.js          → IA sencilla
 src/game.js         → loop, input, HUD, menús
 tests/              → pruebas de reglas
+scripts/bundle.mjs  → empaqueta todo en dist/monitos-azotea.html
 ```
 
 ## Mover este proyecto a su propio repositorio
