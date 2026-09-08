@@ -45,6 +45,14 @@ de la pantalla (joystick en la esquina, botones junto a él).
 | Agarrar / Aventar | G | . | B |
 | Pedo | H | / | Y |
 
+## Jugar en línea con amigos
+
+En el menú: **Jugar en línea con amigos** → *Crear sala* te da un código de
+4 letras; los demás lo escriben en *Unirse*. Hasta 8 jugadores, cada quien
+con su animal, y el anfitrión puede agregar bots. Detalles en
+[`docs/ONLINE.md`](docs/ONLINE.md). Necesita abrirse desde una página
+publicada (https); en local funciona para probar entre pestañas.
+
 ## Pruebas
 
 Las reglas viven en `src/core/world.js` sin depender del navegador, y se
@@ -59,6 +67,7 @@ npm test
 - [`docs/GDD.md`](docs/GDD.md) — diseño: concepto, reglas, controles, arte, UI.
 - [`docs/LOGICA.md`](docs/LOGICA.md) — máquinas de estado, orden del tick,
   fórmulas de combo, agarre y barriles, eventos, bot, parámetros para ajustar.
+- [`docs/ONLINE.md`](docs/ONLINE.md) — cómo funciona el modo en línea.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — qué sigue.
 
 ## Estructura
@@ -69,6 +78,7 @@ src/core/config.js  → números ajustables
 src/core/world.js   → reglas + física (puro JS)
 src/render/         → monitos vectoriales, escenario, efectos
 src/bot.js          → IA sencilla
+src/net/            → sala con código y partida en línea (PeerJS / WebRTC)
 src/game.js         → loop, input, HUD, menús
 tests/              → pruebas de reglas
 scripts/bundle.mjs  → empaqueta todo en dist/monitos-azotea.html

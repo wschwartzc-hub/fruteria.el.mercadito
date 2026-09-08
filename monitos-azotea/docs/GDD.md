@@ -8,7 +8,7 @@
 | | |
 |---|---|
 | Género | Party fighter / plataformas de empujones, 2D lateral |
-| Jugadores | 2 a 4 locales (teclado y/o gamepad), bots para rellenar |
+| Jugadores | 2 a 8: en línea con código de sala, o 2 locales en la misma pantalla; bots para rellenar |
 | Duración de partida | 1 a 3 minutos |
 | Tono | Cómico, torpe, exagerado. Nadie "muere": se caen y regresan |
 | Plataforma | Web (HTML5 canvas, sin build). Funciona en GitHub Pages |
@@ -82,7 +82,14 @@ te pegan mientras cargas a alguien, el desmayado despierta en tus brazos).
 - Un barril en el piso dentro de la nube se enciende y explota (gas + mecha).
   Es la forma de que el pedo tenga riesgo: la explosión también te alcanza.
 
-### 2.7 Condición de victoria
+### 2.7 En línea
+- Sala con código de 4 letras. Hasta **8 jugadores** (uno por animal). El
+  anfitrión decide cuándo empezar y puede agregar bots.
+- Cada jugador ve su propio nombre en blanco y una flechita sobre su monito
+  cuando hay más de dos.
+- Si alguien se desconecta, su monito lo controla un bot. Ver `docs/ONLINE.md`.
+
+### 2.8 Condición de victoria
 - Cada monito tiene **3 vidas**. Pierde una al caer del edificio.
 - Gana el último con vidas. Se muestra un marcador de "KOs" (combos de 4 y
   explosiones que provocaste) para picar el orgullo.

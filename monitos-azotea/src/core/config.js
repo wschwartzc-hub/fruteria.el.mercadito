@@ -74,6 +74,7 @@ export const CFG = {
   },
 
   match: {
+    maxPlayers: 8,         // una especie por jugador
     stocks: 3,
     respawnDelay: 2.0,
     respawnInvuln: 1.5,

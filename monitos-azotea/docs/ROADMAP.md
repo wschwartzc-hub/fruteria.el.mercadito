@@ -13,6 +13,7 @@
 - [x] Frijoles que caen, se comen al pisarlos y cargan pedos que desmayan.
 - [x] Arte según referencias: ocho animales con cabezas distintas, torre
       morada y amarilla, HUD con avatares. Lienzo de diseño en `design/`.
+- [x] Elegir tu animal y tu nombre (se recuerdan en el teléfono).
 
 ## v0.2 — Sensación (game feel)
 - [ ] Ajustar números jugando con gente (`docs/LOGICA.md` §11).
@@ -32,11 +33,14 @@
 - [ ] Skins / accesorios seleccionables.
 - [ ] Modos: tiempo límite, equipos 2v2, "rey de la azotea".
 
-## v0.4 — En línea (opcional)
-- [ ] Como `World` es determinista y sin DOM, se puede correr en servidor.
-      Plan: WebSocket + inputs con marca de tick (lockstep) o servidor
-      autoritativo enviando snapshots. Supabase Realtime sirve para lobby;
-      para el juego en sí hace falta un servidor pequeño (Node) por latencia.
+## v0.4 — En línea
+- [x] Sala con código, hasta 8 jugadores, anfitrión autoritativo con fotos a
+      20 Hz, invitados con interpolación, bots de relleno, revancha.
+- [ ] Publicar en un hosting con https para que funcione fuera de local.
+- [ ] Reconexión de un invitado que perdió la señal (hoy pasa a bot).
+- [ ] Indicador de latencia y aviso cuando la conexión va mal.
+- [ ] Transporte alterno por Supabase Realtime si el servidor público de
+      PeerJS da problemas.
 
 ## Ideas sueltas
 - Que el KO se pueda acortar aporreando botones (mash) y se alargue si te

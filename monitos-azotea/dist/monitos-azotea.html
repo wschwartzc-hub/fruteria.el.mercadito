@@ -15,7 +15,8 @@
   canvas { display: block; }
 
   /* ---------- overlays ---------- */
-  .ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(20,18,30,.55); text-align: center; padding: 16px; }
+  .ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(20,18,30,.55); text-align: center; padding: 16px; overflow-y: auto; }
+  .ov > * { flex-shrink: 0; }
   .ov[hidden] { display: none; }
   .menu-grid { display: flex; flex-direction: column; gap: 10px; align-items: center; }
   /* teléfonos en horizontal: todo más compacto y en dos columnas */
@@ -40,6 +41,36 @@
   body.touch .touch-only { display: block; }
   body:not(.touch) .kbd-only { display: block; }
   #winner { font: 900 clamp(30px, 8vw, 70px)/1.1 "Arial Black", Impact, sans-serif; -webkit-text-stroke: 2px var(--ink); text-shadow: 4px 4px 0 var(--ink); }
+  .btn.online { background: #a5e06a; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.small { min-width: 0; padding: 10px 16px; font-size: 15px; }
+  .field { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .field label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
+  .inp { font: 800 22px/1 inherit; color: var(--ink); background: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 10px 14px; width: 220px; box-shadow: inset 0 3px 0 rgba(0,0,0,.08); }
+  .inp.code { text-transform: uppercase; letter-spacing: .3em; width: 170px; text-align: center; font-family: "Arial Black", Impact, sans-serif; }
+  .row { display: flex; gap: 14px; align-items: flex-end; justify-content: center; flex-wrap: wrap; }
+  .avatar { width: 64px; height: 64px; border-radius: 50%; cursor: pointer; background: transparent; }
+  .avatar-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; opacity: .85; }
+  .status { min-height: 1.4em; font-weight: 700; font-size: 14px; color: #ffd23f; }
+  .status.error { color: #ff8a8a; }
+  .divider { width: min(80vw, 420px); border-top: 2px dashed rgba(255,255,255,.35); margin: 4px 0; }
+  #room-code { font: 900 clamp(44px, 12vw, 96px)/1 "Arial Black", Impact, sans-serif; letter-spacing: .2em; color: var(--sun); -webkit-text-stroke: 2px var(--ink); text-shadow: 4px 4px 0 var(--ink); }
+  #room-players { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 720px; }
+  .room-player { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.9); color: var(--ink); border: 3px solid var(--ink); border-radius: 30px; padding: 4px 14px 4px 4px; font-weight: 800; font-size: 14px; }
+  .room-player.me { outline: 3px solid var(--sun); }
+  .room-av { width: 44px; height: 44px; border-radius: 50%; }
+  @media (max-height: 520px) {
+    .ov { justify-content: flex-start; padding-top: 10px; }
+    .inp { font-size: 16px; padding: 8px 10px; width: 180px; }
+    .inp.code { width: 140px; }
+    #room-code { font-size: 36px; }
+    .room-av { width: 30px !important; height: 30px !important; }
+    .room-player { font-size: 12px; padding: 2px 10px 2px 2px; }
+    .avatar { width: 44px; height: 44px; }
+    .row .btn, .row.btn-row .btn, #online .btn, #room .btn { width: auto; min-width: 0; padding: 8px 14px; font-size: 14px; }
+    #room-hint, #room-status, #online-status { font-size: 12px; }
+    .divider { margin: 0; }
+  }
 
   /* ---------- controles táctiles ---------- */
   #touch { position: fixed; inset: 0; pointer-events: none; }
@@ -99,6 +130,7 @@
     <button class="btn" data-mode="duo">2 jugadores <small class="touch-only">misma pantalla, cada uno en su mitad</small><small class="kbd-only">teclado: WASD+F/G y flechas+,/.</small></button>
     <button class="btn" data-mode="duo2">2 jugadores + 2 Bots</button>
   </div>
+  <button class="btn online" id="btn-online">🌐 Jugar en línea con amigos <small>crea una sala con código o únete a una</small></button>
   <p class="rules">4 golpes seguidos = ¡a volar y desmayado! Levanta al desmayado y aviéntalo al vacío. Cómete los frijoles que caen y tira un pedo: todos los que estén cerca se desmayan. Cuidado con los barriles.</p>
   <p class="keys touch-only">Joystick: mover · ⬆️ salto · 👊 golpe · ✋ agarrar / aventar · 💨 pedo (con frijol)</p>
   <p class="keys kbd-only">J1: A/D · W salto · F golpe · G agarrar · H pedo &nbsp;|&nbsp; J2: ←/→ · ↑ · , · . · / &nbsp;|&nbsp; Gamepad: A · X · B · Y</p>
@@ -106,8 +138,43 @@
 
 <div id="over" class="ov" hidden>
   <div id="winner">¡GANA!</div>
+  <p class="status" id="over-wait" hidden>Esperando a que el anfitrión pida revancha…</p>
   <button class="btn primary" id="rematch">Revancha</button>
   <button class="btn" id="tomenu">Menú</button>
+</div>
+
+<div id="online" class="ov" hidden>
+  <h1 class="title">JUGAR EN LÍNEA</h1>
+  <div class="row">
+    <div class="avatar-wrap"><canvas class="avatar" id="my-avatar" title="Toca para cambiar de animal"></canvas>toca para cambiar</div>
+    <div class="field"><label for="my-name">Tu nombre</label><input class="inp" id="my-name" maxlength="14" placeholder="Nombre" autocomplete="off"></div>
+  </div>
+  <button class="btn primary" id="btn-create">Crear sala <small>te da un código de 4 letras para tus amigos</small></button>
+  <div class="divider"></div>
+  <div class="row">
+    <div class="field"><label for="join-code">Código de la sala</label><input class="inp code" id="join-code" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters"></div>
+    <button class="btn small" id="btn-join">Unirse</button>
+  </div>
+  <p class="status" id="online-status"></p>
+  <button class="btn small" id="online-back">Volver</button>
+</div>
+
+<div id="room" class="ov" hidden>
+  <div style="font-weight:800; letter-spacing:.1em; font-size:13px; opacity:.85">CÓDIGO DE LA SALA</div>
+  <div id="room-code">····</div>
+  <p class="status" id="room-hint"></p>
+  <div class="row">
+    <div class="avatar-wrap"><canvas class="avatar" id="room-avatar" title="Toca para cambiar de animal"></canvas>tu animal</div>
+    <div id="room-players"></div>
+    <div class="avatar-wrap"><strong id="room-count">1 / 8</strong>jugadores</div>
+  </div>
+  <div class="row">
+    <button class="btn primary" id="room-start" disabled>Esperando a alguien más…</button>
+    <button class="btn small" id="room-bot">+ Bot</button>
+    <button class="btn small" id="room-nobots">Quitar bots</button>
+    <button class="btn small" id="room-leave">Salir</button>
+  </div>
+  <p class="status" id="room-status"></p>
 </div>
 
 <div id="rotate" class="ov"><div class="phone">📱</div>Gira tu teléfono<br><small>el juego es en horizontal</small></div>
@@ -192,6 +259,7 @@ const CFG = {
   },
 
   match: {
+    maxPlayers: 8,         // una especie por jugador
     stocks: 3,
     respawnDelay: 2.0,
     respawnInvuln: 1.5,
@@ -1723,9 +1791,315 @@ class TouchControls {
 return { TouchControls };
 })();
 
+// ---- src/net/peer.js ----
+const { makeCode, normalizeCode, loadPeerJS, HostNet, ClientNet } = (() => {
+// Transporte en línea con WebRTC (PeerJS). No necesita servidor propio:
+// el servidor público de PeerJS sólo presenta a los jugadores; después los
+// datos viajan directo entre teléfonos. El anfitrión es la "estrella":
+// todos se conectan a él y él reparte el estado del juego.
+const PEERJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js';
+const PREFIX = 'monitos-azotea-';
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+};
+
+function makeCode() {
+  let c = '';
+  for (let i = 0; i < 4; i++) c += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  return c;
+}
+function normalizeCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); }
+
+// Para pruebas o para usar tu propio PeerServer: window.MONITOS_PEER = { host, port, path, secure, script }.
+function peerOptions() {
+  const o = window.MONITOS_PEER || {};
+  const { script, ...server } = o;
+  return { debug: 0, config: ICE, ...server };
+}
+
+let loading = null;
+function loadPeerJS() {
+  if (window.Peer) return Promise.resolve(window.Peer);
+  if (!loading) {
+    loading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = (window.MONITOS_PEER && window.MONITOS_PEER.script) || PEERJS_URL; s.async = true;
+      s.onload = () => (window.Peer ? resolve(window.Peer) : reject(new Error('PeerJS no cargó')));
+      s.onerror = () => reject(new Error('No se pudo cargar PeerJS'));
+      document.head.appendChild(s);
+    });
+  }
+  return loading;
+}
+
+function describe(err) {
+  const t = err?.type || '';
+  if (t === 'peer-unavailable') return 'No existe una sala con ese código.';
+  if (t === 'unavailable-id') return 'Ese código ya está en uso, intenta otra vez.';
+  if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') return 'No se pudo conectar con el servidor de salas. Revisa tu internet o abre el juego desde la versión publicada.';
+  if (t === 'browser-incompatible') return 'Este navegador no soporta juego en línea.';
+  return err?.message || 'Error de conexión.';
+}
+
+class HostNet {
+  constructor() { this.peer = null; this.conns = new Map(); this.onJoin = null; this.onLeave = null; this.onMessage = null; this.code = null; }
+
+  async open(code = makeCode(), tries = 3) {
+    const Peer = await loadPeerJS();
+    return new Promise((resolve, reject) => {
+      const peer = new Peer(PREFIX + code, peerOptions());
+      let settled = false;
+      peer.on('open', () => { settled = true; this.peer = peer; this.code = code; this.wire(); resolve(code); });
+      peer.on('error', (err) => {
+        if (settled) { if (this.onError) this.onError(describe(err)); return; }
+        peer.destroy();
+        if (err?.type === 'unavailable-id' && tries > 1) this.open(makeCode(), tries - 1).then(resolve, reject);
+        else reject(new Error(describe(err)));
+      });
+    });
+  }
+
+  wire() {
+    this.peer.on('connection', (conn) => {
+      conn.on('open', () => {
+        this.conns.set(conn.peer, conn);
+        if (this.onJoin) this.onJoin(conn.peer);
+      });
+      conn.on('data', (msg) => { if (this.onMessage) this.onMessage(conn.peer, msg); });
+      const bye = () => { if (this.conns.delete(conn.peer) && this.onLeave) this.onLeave(conn.peer); };
+      conn.on('close', bye); conn.on('error', bye);
+    });
+    this.peer.on('disconnected', () => { try { this.peer.reconnect(); } catch (e) { /* nada */ } });
+  }
+
+  send(id, msg) { const c = this.conns.get(id); if (c && c.open) { try { c.send(msg); } catch (e) { /* se cayó */ } } }
+  broadcast(msg) { for (const c of this.conns.values()) if (c.open) { try { c.send(msg); } catch (e) { /* se cayó */ } } }
+  kick(id) { const c = this.conns.get(id); if (c) c.close(); }
+  close() { if (this.peer) this.peer.destroy(); this.peer = null; this.conns.clear(); }
+}
+
+class ClientNet {
+  constructor() { this.peer = null; this.conn = null; this.onMessage = null; this.onClose = null; }
+
+  async connect(code) {
+    const Peer = await loadPeerJS();
+    return new Promise((resolve, reject) => {
+      const peer = new Peer(undefined, peerOptions());
+      let opened = false;
+      const timer = setTimeout(() => { if (!opened) { peer.destroy(); reject(new Error('La sala no respondió. ¿El código es correcto y el anfitrión sigue en la sala?')); } }, 12000);
+      peer.on('open', () => {
+        const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+        conn.on('open', () => { opened = true; clearTimeout(timer); this.peer = peer; this.conn = conn; resolve(); });
+        conn.on('data', (msg) => { if (this.onMessage) this.onMessage(msg); });
+        conn.on('close', () => { if (this.onClose) this.onClose('El anfitrión cerró la sala.'); });
+        conn.on('error', (e) => { if (!opened) { clearTimeout(timer); reject(new Error(describe(e))); } });
+      });
+      peer.on('error', (err) => { if (!opened) { clearTimeout(timer); peer.destroy(); reject(new Error(describe(err))); } else if (this.onClose && err?.type !== 'peer-unavailable') this.onClose(describe(err)); });
+    });
+  }
+
+  send(msg) { if (this.conn && this.conn.open) { try { this.conn.send(msg); } catch (e) { /* se cayó */ } } }
+  close() { if (this.conn) this.conn.close(); if (this.peer) this.peer.destroy(); this.conn = null; this.peer = null; }
+}
+
+return { makeCode, normalizeCode, loadPeerJS, HostNet, ClientNet };
+})();
+
+// ---- src/net/session.js ----
+const { SNAP_INTERVAL, encodeSnapshot, Replica, emptyCounters, RemoteInputs, InputSender, HostSession, ClientSession } = (() => {
+// Sala (lobby) y partida en línea. El anfitrión corre el mundo real y manda
+// "fotos" del estado 20 veces por segundo; los demás mandan sus botones y
+// dibujan la última foto (interpolando entre dos para que se vea fluido).
+
+
+
+const SNAP_INTERVAL = 0.05; // s
+const r1 = (v) => Math.round(v * 10) / 10;
+
+// ---------- codificación de fotos ----------
+function encodeSnapshot(world, events) {
+  return {
+    t: 'snap', time: r1(world.time), over: world.over, winnerId: world.winnerId,
+    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1]),
+    b: world.barrels.map((b) => [b.id, r1(b.x), r1(b.y), b.state, b.armed ? 1 : 0, r1(b.fuse), r1(b.spin), r1(b.t)]),
+    f: world.beans.map((b) => [b.id, r1(b.x), r1(b.y), b.state, r1(b.spin)]),
+    ev: events.map((e) => { const { t, ...rest } = e; return rest; }),
+  };
+}
+
+// Réplica del mundo del lado del cliente: sólo lo que el render necesita.
+class Replica {
+  constructor(players) {
+    this.roof = { ...CFG.roof };
+    this.time = 0; this.over = false; this.winnerId = null;
+    this.monitos = players.map((p, i) => { const m = createMonito(i, this.roof.x + 100, this.roof.y, { species: p.species, name: p.name }); m.justLanded = false; return m; });
+    this.barrels = []; this.beans = [];
+    this.prev = null; this.next = null; this.prevAt = 0; this.nextAt = 0;
+    this.events = [];
+  }
+  get(id) { return this.monitos[id]; }
+  apply(snap, now) {
+    this.prev = this.next; this.prevAt = this.nextAt;
+    this.next = snap; this.nextAt = now;
+    this.time = snap.time; this.over = snap.over; this.winnerId = snap.winnerId;
+    for (const row of snap.m) {
+      const m = this.monitos[row[0]]; if (!m) continue;
+      [, m.tx, m.ty, m.vx, m.vy, m.facing, m.state, m.t, m.koTimer, m.invuln, m.beans, m.fartCloud, m.stocks, m.score, m.combo.count, m.combo.lastAt] = row;
+      m.onGround = row[16] === 1; m.carriedById = row[17] < 0 ? null : row[17];
+      if (m.x == null || m.state === 'dead') { m.x = m.tx; m.y = m.ty; }
+      m.px = m.x; m.py = m.y; // punto de partida de la interpolación
+      if (Math.hypot(m.tx - m.x, m.ty - m.y) > 200) { m.px = m.tx; m.py = m.ty; } // teletransporte (respawn)
+    }
+    this.barrels = snap.b.map(([id, x, y, state, armed, fuse, spin, t]) => ({ id, x, y, w: CFG.barrel.w, h: CFG.barrel.h, state, armed: armed === 1, fuse, spin, t, carriedById: null }));
+    this.beans = snap.f.map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.bean.w, h: CFG.bean.h, state, spin }));
+    this.events.push(...snap.ev.map((e) => ({ t: snap.time, ...e })));
+  }
+  // Avanza la posición dibujada hacia la última foto.
+  interpolate(now) {
+    if (!this.next) return;
+    const span = Math.max(0.02, this.nextAt - this.prevAt || SNAP_INTERVAL);
+    const k = Math.min(1, (now - this.nextAt) / span + 0.0);
+    for (const m of this.monitos) {
+      if (m.tx == null) continue;
+      m.x = m.px + (m.tx - m.px) * k; m.y = m.py + (m.ty - m.py) * k;
+      // el cargado va pegado a quien lo carga, sin retraso
+      if (m.carriedById != null) { const c = this.monitos[m.carriedById]; if (c) { m.x = c.x; m.y = c.y - c.h - 4; } }
+    }
+  }
+  drain() { const e = this.events; this.events = []; return e; }
+}
+
+// ---------- entradas remotas (contadores para no perder toques) ----------
+function emptyCounters() { return { l: false, r: false, j: 0, p: 0, g: 0, f: 0 }; }
+
+class RemoteInputs {
+  constructor() { this.latest = new Map(); this.seen = new Map(); }
+  receive(slot, msg) { this.latest.set(slot, msg); }
+  // Convierte contadores en flancos de un tick (uno por tick, se encolan).
+  read(slot) {
+    const c = this.latest.get(slot) || emptyCounters();
+    const s = this.seen.get(slot) || { j: c.j, p: c.p, g: c.g, f: c.f };
+    const edge = (k) => { if (c[k] > s[k]) { s[k] += 1; return true; } return false; };
+    const out = { left: !!c.l, right: !!c.r, jump: edge('j'), punch: edge('p'), grab: edge('g'), fart: edge('f') };
+    this.seen.set(slot, s);
+    return out;
+  }
+  forget(slot) { this.latest.delete(slot); this.seen.delete(slot); }
+}
+
+// Del lado del cliente: acumula flancos locales en contadores y manda cuando cambia.
+class InputSender {
+  constructor(send) { this.send = send; this.c = emptyCounters(); this.lastSent = ''; this.lastAt = 0; }
+  push(inp, now) {
+    if (inp.jump) this.c.j++; if (inp.punch) this.c.p++; if (inp.grab) this.c.g++; if (inp.fart) this.c.f++;
+    this.c.l = inp.left; this.c.r = inp.right;
+    const key = JSON.stringify(this.c);
+    if (key !== this.lastSent || now - this.lastAt > 0.25) { this.send({ t: 'in', ...this.c }); this.lastSent = key; this.lastAt = now; }
+  }
+}
+
+// ---------- sala ----------
+class HostSession {
+  constructor(ui) {
+    this.net = new HostNet(); this.ui = ui;
+    this.players = []; // { key, name, species, host, bot }
+    this.inputs = new RemoteInputs();
+    this.onRoster = null; this.onStart = null;
+    this.me = { key: 'host', name: 'Anfitrión', species: 'mono', host: true };
+    this.playing = false;
+  }
+  get code() { return this.net.code; }
+  async open(me) {
+    this.me = { ...this.me, ...me };
+    this.players = [this.me];
+    this.net.onJoin = (key) => { if (this.players.length >= CFG.match.maxPlayers || this.playing) { this.net.send(key, { t: 'kick', reason: this.playing ? 'La partida ya empezó.' : 'La sala está llena.' }); setTimeout(() => this.net.kick(key), 200); return; } };
+    this.net.onLeave = (key) => {
+      const i = this.players.findIndex((p) => p.key === key);
+      if (i < 0) return;
+      if (this.playing) { this.players[i].gone = true; this.inputs.forget(i); if (this.onLeaveInGame) this.onLeaveInGame(i); }
+      else { this.players.splice(i, 1); this.roster(); }
+    };
+    this.net.onMessage = (key, msg) => {
+      if (!msg || typeof msg !== 'object') return;
+      const i = this.players.findIndex((p) => p.key === key);
+      if (msg.t === 'hello') {
+        if (i >= 0 || this.players.length >= CFG.match.maxPlayers || this.playing) return;
+        this.players.push({ key, name: String(msg.name || 'Amigo').slice(0, 14), species: SPECIES.includes(msg.species) ? msg.species : 'leon', host: false });
+        this.roster();
+      } else if (msg.t === 'species' && i >= 0 && !this.playing) {
+        if (SPECIES.includes(msg.species)) { this.players[i].species = msg.species; this.roster(); }
+      } else if (msg.t === 'in' && i >= 0) {
+        this.inputs.receive(i, msg);
+      }
+    };
+    const code = await this.net.open();
+    this.roster();
+    return code;
+  }
+  addBot() {
+    if (this.players.length >= CFG.match.maxPlayers) return;
+    const used = new Set(this.players.map((p) => p.species));
+    const species = SPECIES.find((s) => !used.has(s)) || SPECIES[this.players.length % SPECIES.length];
+    this.players.push({ key: `bot${Date.now()}`, name: 'Bot', species, host: false, bot: true });
+    this.roster();
+  }
+  removeBots() { this.players = this.players.filter((p) => !p.bot); this.roster(); }
+  setMySpecies(species) { this.me.species = species; this.players[0].species = species; this.roster(); }
+  rosterMsg() { return { t: 'lobby', code: this.code, players: this.players.map((p, slot) => ({ slot, key: p.key, name: p.name, species: p.species, host: p.host, bot: !!p.bot })) }; }
+  roster() {
+    const msg = this.rosterMsg();
+    for (const p of this.players) if (!p.host && !p.bot) this.net.send(p.key, { ...msg, you: this.players.indexOf(p) });
+    if (this.onRoster) this.onRoster(msg.players);
+  }
+  start() {
+    this.playing = true;
+    this.players = this.players.filter((p) => !p.gone);
+    const msg = { t: 'start', players: this.rosterMsg().players };
+    for (const p of this.players) if (!p.host && !p.bot) this.net.send(p.key, { ...msg, you: this.players.indexOf(p) });
+    return this.players;
+  }
+  backToLobby() { this.playing = false; this.players = this.players.filter((p) => !p.gone); this.net.broadcast({ t: 'lobbyBack' }); this.roster(); }
+  broadcastSnapshot(snap) { this.net.broadcast(snap); }
+  close() { this.net.close(); }
+}
+
+class ClientSession {
+  constructor() { this.net = new ClientNet(); this.slot = null; this.players = []; this.onRoster = null; this.onStart = null; this.onSnapshot = null; this.onClosed = null; this.onLobbyBack = null; }
+  async join(code, me) {
+    await this.net.connect(normalizeCode(code));
+    this.net.onMessage = (msg) => {
+      if (!msg || typeof msg !== 'object') return;
+      switch (msg.t) {
+        case 'lobby': this.players = msg.players; this.slot = msg.you; if (this.onRoster) this.onRoster(msg.players, msg.you); break;
+        case 'start': this.players = msg.players; this.slot = msg.you; if (this.onStart) this.onStart(msg.players, msg.you); break;
+        case 'snap': if (this.onSnapshot) this.onSnapshot(msg); break;
+        case 'lobbyBack': if (this.onLobbyBack) this.onLobbyBack(); break;
+        case 'kick': this.net.close(); if (this.onClosed) this.onClosed(msg.reason); break;
+        default: break;
+      }
+    };
+    this.net.onClose = (why) => { if (this.onClosed) this.onClosed(why); };
+    this.net.send({ t: 'hello', name: me.name, species: me.species });
+  }
+  setSpecies(species) { this.net.send({ t: 'species', species }); }
+  sendInput(msg) { this.net.send(msg); }
+  close() { this.net.close(); }
+}
+
+return { SNAP_INTERVAL, encodeSnapshot, Replica, emptyCounters, RemoteInputs, InputSender, HostSession, ClientSession };
+})();
+
 // ---- src/game.js ----
 const { VIEW, Game } = (() => {
-// Ensambla todo: mundo + render + input + HUD + bot.
+// Ensambla todo: mundo + render + input + HUD + bot + sala en línea.
+
+
 
 
 
@@ -1734,6 +2108,8 @@ const { VIEW, Game } = (() => {
 
 
 const VIEW = { w: 1280, h: 720 };
+const NO_INPUT = { left: false, right: false, jump: false, punch: false, grab: false, fart: false };
+const SPECIES_COLORS = { mono: '#b07a4f', leon: '#f2a93b', zorro: '#ef8a3c', panda: '#f4f1ec', elefante: '#a9b4c4', jirafa: '#f5c445', pinguino: '#3a4661', buho: '#a0703f' };
 
 // Mapas de teclado por jugador.
 const KEYMAPS = [
@@ -1749,12 +2125,15 @@ class Game {
     this.keys = new Set();
     this.pressed = new Set();
     this.effects = new Effects();
-    this.mode = 'menu'; // menu | playing | over
-    this.players = [];   // { id, kind: 'key'|'touch'|'bot', keymap?, touchIndex? }
+    this.mode = 'menu'; // menu | playing | over | lobby | client
+    this.players = [];   // { id, kind: 'key'|'touch'|'bot'|'remote', keymap?, touchIndex?, slot? }
     this.acc = 0; this.last = performance.now(); this.time = 0;
     this.isTouch = TouchControls.isTouchDevice();
     document.body.classList.toggle('touch', this.isTouch);
     this.touch = new TouchControls(ui.touch);
+    this.online = null;   // HostSession | ClientSession
+    this.role = null;     // 'host' | 'client'
+    this.me = this.loadProfile();
     this.bindInput();
     this.bindUI();
     this.resize();
@@ -1762,48 +2141,25 @@ class Game {
     requestAnimationFrame((t) => this.frame(t));
   }
 
-  bindUI() {
-    for (const b of this.ui.menu.querySelectorAll('[data-mode]')) {
-      b.addEventListener('click', () => { this.goFullscreen(); this.startMode(b.dataset.mode); });
-    }
-    this.ui.over.querySelector('#rematch').addEventListener('click', () => this.startMode(this.lastMode));
-    this.ui.over.querySelector('#tomenu').addEventListener('click', () => this.showMenu());
+  // ---------- perfil (nombre y animal) ----------
+  loadProfile() {
+    let p = { name: '', species: 'mono' };
+    try { p = { ...p, ...JSON.parse(localStorage.getItem('monitos.profile') || '{}') }; } catch (e) { /* sin perfil */ }
+    if (!SPECIES.includes(p.species)) p.species = 'mono';
+    return p;
   }
-
-  // En celular: pantalla completa y bloquear en horizontal (si el navegador lo permite).
-  goFullscreen() {
-    if (!this.isTouch) return;
-    const el = document.documentElement;
-    const p = el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.();
-    Promise.resolve(p).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
-  }
-
-  showMenu() {
-    this.mode = 'menu';
-    this.ui.menu.hidden = false; this.ui.over.hidden = true;
-    this.touch.setup(0);
-  }
-
-  // Modos del menú. En táctil los humanos usan la pantalla; en escritorio, el teclado.
-  startMode(mode) {
-    this.lastMode = mode;
-    const human = (i) => (this.isTouch ? { kind: 'touch', touchIndex: i } : { kind: 'key', keymap: i });
-    const bot = { kind: 'bot' };
-    const modes = {
-      solo1: [human(0), bot], solo2: [human(0), bot, bot],
-      duo: [human(0), human(1)], duo2: [human(0), human(1), bot, bot],
-    };
-    this.start(modes[mode] || modes.solo1);
-  }
+  saveProfile() { try { localStorage.setItem('monitos.profile', JSON.stringify(this.me)); } catch (e) { /* privado */ } }
 
   bindInput() {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
+      const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+      if (typing) return;
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
       this.keys.add(e.code); this.pressed.add(e.code);
       if (this.mode === 'menu') this.menuKey(e.code);
-      else if (this.mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter')) this.startMode(this.lastMode);
-      else if (e.code === 'Escape') this.showMenu();
+      else if (this.mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter') && this.role !== 'client') this.rematch();
+      else if (e.code === 'Escape' && this.role == null) this.showMenu();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
   }
@@ -1813,86 +2169,300 @@ class Game {
     if (map[code]) this.startMode(map[code]);
   }
 
+  bindUI() {
+    const u = this.ui;
+    for (const b of u.menu.querySelectorAll('[data-mode]')) b.addEventListener('click', () => { this.goFullscreen(); this.startMode(b.dataset.mode); });
+    u.menu.querySelector('#btn-online').addEventListener('click', () => this.showOnline());
+    u.over.querySelector('#rematch').addEventListener('click', () => this.rematch());
+    u.over.querySelector('#tomenu').addEventListener('click', () => this.leaveToMenu());
+    // panel en línea
+    u.online.querySelector('#online-back').addEventListener('click', () => this.showMenu());
+    u.online.querySelector('#btn-create').addEventListener('click', () => this.createRoom());
+    u.online.querySelector('#btn-join').addEventListener('click', () => this.joinRoom());
+    u.online.querySelector('#join-code').addEventListener('input', (e) => { e.target.value = normalizeCode(e.target.value); });
+    u.online.querySelector('#join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.joinRoom(); });
+    u.online.querySelector('#my-name').addEventListener('input', (e) => { this.me.name = e.target.value.slice(0, 14); this.saveProfile(); });
+    u.online.querySelector('#my-avatar').addEventListener('click', () => this.cycleSpecies());
+    // sala
+    u.room.querySelector('#room-leave').addEventListener('click', () => this.leaveToMenu());
+    u.room.querySelector('#room-start').addEventListener('click', () => this.hostStart());
+    u.room.querySelector('#room-bot').addEventListener('click', () => { if (this.role === 'host') this.online.addBot(); });
+    u.room.querySelector('#room-nobots').addEventListener('click', () => { if (this.role === 'host') this.online.removeBots(); });
+    u.room.querySelector('#room-avatar').addEventListener('click', () => this.cycleSpecies());
+  }
+
+  goFullscreen() {
+    if (!this.isTouch) return;
+    const el = document.documentElement;
+    const p = el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.();
+    Promise.resolve(p).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  }
+
+  hideAll() { for (const k of ['menu', 'over', 'online', 'room']) this.ui[k].hidden = true; }
+
+  showMenu() {
+    this.closeOnline();
+    this.mode = 'menu';
+    this.hideAll(); this.ui.menu.hidden = false;
+    this.touch.setup(0);
+  }
+
+  // ---------- modos locales ----------
+  startMode(mode) {
+    this.lastMode = mode;
+    const human = (i) => (this.isTouch ? { kind: 'touch', touchIndex: i } : { kind: 'key', keymap: i });
+    const bot = { kind: 'bot' };
+    const modes = { solo1: [human(0), bot], solo2: [human(0), bot, bot], duo: [human(0), human(1)], duo2: [human(0), human(1), bot, bot] };
+    const list = modes[mode] || modes.solo1;
+    // el jugador local usa su animal favorito; los demás toman los que sigan
+    const used = new Set([this.me.species]);
+    const pick = () => { const s = SPECIES.find((x) => !used.has(x)) || SPECIES[0]; used.add(s); return s; };
+    this.start(list.map((p, i) => ({ ...p, species: i === 0 ? this.me.species : pick(), name: i === 0 && this.me.name ? this.me.name : undefined })));
+  }
+
   start(players) {
     this.world = new World();
     this.players = players.map((p, i) => ({ id: i, ...p }));
     for (const p of this.players) {
-      const m = this.world.addMonito({ total: players.length });
-      if (p.kind === 'bot') m.name = `${m.name} (bot)`;
+      const m = this.world.addMonito({ total: players.length, species: p.species, name: p.name });
+      if (p.kind === 'bot' && !p.name) m.name = `${m.name} (bot)`;
     }
     this.effects = new Effects();
     this.mode = 'playing';
-    this.overT = 0;
-    this.ui.menu.hidden = true; this.ui.over.hidden = true;
+    this.hideAll();
     this.touch.setup(this.players.filter((p) => p.kind === 'touch').length);
+    this.snapTimer = 0;
   }
 
-  // Lee input de todos los jugadores para este tick.
-  readInputs() {
+  rematch() {
+    if (this.role === 'host') { this.hostStart(); return; }
+    if (this.role === 'client') return;
+    this.startMode(this.lastMode);
+  }
+
+  // ---------- entrada ----------
+  localInput(p) {
+    if (p.kind === 'touch') { const inp = this.touch.read(p.touchIndex) || NO_INPUT; return inp; }
+    const km = KEYMAPS[p.keymap];
+    const has = (arr) => arr.some((k) => this.keys.has(k));
+    const hit = (arr) => arr.some((k) => this.pressed.has(k));
+    const inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
     const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : [];
+    const pad = pads[p.keymap];
+    if (pad) {
+      const ax = pad.axes[0] || 0;
+      const btn = (i) => !!pad.buttons[i]?.pressed;
+      const prev = (p.padPrev ||= {});
+      const edge = (name, v) => { const r = v && !prev[name]; prev[name] = v; return r; };
+      inp.left ||= ax < -0.4 || btn(14); inp.right ||= ax > 0.4 || btn(15);
+      inp.jump ||= edge('jump', btn(0)); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
+    }
+    return inp;
+  }
+
+  readInputs() {
     const inputs = [];
-    let padIdx = 0;
     for (const p of this.players) {
       const m = this.world.get(p.id);
       let inp;
       if (p.kind === 'bot') inp = botInput(this.world, m, this.time);
-      else if (p.kind === 'touch') { inp = this.touch.read(p.touchIndex) || { left: false, right: false, jump: false, punch: false, grab: false, fart: false }; this.touch.setBeans(p.touchIndex, m.beans); }
-      else {
-        const km = KEYMAPS[p.keymap];
-        const has = (arr) => arr.some((k) => this.keys.has(k));
-        const hit = (arr) => arr.some((k) => this.pressed.has(k));
-        inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
-        // gamepad opcional: el N-ésimo control se suma al N-ésimo jugador humano
-        const pad = pads[padIdx++];
-        if (pad) {
-          const ax = pad.axes[0] || 0;
-          const btn = (i) => !!pad.buttons[i]?.pressed;
-          const prev = (p.padPrev ||= {});
-          const edge = (name, v) => { const r = v && !prev[name]; prev[name] = v; return r; };
-          inp.left ||= ax < -0.4 || btn(14); inp.right ||= ax > 0.4 || btn(15);
-          inp.jump ||= edge('jump', btn(0)); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
-        }
-      }
+      else if (p.kind === 'remote') inp = this.online.inputs.read(p.id);
+      else inp = this.localInput(p);
+      if (p.kind === 'touch') this.touch.setBeans(p.touchIndex, m.beans);
       inputs[p.id] = inp;
     }
     return inputs;
   }
 
+  // ---------- loop ----------
   frame(now) {
     const dtReal = Math.min(0.1, (now - this.last) / 1000);
     this.last = now; this.time += dtReal;
     if (this.mode === 'playing' || this.mode === 'over') {
-      const STEP = 1 / 120;
-      this.acc += dtReal;
-      let steps = 0;
-      while (this.acc >= STEP && steps < 8) {
-        const inputs = this.mode === 'playing' ? this.readInputs() : [];
-        this.world.tick(STEP, inputs);
-        this.pressed.clear();
-        for (const m of this.world.monitos) stepMonitoAnim(m, STEP);
-        this.acc -= STEP; steps++;
-      }
-      for (const ev of this.world.drain()) {
-        this.effects.handle(ev, this.world);
-        if (ev.type === 'matchOver') this.finish(ev.winnerId);
-      }
-      this.effects.step(dtReal);
-      if (this.mode === 'over') this.overT += dtReal;
+      if (this.role === 'client') this.clientFrame(dtReal);
+      else this.simFrame(dtReal);
     }
     this.pressed.clear();
     this.draw();
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  simFrame(dtReal) {
+    const STEP = 1 / 120;
+    this.acc += dtReal;
+    let steps = 0;
+    const events = [];
+    while (this.acc >= STEP && steps < 8) {
+      const inputs = this.mode === 'playing' ? this.readInputs() : [];
+      this.world.tick(STEP, inputs);
+      this.pressed.clear();
+      for (const m of this.world.monitos) stepMonitoAnim(m, STEP);
+      this.acc -= STEP; steps++;
+    }
+    for (const ev of this.world.drain()) {
+      events.push(ev);
+      this.effects.handle(ev, this.world);
+      if (ev.type === 'matchOver') this.finish(ev.winnerId);
+    }
+    this.effects.step(dtReal);
+    if (this.role === 'host') {
+      this.pendingEvents = (this.pendingEvents || []).concat(events);
+      this.snapTimer += dtReal;
+      if (this.snapTimer >= SNAP_INTERVAL) {
+        this.snapTimer = 0;
+        this.online.broadcastSnapshot(encodeSnapshot(this.world, this.pendingEvents));
+        this.pendingEvents = [];
+      }
+    }
+  }
+
+  clientFrame(dtReal) {
+    const rep = this.world;
+    if (this.mode === 'playing') {
+      const p = this.players[0];
+      const inp = this.localInput(p);
+      if (p.kind === 'touch') this.touch.setBeans(0, rep.get(this.online.slot)?.beans || 0);
+      this.sender.push(inp, this.time);
+    }
+    rep.interpolate(this.time);
+    for (const m of rep.monitos) stepMonitoAnim(m, dtReal);
+    for (const ev of rep.drain()) {
+      this.effects.handle(ev, rep);
+      if (ev.type === 'matchOver') this.finish(ev.winnerId);
+    }
+    this.effects.step(dtReal);
+  }
+
   finish(winnerId) {
+    if (this.mode === 'over') return;
     this.mode = 'over';
     const win = winnerId != null ? this.world.get(winnerId) : null;
     this.ui.winner.textContent = win ? `¡GANA ${win.name.toUpperCase()}!` : 'EMPATE';
     this.ui.winner.style.color = win ? win.color : '#fff';
     this.touch.setup(0);
+    const rematchBtn = this.ui.over.querySelector('#rematch');
+    rematchBtn.hidden = this.role === 'client';
+    this.ui.over.querySelector('#over-wait').hidden = this.role !== 'client';
     setTimeout(() => { if (this.mode === 'over') this.ui.over.hidden = false; }, 900);
   }
 
+  // ---------- en línea: panel ----------
+  showOnline() {
+    this.mode = 'menu';
+    this.hideAll(); this.ui.online.hidden = false;
+    this.ui.online.querySelector('#my-name').value = this.me.name;
+    this.setStatus('');
+    this.paintAvatar(this.ui.online.querySelector('#my-avatar'), this.me.species);
+  }
+  setStatus(text, isError = false) {
+    for (const el of [this.ui.online.querySelector('#online-status'), this.ui.room.querySelector('#room-status')]) { el.textContent = text; el.classList.toggle('error', isError); }
+  }
+  cycleSpecies() {
+    this.me.species = SPECIES[(SPECIES.indexOf(this.me.species) + 1) % SPECIES.length];
+    this.saveProfile();
+    this.paintAvatar(this.ui.online.querySelector('#my-avatar'), this.me.species);
+    this.paintAvatar(this.ui.room.querySelector('#room-avatar'), this.me.species);
+    if (this.role === 'host') this.online.setMySpecies(this.me.species);
+    if (this.role === 'client') this.online.setSpecies(this.me.species);
+  }
+  paintAvatar(canvas, species, expr = 'normal') {
+    const dpr = 2, size = canvas.clientWidth || 64;
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    const c = canvas.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, size, size);
+    c.beginPath(); c.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2); c.fillStyle = ['#fde7a9', '#cfe6f7', '#f7cdd0', '#dbeed0'][SPECIES.indexOf(species) % 4]; c.fill(); c.strokeStyle = OUTLINE; c.lineWidth = 3; c.stroke();
+    c.save(); c.beginPath(); c.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2); c.clip();
+    drawHead(c, species, size / 2, size / 2 + size * 0.06, size * 0.3, 1, expr, 0, SPECIES_COLORS[species]);
+    c.restore();
+  }
+  myName() { const n = (this.me.name || '').trim(); return n || (this.isTouch ? 'Jugador' : 'Jugador'); }
+
+  async createRoom() {
+    if (this.online) return;
+    this.setStatus('Creando sala…');
+    this.online = new HostSession(); this.role = 'host';
+    this.online.onRoster = (players) => this.paintRoster(players, 0);
+    this.online.onLeaveInGame = (slot) => { const p = this.players[slot]; if (p && p.kind === 'remote') { p.kind = 'bot'; const m = this.world.get(slot); m.name = `${m.name} (se fue)`; } };
+    try {
+      const code = await this.online.open({ name: this.myName(), species: this.me.species });
+      this.showRoom(code);
+    } catch (e) { this.closeOnline(); this.setStatus(e.message, true); }
+  }
+
+  async joinRoom() {
+    if (this.online) return;
+    const code = normalizeCode(this.ui.online.querySelector('#join-code').value);
+    if (code.length < 4) { this.setStatus('Escribe el código de 4 letras de la sala.', true); return; }
+    this.setStatus('Buscando la sala…');
+    this.online = new ClientSession(); this.role = 'client';
+    this.online.onRoster = (players, you) => this.paintRoster(players, you);
+    this.online.onStart = (players, you) => this.clientStart(players, you);
+    this.online.onSnapshot = (snap) => { if (this.world && this.world.apply) this.world.apply(snap, this.time); };
+    this.online.onLobbyBack = () => { this.mode = 'lobby'; this.hideAll(); this.ui.room.hidden = false; this.touch.setup(0); };
+    this.online.onClosed = (why) => { this.leaveToMenu(); this.showOnline(); this.setStatus(why || 'Se perdió la conexión con la sala.', true); };
+    try {
+      await this.online.join(code, { name: this.myName(), species: this.me.species });
+      this.showRoom(code);
+      this.setStatus('Esperando a que el anfitrión empiece…');
+    } catch (e) { this.closeOnline(); this.setStatus(e.message, true); }
+  }
+
+  showRoom(code) {
+    this.mode = 'lobby';
+    this.hideAll(); this.ui.room.hidden = false;
+    this.ui.room.querySelector('#room-code').textContent = code;
+    const isHost = this.role === 'host';
+    for (const id of ['#room-start', '#room-bot', '#room-nobots']) this.ui.room.querySelector(id).hidden = !isHost;
+    this.ui.room.querySelector('#room-hint').textContent = isHost ? 'Pásales este código a tus amigos. Empieza cuando estén todos.' : 'Esperando a que el anfitrión empiece…';
+    this.paintAvatar(this.ui.room.querySelector('#room-avatar'), this.me.species);
+    this.setStatus('');
+  }
+
+  paintRoster(players, you) {
+    const list = this.ui.room.querySelector('#room-players');
+    list.innerHTML = '';
+    players.forEach((p) => {
+      const li = document.createElement('div');
+      li.className = 'room-player' + (p.slot === you ? ' me' : '');
+      const cv = document.createElement('canvas'); cv.className = 'room-av'; cv.style.width = '44px'; cv.style.height = '44px';
+      const name = document.createElement('span'); name.textContent = p.name + (p.host ? ' · anfitrión' : '') + (p.bot ? ' · bot' : '');
+      li.appendChild(cv); li.appendChild(name); list.appendChild(li);
+      requestAnimationFrame(() => this.paintAvatar(cv, p.species));
+    });
+    const count = this.ui.room.querySelector('#room-count');
+    count.textContent = `${players.length} / ${CFG.match.maxPlayers}`;
+    const startBtn = this.ui.room.querySelector('#room-start');
+    startBtn.disabled = players.length < 2;
+    startBtn.textContent = players.length < 2 ? 'Esperando a alguien más…' : `Empezar con ${players.length}`;
+    this.ui.room.querySelector('#room-bot').disabled = players.length >= CFG.match.maxPlayers;
+  }
+
+  hostStart() {
+    if (this.role !== 'host') return;
+    const players = this.online.start();
+    const human = this.isTouch ? { kind: 'touch', touchIndex: 0 } : { kind: 'key', keymap: 0 };
+    this.start(players.map((p, i) => (i === 0 ? { ...human, species: p.species, name: p.name } : p.bot ? { kind: 'bot', species: p.species, name: `${p.name} ${i}` } : { kind: 'remote', species: p.species, name: p.name })));
+    this.goFullscreen();
+  }
+
+  clientStart(players, you) {
+    this.world = new Replica(players);
+    this.players = [this.isTouch ? { id: 0, kind: 'touch', touchIndex: 0 } : { id: 0, kind: 'key', keymap: 0 }];
+    this.sender = new InputSender((msg) => this.online.sendInput(msg));
+    this.effects = new Effects();
+    this.mode = 'playing';
+    this.hideAll();
+    this.touch.setup(this.isTouch ? 1 : 0);
+    this.goFullscreen();
+  }
+
+  closeOnline() {
+    if (this.online) { try { this.online.close(); } catch (e) { /* ya cerrado */ } }
+    this.online = null; this.role = null; this.sender = null;
+  }
+  leaveToMenu() { this.showMenu(); }
+
+  // ---------- dibujo ----------
   resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
@@ -1909,13 +2479,11 @@ class Game {
     ctx.save();
     if (sh > 0) ctx.translate((Math.random() - 0.5) * 18 * sh, (Math.random() - 0.5) * 12 * sh);
     drawBackground(ctx, W, H, roof, this.time);
-
-    if (this.world) {
+    if (this.world && (this.mode === 'playing' || this.mode === 'over')) {
       const w = this.world;
       for (const m of w.monitos) drawShadow(ctx, m, roof);
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
-      // Orden de dibujo: los KO al fondo, los que cargan al frente con su carga encima.
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
       for (const m of w.monitos) drawFartCloud(ctx, m, this.time);
@@ -1924,26 +2492,26 @@ class Game {
     }
     ctx.restore();
     if (this.effects.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.effects.flash * 2})`; ctx.fillRect(0, 0, W, H); }
-
-    if (this.mode !== 'menu') this.drawHUD(ctx, W, H);
+    if (this.world && (this.mode === 'playing' || this.mode === 'over')) this.drawHUD(ctx, W, H);
   }
 
   drawOverheads(ctx, w) {
+    const mine = this.role === 'client' ? this.online.slot : (this.players.find((p) => p.kind === 'touch' || p.kind === 'key') || {}).id;
     for (const m of w.monitos) {
       if (m.state === S.DEAD) continue;
       const lying = m.state === S.KO || m.state === S.CARRIED;
       const topY = m.y - (lying ? m.w * 0.9 : m.h) - 14;
-      // etiqueta de jugador
       ctx.font = '700 13px Arial'; ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = OUTLINE; ctx.strokeText(m.name, m.x, topY - 6);
-      ctx.fillStyle = m.color; ctx.fillText(m.name, m.x, topY - 6);
-      // temporizador de KO
+      ctx.fillStyle = m.id === mine ? '#fff' : m.color; ctx.fillText(m.name, m.x, topY - 6);
+      if (m.id === mine && this.players.length > 2) { // flechita "eres tú"
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(m.x, topY - 22); ctx.lineTo(m.x - 7, topY - 34); ctx.lineTo(m.x + 7, topY - 34); ctx.closePath(); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+      }
       if (m.state === S.KO || m.state === S.CARRIED) {
         const k = Math.max(0, m.koTimer / CFG.ko.duration);
         ctx.strokeStyle = OUTLINE; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(m.x, topY - 30, 12, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, topY - 30, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
       }
-      // combo en curso
       if (m.combo.count > 0 && w.time - m.combo.lastAt < CFG.combo.window) {
         ctx.font = '900 18px "Arial Black", Impact, sans-serif';
         ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText(`${m.combo.count}/${CFG.combo.hitsToLaunch}`, m.x + 30, topY - 24);
@@ -1954,9 +2522,11 @@ class Game {
 
   drawHUD(ctx, W) {
     const w = this.world;
-    const cardW = 230;
+    const n = w.monitos.length;
+    const cardW = n <= 4 ? 230 : 150, gap = 10;
+    const startX = Math.max(12, (W - (n * cardW + (n - 1) * gap)) / 2);
     w.monitos.forEach((m, i) => {
-      const x = 20 + i * (cardW + 12), y = 16;
+      const x = startX + i * (cardW + gap), y = 14;
       ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.roundRect(x, y, cardW, 58, 12); ctx.fill(); ctx.stroke();
       const pastel = ['#fde7a9', '#cfe6f7', '#f7cdd0', '#dbeed0'][i % 4];
@@ -1964,15 +2534,14 @@ class Game {
       ctx.save(); ctx.beginPath(); ctx.arc(x + 30, y + 29, 21, 0, Math.PI * 2); ctx.clip();
       drawHead(ctx, m.species, x + 30, y + 32, 13, 1, m.stocks > 0 ? 'normal' : 'ko', 0, m.color);
       ctx.restore();
-      ctx.fillStyle = OUTLINE; ctx.font = '800 15px Arial'; ctx.textAlign = 'left';
-      ctx.fillText(m.name, x + 60, y + 23);
+      ctx.fillStyle = OUTLINE; ctx.font = `800 ${n <= 4 ? 15 : 12}px Arial`; ctx.textAlign = 'left';
+      ctx.fillText(m.name.slice(0, n <= 4 ? 18 : 10), x + 60, y + 23);
       for (let s = 0; s < CFG.match.stocks; s++) {
         ctx.fillStyle = s < m.stocks ? '#ff4d6d' : '#ddd';
-        ctx.beginPath(); ctx.arc(x + 66 + s * 20, y + 42, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x + 66 + s * 16, y + 42, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
-      ctx.fillStyle = OUTLINE; ctx.font = '700 12px Arial';
-      ctx.fillText(`KOs ${m.score}`, x + 132, y + 46);
-      for (let b = 0; b < m.beans; b++) { ctx.beginPath(); ctx.ellipse(x + 190 + b * 13, y + 42, 6, 4.5, -0.4, 0, Math.PI * 2); ctx.fillStyle = '#8f3f2e'; ctx.fill(); ctx.lineWidth = 2; ctx.stroke(); }
+      if (n <= 4) { ctx.fillStyle = OUTLINE; ctx.font = '700 12px Arial'; ctx.fillText(`KOs ${m.score}`, x + 132, y + 46); }
+      for (let b = 0; b < m.beans; b++) { ctx.beginPath(); ctx.ellipse(x + (n <= 4 ? 190 : 118) + b * 12, y + 42, 5.5, 4, -0.4, 0, Math.PI * 2); ctx.fillStyle = '#8f3f2e'; ctx.fill(); ctx.lineWidth = 2; ctx.stroke(); }
     });
   }
 }
@@ -1983,6 +2552,7 @@ return { VIEW, Game };
 window.game = new Game(document.getElementById('game'), {
     menu: document.getElementById('menu'), over: document.getElementById('over'),
     winner: document.getElementById('winner'), touch: document.getElementById('touch'),
+    online: document.getElementById('online'), room: document.getElementById('room'),
   });
 </script>
 </body>

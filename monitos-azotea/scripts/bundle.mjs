@@ -12,7 +12,7 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 // Orden de dependencias: cada módulo sólo importa de los anteriores.
 const MODULES = [
   'src/core/config.js', 'src/core/world.js', 'src/render/monito.js', 'src/render/effects.js',
-  'src/render/scene.js', 'src/bot.js', 'src/touch.js', 'src/game.js',
+  'src/render/scene.js', 'src/bot.js', 'src/touch.js', 'src/net/peer.js', 'src/net/session.js', 'src/game.js',
 ];
 
 let js = '';
@@ -29,6 +29,7 @@ const body = html.match(/<body>([\s\S]*?)<script type="module">/)[1];
 const boot = `window.game = new Game(document.getElementById('game'), {
     menu: document.getElementById('menu'), over: document.getElementById('over'),
     winner: document.getElementById('winner'), touch: document.getElementById('touch'),
+    online: document.getElementById('online'), room: document.getElementById('room'),
   });`;
 
 const fragment = `<title>Monitos en la Azotea</title>
