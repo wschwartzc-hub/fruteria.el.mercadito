@@ -19,6 +19,8 @@
 - [x] Mazo que cae del cielo: barrido por abajo que manda a volar a varios,
       se salta como cuerda, 3 usos. Palomas que aturden ligeramente.
 - [x] Combo que baja de uno en uno en vez de reiniciarse.
+- [x] Resaltado "TÚ" sobre tu monito, animales únicos por sala y arreglo de
+      los botones de invitados tras una revancha.
 
 ## v0.2 — Sensación (game feel)
 - [ ] Ajustar números jugando con gente (`docs/LOGICA.md` §11).

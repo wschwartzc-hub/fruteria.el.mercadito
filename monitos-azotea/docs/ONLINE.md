@@ -40,6 +40,13 @@ marca "(se fue)". Si el anfitrión cierra, la sala termina para todos.
   | anfitrión → todos | `lobbyBack` | volver a la sala |
   | anfitrión → invitado | `kick` | sala llena o partida ya empezada |
 
+- **Contadores y revancha.** Cada partida el anfitrión crea un `RemoteInputs`
+  nuevo y, si un cliente manda contadores menores a los que ya vio (reinició
+  por revancha o reconexión), se resincroniza. Antes de este arreglo un
+  invitado quedaba "mudo" tras la revancha hasta superar su cuenta anterior.
+- **Animales únicos.** El anfitrión no permite dos jugadores con la misma
+  especie: si pides una tomada, te asigna la siguiente libre y tu avatar se
+  actualiza solo.
 - **Identidad de la sala:** el anfitrión se registra en PeerJS como
   `monitos-azotea-CODIGO`. El código usa letras y números sin
   ambigüedad (sin 0/O ni 1/I).

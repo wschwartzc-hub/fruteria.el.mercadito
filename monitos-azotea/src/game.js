@@ -283,7 +283,7 @@ export class Game {
     if (this.online) return;
     this.setStatus('Creando sala…');
     this.online = new HostSession(); this.role = 'host';
-    this.online.onRoster = (players) => this.paintRoster(players, 0);
+    this.online.onRoster = (players) => { this.paintRoster(players, 0); this.adoptSpecies(players, 0); };
     this.online.onLeaveInGame = (slot) => { const p = this.players[slot]; if (p && p.kind === 'remote') { p.kind = 'bot'; const m = this.world.get(slot); m.name = `${m.name} (se fue)`; } };
     try {
       const code = await this.online.open({ name: this.myName(), species: this.me.species });
@@ -297,7 +297,7 @@ export class Game {
     if (code.length < 4) { this.setStatus('Escribe el código de 4 letras de la sala.', true); return; }
     this.setStatus('Buscando la sala…');
     this.online = new ClientSession(); this.role = 'client';
-    this.online.onRoster = (players, you) => this.paintRoster(players, you);
+    this.online.onRoster = (players, you) => { this.paintRoster(players, you); this.adoptSpecies(players, you); };
     this.online.onStart = (players, you) => this.clientStart(players, you);
     this.online.onSnapshot = (snap) => { if (this.world && this.world.apply) this.world.apply(snap, this.time); };
     this.online.onLobbyBack = () => { this.mode = 'lobby'; this.hideAll(); this.ui.room.hidden = false; this.touch.setup(0); };
@@ -318,6 +318,16 @@ export class Game {
     this.ui.room.querySelector('#room-hint').textContent = isHost ? 'Pásales este código a tus amigos. Empieza cuando estén todos.' : 'Esperando a que el anfitrión empiece…';
     this.paintAvatar(this.ui.room.querySelector('#room-avatar'), this.me.species);
     this.setStatus('');
+  }
+
+  // Si en la sala ya estaba tomado mi animal, el anfitrión me asignó otro.
+  adoptSpecies(players, you) {
+    const me = players.find((p) => p.slot === you);
+    if (!me || me.species === this.me.species) return;
+    this.me.species = me.species; this.saveProfile();
+    this.paintAvatar(this.ui.room.querySelector('#room-avatar'), this.me.species);
+    this.paintAvatar(this.ui.online.querySelector('#my-avatar'), this.me.species);
+    this.setStatus(`Ese animal ya estaba tomado: ahora eres ${me.species}.`);
   }
 
   paintRoster(players, you) {
@@ -400,17 +410,40 @@ export class Game {
     if (this.world && (this.mode === 'playing' || this.mode === 'over')) this.drawHUD(ctx, W, H);
   }
 
+  // Etiquetas de "este eres tú": TÚ cuando hay un humano local, J1/J2 cuando hay dos.
+  localLabels() {
+    const labels = new Map();
+    if (this.role === 'client') { labels.set(this.online.slot, 'TÚ'); return labels; }
+    const humans = this.players.filter((p) => p.kind === 'touch' || p.kind === 'key');
+    if (humans.length === 1) labels.set(humans[0].id, 'TÚ');
+    else humans.forEach((p, i) => labels.set(p.id, `J${i + 1}`));
+    return labels;
+  }
+
   drawOverheads(ctx, w) {
-    const mine = this.role === 'client' ? this.online.slot : (this.players.find((p) => p.kind === 'touch' || p.kind === 'key') || {}).id;
+    const labels = this.localLabels();
+    const pulse = (Math.sin(this.time * 6) + 1) / 2;
     for (const m of w.monitos) {
       if (m.state === S.DEAD) continue;
       const lying = m.state === S.KO || m.state === S.CARRIED;
       const topY = m.y - (lying ? m.w * 0.9 : m.h) - 14;
+      const tag = labels.get(m.id);
+      if (tag) { // halo bajo los pies para encontrarte de un vistazo
+        ctx.save(); ctx.globalAlpha = 0.55 + 0.3 * pulse;
+        ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(m.x, m.y + 3, 30 + pulse * 3, 9, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.restore();
+      }
       ctx.font = '700 13px Arial'; ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = OUTLINE; ctx.strokeText(m.name, m.x, topY - 6);
-      ctx.fillStyle = m.id === mine ? '#fff' : m.color; ctx.fillText(m.name, m.x, topY - 6);
-      if (m.id === mine && this.players.length > 2) { // flechita "eres tú"
-        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(m.x, topY - 22); ctx.lineTo(m.x - 7, topY - 34); ctx.lineTo(m.x + 7, topY - 34); ctx.closePath(); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = tag ? '#fff' : m.color; ctx.fillText(m.name, m.x, topY - 6);
+      if (tag) { // flecha grande que rebota + etiqueta
+        const by = topY - 26 - pulse * 8;
+        ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(m.x, by); ctx.lineTo(m.x - 13, by - 18); ctx.lineTo(m.x - 5, by - 18); ctx.lineTo(m.x - 5, by - 34); ctx.lineTo(m.x + 5, by - 34); ctx.lineTo(m.x + 5, by - 18); ctx.lineTo(m.x + 13, by - 18); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.font = '900 16px "Arial Black", Impact, sans-serif';
+        ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText(tag, m.x, by - 40);
+        ctx.fillStyle = '#ffd23f'; ctx.fillText(tag, m.x, by - 40);
       }
       if (m.mallet) { // usos del mazo
         ctx.font = '900 13px "Arial Black", Impact, sans-serif';
@@ -445,10 +478,13 @@ export class Game {
     const n = w.monitos.length;
     const cardW = n <= 4 ? 230 : 150, gap = 10;
     const startX = Math.max(12, (W - (n * cardW + (n - 1) * gap)) / 2);
+    const labels = this.localLabels();
     w.monitos.forEach((m, i) => {
       const x = startX + i * (cardW + gap), y = 14;
-      ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
+      const mine = labels.has(m.id);
+      ctx.fillStyle = mine ? '#fff3b0' : 'rgba(255,255,255,.88)'; ctx.strokeStyle = mine ? '#ffd23f' : OUTLINE; ctx.lineWidth = mine ? 5 : 3;
       ctx.beginPath(); ctx.roundRect(x, y, cardW, 58, 12); ctx.fill(); ctx.stroke();
+      if (mine) { ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = OUTLINE; ctx.font = '900 10px Arial'; ctx.textAlign = 'right'; ctx.fillText(labels.get(m.id), x + cardW - 8, y + 14); }
       const pastel = ['#fde7a9', '#cfe6f7', '#f7cdd0', '#dbeed0'][i % 4];
       ctx.beginPath(); ctx.arc(x + 30, y + 29, 22, 0, Math.PI * 2); ctx.fillStyle = pastel; ctx.fill(); ctx.stroke();
       ctx.save(); ctx.beginPath(); ctx.arc(x + 30, y + 29, 21, 0, Math.PI * 2); ctx.clip();

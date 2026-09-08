@@ -127,8 +127,10 @@ presionando botones en vez de mirar.
 ### 2.11 En línea
 - Sala con código de 4 letras. Hasta **8 jugadores** (uno por animal). El
   anfitrión decide cuándo empezar y puede agregar bots.
-- Cada jugador ve su propio nombre en blanco y una flechita sobre su monito
-  cuando hay más de dos.
+- Nadie repite animal dentro de una sala.
+- **Encontrarte de un vistazo:** tu monito lleva una flecha amarilla grande
+  que rebota con la etiqueta "TÚ" (o "J1"/"J2" en dos jugadores locales),
+  un halo amarillo bajo los pies y tu tarjeta del HUD va resaltada.
 - Si alguien se desconecta, su monito lo controla un bot. Ver `docs/ONLINE.md`.
 
 ### 2.12 Condición de victoria

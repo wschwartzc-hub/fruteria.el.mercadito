@@ -76,10 +76,17 @@ export class RemoteInputs {
   constructor() { this.latest = new Map(); this.seen = new Map(); }
   receive(slot, msg) { this.latest.set(slot, msg); }
   // Convierte contadores en flancos de un tick (uno por tick, se encolan).
+  // Si el cliente reinició sus contadores (revancha, reconexión), nos
+  // sincronizamos en vez de ignorarlo hasta que "alcance" la cuenta vieja.
   read(slot) {
     const c = this.latest.get(slot) || emptyCounters();
     const s = this.seen.get(slot) || { j: c.j, p: c.p, g: c.g, f: c.f };
-    const edge = (k) => { if (c[k] > s[k]) { s[k] += 1; return true; } return false; };
+    const edge = (k) => {
+      if (c[k] < s[k]) { s[k] = c[k]; return false; }
+      if (c[k] - s[k] > 30) s[k] = c[k] - 1; // salto enorme: no replicar 100 toques viejos
+      if (c[k] > s[k]) { s[k] += 1; return true; }
+      return false;
+    };
     const out = { left: !!c.l, right: !!c.r, jump: edge('j'), jumpHeld: !!c.jh, punch: edge('p'), grab: edge('g'), fart: edge('f') };
     this.seen.set(slot, s);
     return out;
@@ -124,10 +131,10 @@ export class HostSession {
       const i = this.players.findIndex((p) => p.key === key);
       if (msg.t === 'hello') {
         if (i >= 0 || this.players.length >= CFG.match.maxPlayers || this.playing) return;
-        this.players.push({ key, name: String(msg.name || 'Amigo').slice(0, 14), species: SPECIES.includes(msg.species) ? msg.species : 'leon', host: false });
+        this.players.push({ key, name: String(msg.name || 'Amigo').slice(0, 14), species: this.freeSpecies(SPECIES.includes(msg.species) ? msg.species : 'leon'), host: false });
         this.roster();
       } else if (msg.t === 'species' && i >= 0 && !this.playing) {
-        if (SPECIES.includes(msg.species)) { this.players[i].species = msg.species; this.roster(); }
+        if (SPECIES.includes(msg.species)) { this.players[i].species = this.freeSpecies(msg.species, key); this.roster(); }
       } else if (msg.t === 'in' && i >= 0) {
         this.inputs.receive(i, msg);
       }
@@ -135,6 +142,14 @@ export class HostSession {
     const code = await this.net.open();
     this.roster();
     return code;
+  }
+  // Nadie repite animal en la sala: si el que pides está tomado, el siguiente libre.
+  freeSpecies(wanted, exceptKey = null) {
+    const used = new Set(this.players.filter((p) => p.key !== exceptKey).map((p) => p.species));
+    if (!used.has(wanted)) return wanted;
+    const start = SPECIES.indexOf(wanted);
+    for (let k = 1; k < SPECIES.length; k++) { const sp = SPECIES[(start + k) % SPECIES.length]; if (!used.has(sp)) return sp; }
+    return wanted;
   }
   addBot() {
     if (this.players.length >= CFG.match.maxPlayers) return;
@@ -144,7 +159,7 @@ export class HostSession {
     this.roster();
   }
   removeBots() { this.players = this.players.filter((p) => !p.bot); this.roster(); }
-  setMySpecies(species) { this.me.species = species; this.players[0].species = species; this.roster(); }
+  setMySpecies(species) { const sp = this.freeSpecies(species, 'host'); this.me.species = sp; this.players[0].species = sp; this.roster(); }
   rosterMsg() { return { t: 'lobby', code: this.code, players: this.players.map((p, slot) => ({ slot, key: p.key, name: p.name, species: p.species, host: p.host, bot: !!p.bot })) }; }
   roster() {
     const msg = this.rosterMsg();
@@ -153,6 +168,7 @@ export class HostSession {
   }
   start() {
     this.playing = true;
+    this.inputs = new RemoteInputs(); // cada partida empieza con contadores limpios
     this.players = this.players.filter((p) => !p.gone);
     const msg = { t: 'start', players: this.rosterMsg().players };
     for (const p of this.players) if (!p.host && !p.bot) this.net.send(p.key, { ...msg, you: this.players.indexOf(p) });
