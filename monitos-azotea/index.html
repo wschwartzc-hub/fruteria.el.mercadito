@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitos en la Azotea</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1d1a24; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: Arial, sans-serif; }
+  canvas { display: block; image-rendering: auto; }
+  #note { position: fixed; left: 0; right: 0; bottom: 8px; text-align: center; color: #aaa; font-size: 12px; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="note" hidden>Este juego usa módulos ES: ábrelo con un servidor local (<code>npm start</code>) o desde GitHub Pages, no con doble clic.</div>
+<script type="module">
+  import { Game } from './src/game.js';
+  window.game = new Game(document.getElementById('game'));
+</script>
+<script>
+  if (location.protocol === 'file:') document.getElementById('note').hidden = false;
+</script>
+</body>
+</html>
