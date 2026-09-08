@@ -38,3 +38,11 @@ test('el cliente manda cuando algo cambia y como latido cada 0.25 s', () => {
   assert.equal(sent.length, 2);
   assert.equal(sent[0].p, 1);
 });
+
+test('una entrada vieja que llega tarde no pisa a la nueva', () => {
+  const r = new RemoteInputs();
+  r.receive(0, { seq: 5, l: true, r: false, jh: false, j: 2, p: 0, g: 0, f: 0 });
+  r.receive(0, { seq: 3, l: false, r: true, jh: false, j: 1, p: 0, g: 0, f: 0 });
+  const a = r.read(0);
+  assert.equal(a.left, true); assert.equal(a.right, false);
+});

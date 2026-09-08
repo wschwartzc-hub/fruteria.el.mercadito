@@ -99,7 +99,8 @@ export class ClientNet {
       let opened = false;
       const timer = setTimeout(() => { if (!opened) { peer.destroy(); reject(new Error('La sala no respondió. ¿El código es correcto y el anfitrión sigue en la sala?')); } }, 12000);
       peer.on('open', () => {
-        const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+        // sin orden estricto: si se pierde un paquete, los siguientes no se quedan esperando
+        const conn = peer.connect(PREFIX + code, { reliable: false, serialization: 'json' });
         conn.on('open', () => { opened = true; clearTimeout(timer); this.peer = peer; this.conn = conn; resolve(); });
         conn.on('data', (msg) => { if (this.onMessage) this.onMessage(msg); });
         conn.on('close', () => { if (this.onClose) this.onClose('El anfitrión cerró la sala.'); });

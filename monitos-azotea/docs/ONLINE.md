@@ -47,6 +47,15 @@ marca "(se fue)". Si el anfitrión cierra, la sala termina para todos.
 - **Animales únicos.** El anfitrión no permite dos jugadores con la misma
   especie: si pides una tomada, te asigna la siguiente libre y tu avatar se
   actualiza solo.
+- **Canal sin orden estricto.** La conexión se abre con `reliable: false`
+  (WebRTC sin orden). Si se pierde un paquete en la red del celular, los
+  siguientes no se quedan esperando: eso se veía como congelamientos de
+  medio segundo. Como pueden llegar desordenados, las entradas llevan `seq`
+  y el anfitrión ignora las viejas; las fotos viejas también se descartan.
+- **Aviso de señal.** Si el invitado lleva más de 1.5 s sin foto del
+  anfitrión, lo dice en pantalla. Ojo: si el anfitrión bloquea el teléfono,
+  cambia de app o abre el menú de compartir, su navegador pausa el juego y
+  todos se quedan quietos hasta que regrese.
 - **Identidad de la sala:** el anfitrión se registra en PeerJS como
   `monitos-azotea-CODIGO`. El código usa letras y números sin
   ambigüedad (sin 0/O ni 1/I).

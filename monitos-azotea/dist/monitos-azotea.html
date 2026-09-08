@@ -2336,7 +2336,8 @@ class ClientNet {
       let opened = false;
       const timer = setTimeout(() => { if (!opened) { peer.destroy(); reject(new Error('La sala no respondió. ¿El código es correcto y el anfitrión sigue en la sala?')); } }, 12000);
       peer.on('open', () => {
-        const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+        // sin orden estricto: si se pierde un paquete, los siguientes no se quedan esperando
+        const conn = peer.connect(PREFIX + code, { reliable: false, serialization: 'json' });
         conn.on('open', () => { opened = true; clearTimeout(timer); this.peer = peer; this.conn = conn; resolve(); });
         conn.on('data', (msg) => { if (this.onMessage) this.onMessage(msg); });
         conn.on('close', () => { if (this.onClose) this.onClose('El anfitrión cerró la sala.'); });
@@ -2390,6 +2391,7 @@ class Replica {
   }
   get(id) { return this.monitos[id]; }
   apply(snap, now) {
+    if (this.next && snap.time < this.next.time) return; // foto vieja que llegó tarde
     this.prev = this.next; this.prevAt = this.nextAt;
     this.next = snap; this.nextAt = now;
     this.time = snap.time; this.over = snap.over; this.winnerId = snap.winnerId;
@@ -2429,8 +2431,14 @@ class Replica {
 function emptyCounters() { return { l: false, r: false, jh: false, j: 0, p: 0, g: 0, f: 0 }; }
 
 class RemoteInputs {
-  constructor() { this.latest = new Map(); this.seen = new Map(); }
-  receive(slot, msg) { this.latest.set(slot, msg); }
+  constructor() { this.latest = new Map(); this.seen = new Map(); this.lastSeq = new Map(); }
+  receive(slot, msg) {
+    // los mensajes pueden llegar desordenados: sólo cuenta el más nuevo
+    const seq = msg.seq ?? 0;
+    if (seq < (this.lastSeq.get(slot) ?? -1)) return;
+    this.lastSeq.set(slot, seq);
+    this.latest.set(slot, msg);
+  }
   // Convierte contadores en flancos de un tick (uno por tick, se encolan).
   // Si el cliente reinició sus contadores (revancha, reconexión), nos
   // sincronizamos en vez de ignorarlo hasta que "alcance" la cuenta vieja.
@@ -2447,17 +2455,17 @@ class RemoteInputs {
     this.seen.set(slot, s);
     return out;
   }
-  forget(slot) { this.latest.delete(slot); this.seen.delete(slot); }
+  forget(slot) { this.latest.delete(slot); this.seen.delete(slot); this.lastSeq.delete(slot); }
 }
 
 // Del lado del cliente: acumula flancos locales en contadores y manda cuando cambia.
 class InputSender {
-  constructor(send) { this.send = send; this.c = emptyCounters(); this.lastSent = ''; this.lastAt = 0; }
+  constructor(send) { this.send = send; this.c = emptyCounters(); this.lastSent = ''; this.lastAt = 0; this.seq = 0; }
   push(inp, now) {
     if (inp.jump) this.c.j++; if (inp.punch) this.c.p++; if (inp.grab) this.c.g++; if (inp.fart) this.c.f++;
     this.c.l = inp.left; this.c.r = inp.right; this.c.jh = !!inp.jumpHeld;
     const key = JSON.stringify(this.c);
-    if (key !== this.lastSent || now - this.lastAt > 0.25) { this.send({ t: 'in', ...this.c }); this.lastSent = key; this.lastAt = now; }
+    if (key !== this.lastSent || now - this.lastAt > 0.25) { this.send({ t: 'in', seq: this.seq++, ...this.c }); this.lastSent = key; this.lastAt = now; }
   }
 }
 
@@ -2604,7 +2612,16 @@ class Game {
     this.bindUI();
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 300));
+    // iOS cambia el tamaño visible al abrir/cerrar el teclado sin avisar por 'resize'
+    window.visualViewport?.addEventListener('resize', () => this.resize());
+    this.errorToast = null;
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  // La pantalla no se apaga a media partida (donde el navegador lo permite).
+  async keepAwake() {
+    try { if (navigator.wakeLock && !this.wakeLock) { this.wakeLock = await navigator.wakeLock.request('screen'); this.wakeLock.addEventListener('release', () => { this.wakeLock = null; }); } } catch (e) { /* no disponible */ }
   }
 
   // ---------- perfil (nombre y animal) ----------
@@ -2696,8 +2713,11 @@ class Game {
     this.effects = new Effects();
     this.mode = 'playing';
     this.hideAll();
+    document.activeElement?.blur?.(); // cierra el teclado si venía de escribir
     this.touch.setup(this.players.filter((p) => p.kind === 'touch').length);
     this.snapTimer = 0;
+    this.keepAwake();
+    setTimeout(() => this.resize(), 350);
   }
 
   rematch() {
@@ -2744,12 +2764,21 @@ class Game {
   frame(now) {
     const dtReal = Math.min(0.1, (now - this.last) / 1000);
     this.last = now; this.time += dtReal;
-    if (this.mode === 'playing' || this.mode === 'over') {
-      if (this.role === 'client') this.clientFrame(dtReal);
-      else this.simFrame(dtReal);
+    // Si el tamaño visible cambió (teclado, barra del navegador), reajustar.
+    if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.resize();
+    // Un error en un frame no debe congelar el juego: se muestra y se sigue.
+    try {
+      if (this.mode === 'playing' || this.mode === 'over') {
+        if (this.role === 'client') this.clientFrame(dtReal);
+        else this.simFrame(dtReal);
+      }
+      this.pressed.clear();
+      this.draw();
+    } catch (e) {
+      this.pressed.clear();
+      this.errorToast = { text: `Ups: ${e && e.message ? e.message : e}`, until: this.time + 8 };
+      console.error(e);
     }
-    this.pressed.clear();
-    this.draw();
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -2928,8 +2957,11 @@ class Game {
     this.effects = new Effects();
     this.mode = 'playing';
     this.hideAll();
+    document.activeElement?.blur?.();
     this.touch.setup(this.isTouch ? 1 : 0);
     this.goFullscreen();
+    this.keepAwake();
+    setTimeout(() => this.resize(), 350);
   }
 
   closeOnline() {
@@ -2941,6 +2973,7 @@ class Game {
   // ---------- dibujo ----------
   resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.sizedW = window.innerWidth; this.sizedH = window.innerHeight;
     const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
     this.canvas.width = VIEW.w * dpr; this.canvas.height = VIEW.h * dpr;
     this.canvas.style.width = `${VIEW.w * scale}px`; this.canvas.style.height = `${VIEW.h * scale}px`;
@@ -2972,6 +3005,20 @@ class Game {
     ctx.restore();
     if (this.effects.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.effects.flash * 2})`; ctx.fillRect(0, 0, W, H); }
     if (this.world && (this.mode === 'playing' || this.mode === 'over')) this.drawHUD(ctx, W, H);
+    // aviso de señal (cliente en línea) y errores
+    if (this.role === 'client' && this.world && this.world.nextAt != null && this.mode === 'playing') {
+      const silence = this.time - this.world.nextAt;
+      if (silence > 1.5) {
+        ctx.textAlign = 'center'; ctx.font = '900 26px "Arial Black", Impact, sans-serif'; ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+        const msg = silence > 8 ? 'Se perdió al anfitrión…' : `Sin señal del anfitrión (${Math.floor(silence)} s)`;
+        ctx.strokeText(msg, W / 2, H / 2); ctx.fillStyle = '#ffd23f'; ctx.fillText(msg, W / 2, H / 2);
+      }
+    }
+    if (this.errorToast && this.time < this.errorToast.until) {
+      ctx.textAlign = 'left'; ctx.font = '700 13px Arial';
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(10, H - 34, Math.min(W - 20, this.errorToast.text.length * 7.5 + 20), 24);
+      ctx.fillStyle = '#ffb4b4'; ctx.fillText(this.errorToast.text.slice(0, 150), 20, H - 17);
+    }
   }
 
   // Etiquetas de "este eres tú": TÚ cuando hay un humano local, J1/J2 cuando hay dos.

@@ -40,7 +40,16 @@ export class Game {
     this.bindUI();
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 300));
+    // iOS cambia el tamaño visible al abrir/cerrar el teclado sin avisar por 'resize'
+    window.visualViewport?.addEventListener('resize', () => this.resize());
+    this.errorToast = null;
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  // La pantalla no se apaga a media partida (donde el navegador lo permite).
+  async keepAwake() {
+    try { if (navigator.wakeLock && !this.wakeLock) { this.wakeLock = await navigator.wakeLock.request('screen'); this.wakeLock.addEventListener('release', () => { this.wakeLock = null; }); } } catch (e) { /* no disponible */ }
   }
 
   // ---------- perfil (nombre y animal) ----------
@@ -132,8 +141,11 @@ export class Game {
     this.effects = new Effects();
     this.mode = 'playing';
     this.hideAll();
+    document.activeElement?.blur?.(); // cierra el teclado si venía de escribir
     this.touch.setup(this.players.filter((p) => p.kind === 'touch').length);
     this.snapTimer = 0;
+    this.keepAwake();
+    setTimeout(() => this.resize(), 350);
   }
 
   rematch() {
@@ -180,12 +192,21 @@ export class Game {
   frame(now) {
     const dtReal = Math.min(0.1, (now - this.last) / 1000);
     this.last = now; this.time += dtReal;
-    if (this.mode === 'playing' || this.mode === 'over') {
-      if (this.role === 'client') this.clientFrame(dtReal);
-      else this.simFrame(dtReal);
+    // Si el tamaño visible cambió (teclado, barra del navegador), reajustar.
+    if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.resize();
+    // Un error en un frame no debe congelar el juego: se muestra y se sigue.
+    try {
+      if (this.mode === 'playing' || this.mode === 'over') {
+        if (this.role === 'client') this.clientFrame(dtReal);
+        else this.simFrame(dtReal);
+      }
+      this.pressed.clear();
+      this.draw();
+    } catch (e) {
+      this.pressed.clear();
+      this.errorToast = { text: `Ups: ${e && e.message ? e.message : e}`, until: this.time + 8 };
+      console.error(e);
     }
-    this.pressed.clear();
-    this.draw();
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -364,8 +385,11 @@ export class Game {
     this.effects = new Effects();
     this.mode = 'playing';
     this.hideAll();
+    document.activeElement?.blur?.();
     this.touch.setup(this.isTouch ? 1 : 0);
     this.goFullscreen();
+    this.keepAwake();
+    setTimeout(() => this.resize(), 350);
   }
 
   closeOnline() {
@@ -377,6 +401,7 @@ export class Game {
   // ---------- dibujo ----------
   resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.sizedW = window.innerWidth; this.sizedH = window.innerHeight;
     const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
     this.canvas.width = VIEW.w * dpr; this.canvas.height = VIEW.h * dpr;
     this.canvas.style.width = `${VIEW.w * scale}px`; this.canvas.style.height = `${VIEW.h * scale}px`;
@@ -408,6 +433,20 @@ export class Game {
     ctx.restore();
     if (this.effects.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.effects.flash * 2})`; ctx.fillRect(0, 0, W, H); }
     if (this.world && (this.mode === 'playing' || this.mode === 'over')) this.drawHUD(ctx, W, H);
+    // aviso de señal (cliente en línea) y errores
+    if (this.role === 'client' && this.world && this.world.nextAt != null && this.mode === 'playing') {
+      const silence = this.time - this.world.nextAt;
+      if (silence > 1.5) {
+        ctx.textAlign = 'center'; ctx.font = '900 26px "Arial Black", Impact, sans-serif'; ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+        const msg = silence > 8 ? 'Se perdió al anfitrión…' : `Sin señal del anfitrión (${Math.floor(silence)} s)`;
+        ctx.strokeText(msg, W / 2, H / 2); ctx.fillStyle = '#ffd23f'; ctx.fillText(msg, W / 2, H / 2);
+      }
+    }
+    if (this.errorToast && this.time < this.errorToast.until) {
+      ctx.textAlign = 'left'; ctx.font = '700 13px Arial';
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(10, H - 34, Math.min(W - 20, this.errorToast.text.length * 7.5 + 20), 24);
+      ctx.fillStyle = '#ffb4b4'; ctx.fillText(this.errorToast.text.slice(0, 150), 20, H - 17);
+    }
   }
 
   // Etiquetas de "este eres tú": TÚ cuando hay un humano local, J1/J2 cuando hay dos.

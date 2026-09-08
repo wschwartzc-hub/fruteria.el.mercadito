@@ -34,6 +34,7 @@ export class Replica {
   }
   get(id) { return this.monitos[id]; }
   apply(snap, now) {
+    if (this.next && snap.time < this.next.time) return; // foto vieja que llegó tarde
     this.prev = this.next; this.prevAt = this.nextAt;
     this.next = snap; this.nextAt = now;
     this.time = snap.time; this.over = snap.over; this.winnerId = snap.winnerId;
@@ -73,8 +74,14 @@ export class Replica {
 export function emptyCounters() { return { l: false, r: false, jh: false, j: 0, p: 0, g: 0, f: 0 }; }
 
 export class RemoteInputs {
-  constructor() { this.latest = new Map(); this.seen = new Map(); }
-  receive(slot, msg) { this.latest.set(slot, msg); }
+  constructor() { this.latest = new Map(); this.seen = new Map(); this.lastSeq = new Map(); }
+  receive(slot, msg) {
+    // los mensajes pueden llegar desordenados: sólo cuenta el más nuevo
+    const seq = msg.seq ?? 0;
+    if (seq < (this.lastSeq.get(slot) ?? -1)) return;
+    this.lastSeq.set(slot, seq);
+    this.latest.set(slot, msg);
+  }
   // Convierte contadores en flancos de un tick (uno por tick, se encolan).
   // Si el cliente reinició sus contadores (revancha, reconexión), nos
   // sincronizamos en vez de ignorarlo hasta que "alcance" la cuenta vieja.
@@ -91,17 +98,17 @@ export class RemoteInputs {
     this.seen.set(slot, s);
     return out;
   }
-  forget(slot) { this.latest.delete(slot); this.seen.delete(slot); }
+  forget(slot) { this.latest.delete(slot); this.seen.delete(slot); this.lastSeq.delete(slot); }
 }
 
 // Del lado del cliente: acumula flancos locales en contadores y manda cuando cambia.
 export class InputSender {
-  constructor(send) { this.send = send; this.c = emptyCounters(); this.lastSent = ''; this.lastAt = 0; }
+  constructor(send) { this.send = send; this.c = emptyCounters(); this.lastSent = ''; this.lastAt = 0; this.seq = 0; }
   push(inp, now) {
     if (inp.jump) this.c.j++; if (inp.punch) this.c.p++; if (inp.grab) this.c.g++; if (inp.fart) this.c.f++;
     this.c.l = inp.left; this.c.r = inp.right; this.c.jh = !!inp.jumpHeld;
     const key = JSON.stringify(this.c);
-    if (key !== this.lastSent || now - this.lastAt > 0.25) { this.send({ t: 'in', ...this.c }); this.lastSent = key; this.lastAt = now; }
+    if (key !== this.lastSent || now - this.lastAt > 0.25) { this.send({ t: 'in', seq: this.seq++, ...this.c }); this.lastSent = key; this.lastAt = now; }
   }
 }
 
