@@ -11,10 +11,20 @@ const memo = new Map(); // id -> { nextPunch, nextJump }
 export function botInput(world, me, time) {
   const st = memo.get(me.id) || { nextPunch: 0, nextJump: 0, edge: 1 };
   memo.set(me.id, st);
-  const inp = { left: false, right: false, jump: false, punch: false, grab: false, fart: false };
+  const inp = { left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false };
+  const roof = world.roof;
+  // KO: machaca golpe (no tan rápido como un humano desesperado)
+  if (me.state === S.KO || me.state === S.CARRIED) { if (time > st.nextMash) { inp.punch = true; st.nextMash = time + 0.3; } return inp; }
+  // aventado con jet pack: sálvate y vuela de regreso
+  if ([S.THROWN, S.LAUNCHED, S.FALLING].includes(me.state)) { if (me.jetpack && me.jetpack.fuel > 0) { inp.jump = true; inp.jumpHeld = true; } return inp; }
+  if (me.state === S.JUMP && me.jetpack && me.jetpack.fuel > 0 && (me.y > roof.y - 10 || me.x < roof.x || me.x > roof.x + roof.w)) {
+    inp.jumpHeld = me.y > roof.y - 120; // sube hasta quedar por encima de la azotea
+    const target = roof.x + roof.w / 2;
+    if (target < me.x - 10) inp.left = true; else if (target > me.x + 10) inp.right = true;
+    return inp;
+  }
   if (![S.IDLE, S.WALK, S.JUMP, S.CARRYING].includes(me.state)) return inp;
 
-  const roof = world.roof;
   const others = world.monitos.filter((m) => m !== me && m.state !== S.DEAD && m.state !== S.FALLING);
   const nearest = others.sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
   const goTo = (x, margin = 6) => { if (x < me.x - margin) inp.left = true; else if (x > me.x + margin) inp.right = true; };
@@ -38,6 +48,9 @@ export function botInput(world, me, time) {
 
   // pedo si hay rival cerca y tengo frijol
   if (me.beans > 0 && me.onGround && nearest && world.dist(me, nearest) < CFG.fart.radius * 0.8 && nearest.state !== S.KO) { inp.fart = true; return inp; }
+  // jet pack en el piso: vale oro
+  const jp = world.jetpacks.find((j) => j.state === 'rest' && Math.abs(j.x - me.x) < 320);
+  if (jp && !me.jetpack) { safeGoTo(jp.x); return inp; }
   // frijol cerca: ir por él
   const bean = world.beans.find((b) => b.state === 'rest' && Math.abs(b.x - me.x) < 240);
   if (bean && me.beans < CFG.bean.maxCharges && !others.some((o) => o.state === S.KO && Math.abs(o.x - me.x) < 120)) { safeGoTo(bean.x); return inp; }

@@ -214,6 +214,26 @@ function birds(ctx, x, y, time) {
   }
 }
 
+// Mochila jet pack: se dibuja en coordenadas locales del monito (espalda).
+export function drawJetpack(ctx, x, y, dir, thrusting, time, scale = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+  if (thrusting) {
+    const f = 1 + Math.sin(time * 60) * 0.25;
+    for (const nx of [-9, 9]) {
+      ctx.beginPath(); ctx.moveTo(nx - 6, 18); ctx.quadraticCurveTo(nx, 18 + 34 * f, nx + 6, 18); ctx.closePath();
+      ctx.fillStyle = '#ff8c42'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(nx - 3, 18); ctx.quadraticCurveTo(nx, 18 + 18 * f, nx + 3, 18); ctx.closePath();
+      ctx.fillStyle = '#ffe14d'; ctx.fill();
+    }
+  }
+  ctx.beginPath(); ctx.roundRect(-16, -18, 32, 36, 8); ctx.fillStyle = '#b9bfcc'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#ff5a5a'; ctx.fillRect(-16, -4, 32, 7);
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.strokeRect(-16, -4, 32, 7);
+  for (const nx of [-9, 9]) { ctx.beginPath(); ctx.roundRect(nx - 6, 14, 12, 8, 2); ctx.fillStyle = '#5d6270'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(0, -8, 4, 0, Math.PI * 2); ctx.fillStyle = '#6ad1ff'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+
 export function drawShadow(ctx, m, roof) {
   if (m.state === S.DEAD || m.state === S.CARRIED) return;
   if (m.x <= roof.x || m.x >= roof.x + roof.w) return;
@@ -313,6 +333,7 @@ export function drawMonito(ctx, m, time, cfg) {
   limb(ctx, backSh.x, backSh.y, bh.x, bh.y, dir * 8, dark, 9);
   fist(ctx, bh.x, bh.y, 6.5, c);
 
+  if (m.jetpack) drawJetpack(ctx, -dir * W * 0.42, -H * 0.42 + bob, dir, m.thrusting, time, 0.9);
   body(ctx, 0, -4 + bob, bodyW, bodyH + 4, c);
 
   limb(ctx, frontSh.x, frontSh.y, fh.x, fh.y, -dir * 8, dark, 9);

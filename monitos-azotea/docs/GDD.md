@@ -82,14 +82,37 @@ te pegan mientras cargas a alguien, el desmayado despierta en tus brazos).
 - Un barril en el piso dentro de la nube se enciende y explota (gas + mecha).
   Es la forma de que el pedo tenga riesgo: la explosión también te alcanza.
 
-### 2.7 En línea
+**Ritmo:** con el jet pack y el machacar, un combo o un aventón ya no es
+sentencia: siempre hay una salida si reaccionas. Eso mantiene a todos
+presionando botones en vez de mirar.
+
+### 2.7 Jet pack
+- A partir del segundo 12 baja una **mochila jet pack en paracaídas** cada 14
+  a 22 s. Se recoge al pisarla (una por monito) y se queda en la espalda.
+- **Mantener salto en el aire** enciende la mochila: sube rápido, con control
+  total hacia los lados. Tiene **1.4 s de gasolina** en total, usable a ratos;
+  al acabarse, la mochila se cae ("¡SIN GAS!"). Sobre la cabeza se ve la
+  barra de gasolina.
+- **Sirve para salvarse:** un monito aventado, lanzado por un combo o
+  cayendo del borde que traiga jet pack puede **presionar salto**: despierta
+  en el aire ("¡SALVADO!"), toma el control y puede volar de regreso. Sin
+  gasolina no hay rescate. Al perder una vida, la mochila se pierde.
+
+### 2.8 Despertar machacando
+- Mientras estás desmayado (en el piso o en brazos de alguien), cada toque
+  de **golpe** quita 0.22 s al reloj del KO. Machacando a ~8 toques por
+  segundo despiertas en poco más de 1 s en vez de 3, o te zafas antes del
+  que te está cargando. Sobre tu monito parpadea "¡MACHACA GOLPE!".
+- Esto obliga al que carga a decidir rápido y a los demás a no confiarse.
+
+### 2.9 En línea
 - Sala con código de 4 letras. Hasta **8 jugadores** (uno por animal). El
   anfitrión decide cuándo empezar y puede agregar bots.
 - Cada jugador ve su propio nombre en blanco y una flechita sobre su monito
   cuando hay más de dos.
 - Si alguien se desconecta, su monito lo controla un bot. Ver `docs/ONLINE.md`.
 
-### 2.8 Condición de victoria
+### 2.10 Condición de victoria
 - Cada monito tiene **3 vidas**. Pierde una al caer del edificio.
 - Gana el último con vidas. Se muestra un marcador de "KOs" (combos de 4 y
   explosiones que provocaste) para picar el orgullo.
@@ -123,7 +146,7 @@ agarrar) para que quepan en dos pulgares sin mirar la pantalla.
 | | Jugador 1 | Jugador 2 | Gamepad |
 |---|---|---|---|
 | Mover | A / D | ← / → | Stick izq. / D-pad |
-| Saltar | W (o Espacio) | ↑ | A |
+| Saltar / volar (mantener) | W (o Espacio) | ↑ | A |
 | Golpear | F (o J) | , (o O) | X |
 | Agarrar / Aventar | G (o K) | . (o P) | B |
 | Pedo | H (o L) | / (o I) | Y |

@@ -104,6 +104,6 @@ export class TouchControls {
     if (p.dy > JUMP_PUSH * 0.5) p.jumpArmed = true; // hay que soltar hacia el centro para volver a saltar
     const edge = (k) => { const v = p[k] && !p.prev[k]; p.prev[k] = p[k]; return v; };
     jump = edge('jumpBtn') || jump;
-    return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
+    return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, jumpHeld: p.jumpBtn || jumpHeld, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
   }
 }

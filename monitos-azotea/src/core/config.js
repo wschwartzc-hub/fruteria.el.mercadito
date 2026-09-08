@@ -37,6 +37,18 @@ export const CFG = {
     duration: 3.0,       // tiempo desmayado (pajaritos)
     minAfterThrow: 0.8,  // al aterrizar tras ser aventado, sigue KO al menos esto
     invulnAfterWake: 0.5,
+    mashReduce: 0.22,      // cada golpe machacado mientras estás KO quita esto al reloj
+  },
+
+  jetpack: {
+    w: 34, h: 40,
+    firstAt: 12,
+    spawnMin: 14, spawnMax: 22,
+    ttl: 15,               // segundos en el piso antes de desaparecer
+    fuel: 1.4,             // segundos totales de empuje (se puede usar a ratos)
+    thrust: 3400,          // aceleración hacia arriba
+    maxUp: 540,            // velocidad máxima de subida
+    airControl: 1.0,       // control horizontal mientras vuelas
   },
 
   grab: {

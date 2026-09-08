@@ -2,7 +2,7 @@
 // amarillos, toldos en las ventanas, barandal y bandera en la azotea, árbol
 // al lado, ciudad lavanda al fondo. También barriles y frijoles.
 import { B } from '../core/world.js';
-import { OUTLINE } from './monito.js';
+import { OUTLINE, drawJetpack } from './monito.js';
 
 const P = {
   skyTop: '#5cb5ee', skyBottom: '#d6efff', cloud: '#ffffff',
@@ -141,6 +141,26 @@ export function drawBean(ctx, b, roof, time) {
     const k = (Math.sin(time * 6) + 1) / 2;
     ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
     ctx.beginPath(); ctx.moveTo(b.x + 16, b.y - 30); ctx.lineTo(b.x + 19, b.y - 24); ctx.lineTo(b.x + 25, b.y - 22); ctx.lineTo(b.x + 19, b.y - 20); ctx.lineTo(b.x + 16, b.y - 14); ctx.lineTo(b.x + 13, b.y - 20); ctx.lineTo(b.x + 7, b.y - 22); ctx.lineTo(b.x + 13, b.y - 24); ctx.closePath(); ctx.fill();
+  }
+}
+
+export function drawJetpackItem(ctx, j, roof, time) {
+  if (j.state === 'gone') return;
+  if (j.state === 'falling') {
+    // paracaídas
+    ctx.beginPath(); ctx.arc(j.x, j.y - j.h - 40, 34, Math.PI, 0); ctx.closePath();
+    ctx.fillStyle = '#ff8c42'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(j.x - 12, j.y - j.h - 40); ctx.arc(j.x, j.y - j.h - 40, 34, Math.PI * 1.3, Math.PI * 1.7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(j.x - 34, j.y - j.h - 40); ctx.lineTo(j.x, j.y - j.h + 4); ctx.moveTo(j.x + 34, j.y - j.h - 40); ctx.lineTo(j.x, j.y - j.h + 4); ctx.stroke();
+    if (j.x > roof.x && j.x < roof.x + roof.w) { ctx.fillStyle = 'rgba(40,20,60,.2)'; ctx.beginPath(); ctx.ellipse(j.x, roof.y + 2, 14, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  const bob = j.state === 'rest' ? Math.sin(time * 4) * 3 : 0;
+  drawJetpack(ctx, j.x, j.y - j.h / 2 + bob, 1, false, time, 1);
+  if (j.state === 'rest') {
+    const k = (Math.sin(time * 6) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
+    ctx.beginPath(); ctx.moveTo(j.x + 22, j.y - 48); ctx.lineTo(j.x + 25, j.y - 42); ctx.lineTo(j.x + 31, j.y - 40); ctx.lineTo(j.x + 25, j.y - 38); ctx.lineTo(j.x + 22, j.y - 32); ctx.lineTo(j.x + 19, j.y - 38); ctx.lineTo(j.x + 13, j.y - 40); ctx.lineTo(j.x + 19, j.y - 42); ctx.closePath(); ctx.fill();
   }
 }
 

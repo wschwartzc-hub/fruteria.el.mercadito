@@ -212,6 +212,11 @@ Spawn: `nextBarrelIn` empieza en 5 s y después toma valores en [6, 12] s.
 | `fartStart` | id | — (pose agachado) |
 | `fart` | id, x, y, radius | anillo verde, nube, ¡PRRRT!, shake |
 | `gassed` | id, byId | ¡GUÁCALA! sobre la víctima |
+| `jetpackSpawn` / `jetpackLand` | jetpackId, x | — |
+| `jetpackPickup` | id, x, y | ¡JET PACK! |
+| `jetpackSave` | id, x, y | ¡SALVADO! + anillo azul |
+| `jetpackEmpty` | id, x, y | ¡SIN GAS! |
+| `mash` | id, x, y | estrellita por cada toque |
 | `matchOver` | winnerId | pantalla final |
 
 El render nunca modifica el mundo; sólo lee y consume eventos. Eso deja la
@@ -235,6 +240,10 @@ puerta abierta a repetir partidas (replays) o a correr el mundo en un servidor.
 Prioridades, de mayor a menor:
 1. Cargando a un monito → caminar al borde más cercano y aventar.
 2. Cargando un barril → acercarse al rival y aventarlo a < 260 px.
+0. KO o cargado → machaca golpe cada 0.3 s. Aventado/cayendo con jet pack →
+   salto mantenido; en el aire con jet pack y fuera/abajo de la azotea →
+   vuela hacia el centro.
+2a. Jet pack en el piso a < 320 px y sin traer uno → ir por él.
 2b. Con frijol y un rival a < 100 px → pedo.
 2c. Frijol en el piso a < 240 px (y sin KO cerca que aprovechar) → ir por él.
 3. Hay un KO a < 260 px que nadie levanta → ir y agarrar.
@@ -256,5 +265,7 @@ Prioridades, de mayor a menor:
 | `barrel.spawnMin/Max` | 6–12 s | Caos ambiental |
 | `barrel.explodeRadius` | 150 | Cuántos se lleva una explosión |
 | `fart.radius` | 125 | Qué tan letal es el pedo |
+| `jetpack.fuel` | 1.4 s | Cuánto puedes volar |
+| `ko.mashReduce` | 0.22 s | Qué tanto ayuda machacar |
 | `fart.windup` | 0.45 s | Cuánto tiempo pueden interrumpirte |
 | `bean.spawnMin/Max` | 7–13 s | Cuántos pedos hay por partida |

@@ -222,6 +222,18 @@ const CFG = {
     duration: 3.0,       // tiempo desmayado (pajaritos)
     minAfterThrow: 0.8,  // al aterrizar tras ser aventado, sigue KO al menos esto
     invulnAfterWake: 0.5,
+    mashReduce: 0.22,      // cada golpe machacado mientras estás KO quita esto al reloj
+  },
+
+  jetpack: {
+    w: 34, h: 40,
+    firstAt: 12,
+    spawnMin: 14, spawnMax: 22,
+    ttl: 15,               // segundos en el piso antes de desaparecer
+    fuel: 1.4,             // segundos totales de empuje (se puede usar a ratos)
+    thrust: 3400,          // aceleración hacia arriba
+    maxUp: 540,            // velocidad máxima de subida
+    airControl: 1.0,       // control horizontal mientras vuelas
   },
 
   grab: {
@@ -271,7 +283,7 @@ return { CFG };
 })();
 
 // ---- src/core/world.js ----
-const { S, B, SPECIES, createMonito, createBarrel, createBean, boxOf, overlaps, World } = (() => {
+const { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, boxOf, overlaps, World } = (() => {
 // Núcleo del juego: física simple + reglas + máquinas de estado.
 // Es JS puro sin canvas ni DOM para poder probarlo con `node --test`.
 // El renderer sólo lee el estado y consume `world.drain()` (eventos).
@@ -288,7 +300,9 @@ const B = Object.freeze({
   CARRIED: 'carried', THROWN: 'thrown', EXPLODING: 'exploding', GONE: 'gone',
 });
 
-const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, punch: false, grab: false, fart: false });
+const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false });
+// Estados desde los que un jet pack te puede rescatar.
+const RESCUABLE = new Set([S.THROWN, S.LAUNCHED, S.FALLING]);
 
 // Estados en los que un puñetazo tiene efecto sobre la víctima.
 const HITTABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.HITSTUN, S.PICKUP, S.CARRYING, S.CARRIED, S.FART]);
@@ -314,6 +328,7 @@ function createMonito(id, x, y, opts = {}) {
     carryingId: null, carryingBarrelId: null, carriedById: null, pickupTargetId: null,
     punchHit: false,
     beans: 0, fartCloud: 0,
+    jetpack: null, thrusting: false,   // jetpack = { fuel } cuando la traes puesta
     stocks: CFG.match.stocks, score: 0, respawnTimer: 0,
     justLanded: false,
   };
@@ -329,6 +344,10 @@ function createBarrel(id, x, y) {
 
 function createBean(id, x, y) {
   return { id, x, y, vx: 0, vy: 0, w: CFG.bean.w, h: CFG.bean.h, state: 'falling', ttl: CFG.bean.ttl, spin: 0 };
+}
+
+function createJetpackItem(id, x, y) {
+  return { id, x, y, vx: 0, vy: 0, w: CFG.jetpack.w, h: CFG.jetpack.h, state: 'falling', ttl: CFG.jetpack.ttl, spin: 0 };
 }
 
 function boxOf(e) {
@@ -351,6 +370,10 @@ class World {
     this.beansEnabled = opts.beans ?? true;
     this.nextBeanIn = CFG.bean.firstAt;
     this.beanSeq = 0;
+    this.jetpacks = [];
+    this.jetpacksEnabled = opts.jetpacks ?? true;
+    this.nextJetpackIn = CFG.jetpack.firstAt;
+    this.jetpackSeq = 0;
     this.rng = opts.rng ?? Math.random;
     this.barrelsEnabled = opts.barrels ?? true;
     this.nextBarrelIn = CFG.barrel.spawnGraceInitial;
@@ -387,6 +410,7 @@ class World {
     for (const m of this.monitos) this.resolvePunch(m);
     this.updateBarrels(dt);
     this.updateBeans(dt);
+    this.updateJetpacks(dt);
     for (const m of this.monitos) this.checkFall(m);
     this.checkWin();
   }
@@ -394,6 +418,7 @@ class World {
   // ---------- máquina de estados del monito ----------
   updateMonito(m, inp, dt) {
     m.t += dt;
+    m.thrusting = false;
     if (m.invuln > 0) m.invuln -= dt;
 
     switch (m.state) {
@@ -403,12 +428,14 @@ class World {
         return;
       case S.KO:
         m.koTimer -= dt;
+        if (inp.punch) this.mash(m);
         this.groundFriction(m, dt);
         if (m.koTimer <= 0) this.wake(m);
         return;
       case S.CARRIED:
         // El reloj del desmayo sigue corriendo: si despierta en brazos, se zafa.
         m.koTimer -= dt;
+        if (inp.punch) this.mash(m);
         if (m.koTimer <= 0) this.breakFree(m);
         return;
       case S.HITSTUN:
@@ -417,9 +444,11 @@ class World {
         return;
       case S.LAUNCHED:
       case S.THROWN:
+        if (this.canRescue(m) && inp.jump) { this.jetpackSave(m, inp, dt); return; }
         if (m.onGround && m.t > 0.08) this.enterKO(m, m.state === S.THROWN ? Math.max(m.koTimer, CFG.ko.minAfterThrow) : CFG.ko.duration);
         return;
       case S.FALLING:
+        if (this.canRescue(m) && inp.jump) { this.jetpackSave(m, inp, dt); return; }
         return; // ya no hay control: sólo cae
       case S.PUNCH: {
         const p = CFG.punch;
@@ -440,7 +469,8 @@ class World {
         if (inp.grab) this.throwCarried(m);
         return;
       default: // IDLE / WALK / JUMP
-        this.move(m, inp, dt, CFG.monito.walkSpeed);
+        this.move(m, inp, dt, CFG.monito.walkSpeed, this.wantsThrust(m, inp));
+        if (this.wantsThrust(m, inp)) this.thrust(m, dt);
         if (inp.punch) { this.setState(m, S.PUNCH); m.punchHit = false; return; }
         if (inp.grab && m.onGround && this.tryGrab(m)) return;
         if (inp.fart && m.onGround && m.beans > 0) { this.setState(m, S.FART); this.emit('fartStart', { id: m.id }); return; }
@@ -452,9 +482,9 @@ class World {
 
   setState(m, s) { if (m.state !== s) { m.state = s; m.t = 0; } }
 
-  move(m, inp, dt, speed) {
+  move(m, inp, dt, speed, flying = false) {
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    const ctrl = m.onGround ? 1 : CFG.monito.airControl;
+    const ctrl = m.onGround ? 1 : flying ? CFG.jetpack.airControl : CFG.monito.airControl;
     if (dir !== 0) {
       m.facing = dir;
       const target = dir * speed;
@@ -679,6 +709,78 @@ class World {
     }
   }
 
+  // ---------- jet pack ----------
+  wantsThrust(m, inp) { return !!m.jetpack && m.jetpack.fuel > 0 && inp.jumpHeld && !m.onGround; }
+  canRescue(m) { return !!m.jetpack && m.jetpack.fuel > 0; }
+
+  thrust(m, dt) {
+    m.thrusting = true;
+    m.vy = Math.max(m.vy - CFG.jetpack.thrust * dt, -CFG.jetpack.maxUp);
+    if (m.y - m.h < 30 && m.vy < 0) m.vy = 0; // techo: no se sale de la pantalla
+    m.jetpack.fuel -= dt;
+    if (m.jetpack.fuel <= 0) { m.jetpack = null; m.thrusting = false; this.emit('jetpackEmpty', { id: m.id, x: m.x, y: m.y - m.h }); }
+  }
+
+  // Un aventado / lanzado / cayendo con jet pack presiona salto: despierta y vuela.
+  jetpackSave(m, inp, dt) {
+    m.koTimer = 0; m.carriedById = null;
+    m.invuln = Math.max(m.invuln, 0.4);
+    m.onGround = false;
+    if (m.vy > 200) m.vy = 200; // frena la caída para que se sienta el rescate
+    this.setState(m, S.JUMP);
+    this.emit('jetpackSave', { id: m.id, x: m.x, y: m.y - m.h });
+    this.thrust(m, dt);
+  }
+
+  // Machacar golpe mientras estás KO (o cargado) acorta el desmayo.
+  mash(m) {
+    m.koTimer -= CFG.ko.mashReduce;
+    this.emit('mash', { id: m.id, x: m.x, y: m.y - m.h * 0.6 });
+  }
+
+  spawnJetpack(x) {
+    const j = createJetpackItem(this.jetpackSeq++, x ?? this.roof.x + 80 + this.rng() * (this.roof.w - 160), -90);
+    this.jetpacks.push(j);
+    this.emit('jetpackSpawn', { jetpackId: j.id, x: j.x });
+    return j;
+  }
+
+  updateJetpacks(dt) {
+    if (this.jetpacksEnabled && !this.over) {
+      this.nextJetpackIn -= dt;
+      if (this.nextJetpackIn <= 0) {
+        this.spawnJetpack();
+        this.nextJetpackIn = CFG.jetpack.spawnMin + this.rng() * (CFG.jetpack.spawnMax - CFG.jetpack.spawnMin);
+      }
+    }
+    for (const j of this.jetpacks) {
+      if (j.state === 'falling') {
+        const prevY = j.y;
+        j.vy += CFG.gravity * 0.35 * dt; // baja despacio, como con paracaídas
+        j.vy = Math.min(j.vy, 260);
+        j.spin += dt;
+        j.x += Math.sin(j.spin * 3) * 30 * dt;
+        j.y += j.vy * dt;
+        if (this.overRoof(j.x) && j.y >= this.roof.y && prevY <= this.roof.y + 0.5) { j.y = this.roof.y; j.vy = 0; j.state = 'rest'; this.emit('jetpackLand', { jetpackId: j.id, x: j.x }); }
+        else if (j.y > this.deathY) j.state = 'gone';
+      } else if (j.state === 'rest') {
+        j.ttl -= dt;
+        if (j.ttl <= 0) { j.state = 'gone'; continue; }
+      }
+      if (j.state === 'gone') continue;
+      const jb = boxOf(j);
+      for (const m of this.monitos) {
+        if (!CAN_EAT.has(m.state) || m.jetpack) continue;
+        if (!overlaps(jb, boxOf(m))) continue;
+        m.jetpack = { fuel: CFG.jetpack.fuel };
+        j.state = 'gone';
+        this.emit('jetpackPickup', { id: m.id, jetpackId: j.id, x: m.x, y: m.y - m.h });
+        break;
+      }
+    }
+    this.jetpacks = this.jetpacks.filter((j) => j.state !== 'gone');
+  }
+
   // ---------- frijoles y pedos ----------
   spawnBean(x) {
     const b = createBean(this.beanSeq++, x ?? this.roof.x + 60 + this.rng() * (this.roof.w - 120), -80);
@@ -853,7 +955,8 @@ class World {
   // ---------- caídas, muerte, respawn ----------
   checkFall(m) {
     if (m.state === S.DEAD || m.state === S.CARRIED) return;
-    if (m.state !== S.FALLING && !this.overRoof(m.x) && m.y > this.roof.y + 24) {
+    const flying = m.state === S.JUMP && this.canRescue(m);
+    if (m.state !== S.FALLING && !flying && !this.overRoof(m.x) && m.y > this.roof.y + 24) {
       if (m.carryingId != null) {
         const o = this.get(m.carryingId);
         o.carriedById = null; o.vx = m.vx; o.vy = m.vy; this.setState(o, S.FALLING);
@@ -874,6 +977,7 @@ class World {
 
   die(m) {
     m.stocks -= 1;
+    m.jetpack = null; m.thrusting = false;
     m.vx = 0; m.vy = 0;
     m.respawnTimer = CFG.match.respawnDelay;
     m.koTimer = 0; m.combo.count = 0; m.combo.attackerId = null;
@@ -901,11 +1005,11 @@ class World {
   }
 }
 
-return { S, B, SPECIES, createMonito, createBarrel, createBean, boxOf, overlaps, World };
+return { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, boxOf, overlaps, World };
 })();
 
 // ---- src/render/monito.js ----
-const { OUTLINE, stepMonitoAnim, shade, drawHead, drawShadow, drawFartCloud, drawMonito } = (() => {
+const { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawShadow, drawFartCloud, drawMonito } = (() => {
 // Dibujo vectorial de los monitos: cuerpo de gelatina + cabeza de animal
 // estilo "flat" (contorno grueso, ojitos de punto, cachetes rosas).
 
@@ -1121,6 +1225,26 @@ function birds(ctx, x, y, time) {
   }
 }
 
+// Mochila jet pack: se dibuja en coordenadas locales del monito (espalda).
+function drawJetpack(ctx, x, y, dir, thrusting, time, scale = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+  if (thrusting) {
+    const f = 1 + Math.sin(time * 60) * 0.25;
+    for (const nx of [-9, 9]) {
+      ctx.beginPath(); ctx.moveTo(nx - 6, 18); ctx.quadraticCurveTo(nx, 18 + 34 * f, nx + 6, 18); ctx.closePath();
+      ctx.fillStyle = '#ff8c42'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(nx - 3, 18); ctx.quadraticCurveTo(nx, 18 + 18 * f, nx + 3, 18); ctx.closePath();
+      ctx.fillStyle = '#ffe14d'; ctx.fill();
+    }
+  }
+  ctx.beginPath(); ctx.roundRect(-16, -18, 32, 36, 8); ctx.fillStyle = '#b9bfcc'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#ff5a5a'; ctx.fillRect(-16, -4, 32, 7);
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.strokeRect(-16, -4, 32, 7);
+  for (const nx of [-9, 9]) { ctx.beginPath(); ctx.roundRect(nx - 6, 14, 12, 8, 2); ctx.fillStyle = '#5d6270'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(0, -8, 4, 0, Math.PI * 2); ctx.fillStyle = '#6ad1ff'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+
 function drawShadow(ctx, m, roof) {
   if (m.state === S.DEAD || m.state === S.CARRIED) return;
   if (m.x <= roof.x || m.x >= roof.x + roof.w) return;
@@ -1220,6 +1344,7 @@ function drawMonito(ctx, m, time, cfg) {
   limb(ctx, backSh.x, backSh.y, bh.x, bh.y, dir * 8, dark, 9);
   fist(ctx, bh.x, bh.y, 6.5, c);
 
+  if (m.jetpack) drawJetpack(ctx, -dir * W * 0.42, -H * 0.42 + bob, dir, m.thrusting, time, 0.9);
   body(ctx, 0, -4 + bob, bodyW, bodyH + 4, c);
 
   limb(ctx, frontSh.x, frontSh.y, fh.x, fh.y, -dir * 8, dark, 9);
@@ -1242,7 +1367,7 @@ function drawMonito(ctx, m, time, cfg) {
   if (st === S.CARRIED) birds(ctx, m.x + dir * W * 0.6, m.y - H * 0.45, time);
 }
 
-return { OUTLINE, stepMonitoAnim, shade, drawHead, drawShadow, drawFartCloud, drawMonito };
+return { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawShadow, drawFartCloud, drawMonito };
 })();
 
 // ---- src/render/effects.js ----
@@ -1310,6 +1435,14 @@ class Effects {
       case 'gassed': {
         const m = world.get(ev.id);
         this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
+        break;
+      }
+      case 'jetpackPickup': this.text(ev.x, ev.y - 20, '¡JET PACK!', '#6ad1ff', 28); this.stars(ev.x, ev.y + 20, 5); break;
+      case 'jetpackSave': this.text(ev.x, ev.y - 30, '¡SALVADO!', '#6ad1ff', 32); this.ring(ev.x, ev.y + 30, 60, '#6ad1ff'); break;
+      case 'jetpackEmpty': this.text(ev.x, ev.y - 20, '¡SIN GAS!', '#ff8a8a', 24); this.dust(ev.x, ev.y + 30, 6); break;
+      case 'mash': {
+        const a = Math.random() * Math.PI * 2;
+        this.parts.push({ type: 'star', x: ev.x + Math.cos(a) * 20, y: ev.y, vx: Math.cos(a) * 80, vy: -160, life: 0.35, max: 0.35, rot: 0, size: 5, color: '#ffd23f' });
         break;
       }
       case 'wake': { const m = world.get(ev.id); this.text(m.x, m.y - 90, '¿eh?', '#fff', 22); break; }
@@ -1410,7 +1543,7 @@ return { Effects };
 })();
 
 // ---- src/render/scene.js ----
-const { drawBackground, drawBean, drawBarrel } = (() => {
+const { drawBackground, drawBean, drawJetpackItem, drawBarrel } = (() => {
 // Escenario según la referencia: torre cartoon con piso alto morado, pisos
 // amarillos, toldos en las ventanas, barandal y bandera en la azotea, árbol
 // al lado, ciudad lavanda al fondo. También barriles y frijoles.
@@ -1556,6 +1689,26 @@ function drawBean(ctx, b, roof, time) {
   }
 }
 
+function drawJetpackItem(ctx, j, roof, time) {
+  if (j.state === 'gone') return;
+  if (j.state === 'falling') {
+    // paracaídas
+    ctx.beginPath(); ctx.arc(j.x, j.y - j.h - 40, 34, Math.PI, 0); ctx.closePath();
+    ctx.fillStyle = '#ff8c42'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(j.x - 12, j.y - j.h - 40); ctx.arc(j.x, j.y - j.h - 40, 34, Math.PI * 1.3, Math.PI * 1.7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(j.x - 34, j.y - j.h - 40); ctx.lineTo(j.x, j.y - j.h + 4); ctx.moveTo(j.x + 34, j.y - j.h - 40); ctx.lineTo(j.x, j.y - j.h + 4); ctx.stroke();
+    if (j.x > roof.x && j.x < roof.x + roof.w) { ctx.fillStyle = 'rgba(40,20,60,.2)'; ctx.beginPath(); ctx.ellipse(j.x, roof.y + 2, 14, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  const bob = j.state === 'rest' ? Math.sin(time * 4) * 3 : 0;
+  drawJetpack(ctx, j.x, j.y - j.h / 2 + bob, 1, false, time, 1);
+  if (j.state === 'rest') {
+    const k = (Math.sin(time * 6) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
+    ctx.beginPath(); ctx.moveTo(j.x + 22, j.y - 48); ctx.lineTo(j.x + 25, j.y - 42); ctx.lineTo(j.x + 31, j.y - 40); ctx.lineTo(j.x + 25, j.y - 38); ctx.lineTo(j.x + 22, j.y - 32); ctx.lineTo(j.x + 19, j.y - 38); ctx.lineTo(j.x + 13, j.y - 40); ctx.lineTo(j.x + 19, j.y - 42); ctx.closePath(); ctx.fill();
+  }
+}
+
 function drawBarrel(ctx, b, roof, time) {
   if (b.state === B.GONE) return;
   if (b.state === B.WARNING) {
@@ -1594,7 +1747,7 @@ function drawBarrel(ctx, b, roof, time) {
   ctx.restore();
 }
 
-return { drawBackground, drawBean, drawBarrel };
+return { drawBackground, drawBean, drawJetpackItem, drawBarrel };
 })();
 
 // ---- src/bot.js ----
@@ -1611,10 +1764,20 @@ const memo = new Map(); // id -> { nextPunch, nextJump }
 function botInput(world, me, time) {
   const st = memo.get(me.id) || { nextPunch: 0, nextJump: 0, edge: 1 };
   memo.set(me.id, st);
-  const inp = { left: false, right: false, jump: false, punch: false, grab: false, fart: false };
+  const inp = { left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false };
+  const roof = world.roof;
+  // KO: machaca golpe (no tan rápido como un humano desesperado)
+  if (me.state === S.KO || me.state === S.CARRIED) { if (time > st.nextMash) { inp.punch = true; st.nextMash = time + 0.3; } return inp; }
+  // aventado con jet pack: sálvate y vuela de regreso
+  if ([S.THROWN, S.LAUNCHED, S.FALLING].includes(me.state)) { if (me.jetpack && me.jetpack.fuel > 0) { inp.jump = true; inp.jumpHeld = true; } return inp; }
+  if (me.state === S.JUMP && me.jetpack && me.jetpack.fuel > 0 && (me.y > roof.y - 10 || me.x < roof.x || me.x > roof.x + roof.w)) {
+    inp.jumpHeld = me.y > roof.y - 120; // sube hasta quedar por encima de la azotea
+    const target = roof.x + roof.w / 2;
+    if (target < me.x - 10) inp.left = true; else if (target > me.x + 10) inp.right = true;
+    return inp;
+  }
   if (![S.IDLE, S.WALK, S.JUMP, S.CARRYING].includes(me.state)) return inp;
 
-  const roof = world.roof;
   const others = world.monitos.filter((m) => m !== me && m.state !== S.DEAD && m.state !== S.FALLING);
   const nearest = others.sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
   const goTo = (x, margin = 6) => { if (x < me.x - margin) inp.left = true; else if (x > me.x + margin) inp.right = true; };
@@ -1638,6 +1801,9 @@ function botInput(world, me, time) {
 
   // pedo si hay rival cerca y tengo frijol
   if (me.beans > 0 && me.onGround && nearest && world.dist(me, nearest) < CFG.fart.radius * 0.8 && nearest.state !== S.KO) { inp.fart = true; return inp; }
+  // jet pack en el piso: vale oro
+  const jp = world.jetpacks.find((j) => j.state === 'rest' && Math.abs(j.x - me.x) < 320);
+  if (jp && !me.jetpack) { safeGoTo(jp.x); return inp; }
   // frijol cerca: ir por él
   const bean = world.beans.find((b) => b.state === 'rest' && Math.abs(b.x - me.x) < 240);
   if (bean && me.beans < CFG.bean.maxCharges && !others.some((o) => o.state === S.KO && Math.abs(o.x - me.x) < 120)) { safeGoTo(bean.x); return inp; }
@@ -1784,7 +1950,7 @@ class TouchControls {
     if (p.dy > JUMP_PUSH * 0.5) p.jumpArmed = true; // hay que soltar hacia el centro para volver a saltar
     const edge = (k) => { const v = p[k] && !p.prev[k]; p.prev[k] = p[k]; return v; };
     jump = edge('jumpBtn') || jump;
-    return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
+    return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, jumpHeld: p.jumpBtn || jumpHeld, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
   }
 }
 
@@ -1926,9 +2092,10 @@ const r1 = (v) => Math.round(v * 10) / 10;
 function encodeSnapshot(world, events) {
   return {
     t: 'snap', time: r1(world.time), over: world.over, winnerId: world.winnerId,
-    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1]),
+    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0]),
     b: world.barrels.map((b) => [b.id, r1(b.x), r1(b.y), b.state, b.armed ? 1 : 0, r1(b.fuse), r1(b.spin), r1(b.t)]),
     f: world.beans.map((b) => [b.id, r1(b.x), r1(b.y), b.state, r1(b.spin)]),
+    j: world.jetpacks.map((j) => [j.id, r1(j.x), r1(j.y), j.state, r1(j.spin)]),
     ev: events.map((e) => { const { t, ...rest } = e; return rest; }),
   };
 }
@@ -1939,7 +2106,7 @@ class Replica {
     this.roof = { ...CFG.roof };
     this.time = 0; this.over = false; this.winnerId = null;
     this.monitos = players.map((p, i) => { const m = createMonito(i, this.roof.x + 100, this.roof.y, { species: p.species, name: p.name }); m.justLanded = false; return m; });
-    this.barrels = []; this.beans = [];
+    this.barrels = []; this.beans = []; this.jetpacks = [];
     this.prev = null; this.next = null; this.prevAt = 0; this.nextAt = 0;
     this.events = [];
   }
@@ -1952,12 +2119,14 @@ class Replica {
       const m = this.monitos[row[0]]; if (!m) continue;
       [, m.tx, m.ty, m.vx, m.vy, m.facing, m.state, m.t, m.koTimer, m.invuln, m.beans, m.fartCloud, m.stocks, m.score, m.combo.count, m.combo.lastAt] = row;
       m.onGround = row[16] === 1; m.carriedById = row[17] < 0 ? null : row[17];
+      m.jetpack = row[18] >= 0 ? { fuel: row[18] } : null; m.thrusting = row[19] === 1;
       if (m.x == null || m.state === 'dead') { m.x = m.tx; m.y = m.ty; }
       m.px = m.x; m.py = m.y; // punto de partida de la interpolación
       if (Math.hypot(m.tx - m.x, m.ty - m.y) > 200) { m.px = m.tx; m.py = m.ty; } // teletransporte (respawn)
     }
     this.barrels = snap.b.map(([id, x, y, state, armed, fuse, spin, t]) => ({ id, x, y, w: CFG.barrel.w, h: CFG.barrel.h, state, armed: armed === 1, fuse, spin, t, carriedById: null }));
     this.beans = snap.f.map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.bean.w, h: CFG.bean.h, state, spin }));
+    this.jetpacks = (snap.j || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.jetpack.w, h: CFG.jetpack.h, state, spin }));
     this.events.push(...snap.ev.map((e) => ({ t: snap.time, ...e })));
   }
   // Avanza la posición dibujada hacia la última foto.
@@ -1976,7 +2145,7 @@ class Replica {
 }
 
 // ---------- entradas remotas (contadores para no perder toques) ----------
-function emptyCounters() { return { l: false, r: false, j: 0, p: 0, g: 0, f: 0 }; }
+function emptyCounters() { return { l: false, r: false, jh: false, j: 0, p: 0, g: 0, f: 0 }; }
 
 class RemoteInputs {
   constructor() { this.latest = new Map(); this.seen = new Map(); }
@@ -1986,7 +2155,7 @@ class RemoteInputs {
     const c = this.latest.get(slot) || emptyCounters();
     const s = this.seen.get(slot) || { j: c.j, p: c.p, g: c.g, f: c.f };
     const edge = (k) => { if (c[k] > s[k]) { s[k] += 1; return true; } return false; };
-    const out = { left: !!c.l, right: !!c.r, jump: edge('j'), punch: edge('p'), grab: edge('g'), fart: edge('f') };
+    const out = { left: !!c.l, right: !!c.r, jump: edge('j'), jumpHeld: !!c.jh, punch: edge('p'), grab: edge('g'), fart: edge('f') };
     this.seen.set(slot, s);
     return out;
   }
@@ -1998,7 +2167,7 @@ class InputSender {
   constructor(send) { this.send = send; this.c = emptyCounters(); this.lastSent = ''; this.lastAt = 0; }
   push(inp, now) {
     if (inp.jump) this.c.j++; if (inp.punch) this.c.p++; if (inp.grab) this.c.g++; if (inp.fart) this.c.f++;
-    this.c.l = inp.left; this.c.r = inp.right;
+    this.c.l = inp.left; this.c.r = inp.right; this.c.jh = !!inp.jumpHeld;
     const key = JSON.stringify(this.c);
     if (key !== this.lastSent || now - this.lastAt > 0.25) { this.send({ t: 'in', ...this.c }); this.lastSent = key; this.lastAt = now; }
   }
@@ -2108,7 +2277,7 @@ const { VIEW, Game } = (() => {
 
 
 const VIEW = { w: 1280, h: 720 };
-const NO_INPUT = { left: false, right: false, jump: false, punch: false, grab: false, fart: false };
+const NO_INPUT = { left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false };
 const SPECIES_COLORS = { mono: '#b07a4f', leon: '#f2a93b', zorro: '#ef8a3c', panda: '#f4f1ec', elefante: '#a9b4c4', jirafa: '#f5c445', pinguino: '#3a4661', buho: '#a0703f' };
 
 // Mapas de teclado por jugador.
@@ -2246,7 +2415,7 @@ class Game {
     const km = KEYMAPS[p.keymap];
     const has = (arr) => arr.some((k) => this.keys.has(k));
     const hit = (arr) => arr.some((k) => this.pressed.has(k));
-    const inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
+    const inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), jumpHeld: has(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
     const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : [];
     const pad = pads[p.keymap];
     if (pad) {
@@ -2255,7 +2424,7 @@ class Game {
       const prev = (p.padPrev ||= {});
       const edge = (name, v) => { const r = v && !prev[name]; prev[name] = v; return r; };
       inp.left ||= ax < -0.4 || btn(14); inp.right ||= ax > 0.4 || btn(15);
-      inp.jump ||= edge('jump', btn(0)); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
+      inp.jump ||= edge('jump', btn(0)); inp.jumpHeld ||= btn(0); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
     }
     return inp;
   }
@@ -2483,6 +2652,7 @@ class Game {
       const w = this.world;
       for (const m of w.monitos) drawShadow(ctx, m, roof);
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
+      for (const j of w.jetpacks) drawJetpackItem(ctx, j, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
@@ -2506,6 +2676,16 @@ class Game {
       ctx.fillStyle = m.id === mine ? '#fff' : m.color; ctx.fillText(m.name, m.x, topY - 6);
       if (m.id === mine && this.players.length > 2) { // flechita "eres tú"
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(m.x, topY - 22); ctx.lineTo(m.x - 7, topY - 34); ctx.lineTo(m.x + 7, topY - 34); ctx.closePath(); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+      }
+      if (m.jetpack) { // medidor de gasolina
+        const k = Math.max(0, Math.min(1, m.jetpack.fuel / CFG.jetpack.fuel));
+        ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY - 2, 44, 8, 4); ctx.fill();
+        ctx.fillStyle = k > 0.3 ? '#ff8c42' : '#ff3d3d'; ctx.beginPath(); ctx.roundRect(m.x - 20, topY, 40 * k, 4, 2); ctx.fill();
+      }
+      if ((m.state === S.KO || m.state === S.CARRIED) && m.id === mine && Math.floor(this.time * 4) % 2 === 0) {
+        ctx.font = '900 16px "Arial Black", Impact, sans-serif';
+        ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText('¡MACHACA GOLPE!', m.x, topY - 48);
+        ctx.fillStyle = '#ffd23f'; ctx.fillText('¡MACHACA GOLPE!', m.x, topY - 48);
       }
       if (m.state === S.KO || m.state === S.CARRIED) {
         const k = Math.max(0, m.koTimer / CFG.ko.duration);

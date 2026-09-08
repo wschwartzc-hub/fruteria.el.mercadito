@@ -2,7 +2,7 @@
 import { CFG } from './core/config.js';
 import { World, S, SPECIES } from './core/world.js';
 import { drawMonito, drawShadow, stepMonitoAnim, drawHead, drawFartCloud, OUTLINE } from './render/monito.js';
-import { drawBackground, drawBarrel, drawBean } from './render/scene.js';
+import { drawBackground, drawBarrel, drawBean, drawJetpackItem } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { botInput } from './bot.js';
 import { TouchControls } from './touch.js';
@@ -10,7 +10,7 @@ import { HostSession, ClientSession, Replica, InputSender, encodeSnapshot, SNAP_
 import { normalizeCode } from './net/peer.js';
 
 export const VIEW = { w: 1280, h: 720 };
-const NO_INPUT = { left: false, right: false, jump: false, punch: false, grab: false, fart: false };
+const NO_INPUT = { left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false };
 const SPECIES_COLORS = { mono: '#b07a4f', leon: '#f2a93b', zorro: '#ef8a3c', panda: '#f4f1ec', elefante: '#a9b4c4', jirafa: '#f5c445', pinguino: '#3a4661', buho: '#a0703f' };
 
 // Mapas de teclado por jugador.
@@ -148,7 +148,7 @@ export class Game {
     const km = KEYMAPS[p.keymap];
     const has = (arr) => arr.some((k) => this.keys.has(k));
     const hit = (arr) => arr.some((k) => this.pressed.has(k));
-    const inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
+    const inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), jumpHeld: has(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
     const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : [];
     const pad = pads[p.keymap];
     if (pad) {
@@ -157,7 +157,7 @@ export class Game {
       const prev = (p.padPrev ||= {});
       const edge = (name, v) => { const r = v && !prev[name]; prev[name] = v; return r; };
       inp.left ||= ax < -0.4 || btn(14); inp.right ||= ax > 0.4 || btn(15);
-      inp.jump ||= edge('jump', btn(0)); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
+      inp.jump ||= edge('jump', btn(0)); inp.jumpHeld ||= btn(0); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
     }
     return inp;
   }
@@ -385,6 +385,7 @@ export class Game {
       const w = this.world;
       for (const m of w.monitos) drawShadow(ctx, m, roof);
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
+      for (const j of w.jetpacks) drawJetpackItem(ctx, j, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
@@ -408,6 +409,16 @@ export class Game {
       ctx.fillStyle = m.id === mine ? '#fff' : m.color; ctx.fillText(m.name, m.x, topY - 6);
       if (m.id === mine && this.players.length > 2) { // flechita "eres tú"
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(m.x, topY - 22); ctx.lineTo(m.x - 7, topY - 34); ctx.lineTo(m.x + 7, topY - 34); ctx.closePath(); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+      }
+      if (m.jetpack) { // medidor de gasolina
+        const k = Math.max(0, Math.min(1, m.jetpack.fuel / CFG.jetpack.fuel));
+        ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY - 2, 44, 8, 4); ctx.fill();
+        ctx.fillStyle = k > 0.3 ? '#ff8c42' : '#ff3d3d'; ctx.beginPath(); ctx.roundRect(m.x - 20, topY, 40 * k, 4, 2); ctx.fill();
+      }
+      if ((m.state === S.KO || m.state === S.CARRIED) && m.id === mine && Math.floor(this.time * 4) % 2 === 0) {
+        ctx.font = '900 16px "Arial Black", Impact, sans-serif';
+        ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText('¡MACHACA GOLPE!', m.x, topY - 48);
+        ctx.fillStyle = '#ffd23f'; ctx.fillText('¡MACHACA GOLPE!', m.x, topY - 48);
       }
       if (m.state === S.KO || m.state === S.CARRIED) {
         const k = Math.max(0, m.koTimer / CFG.ko.duration);

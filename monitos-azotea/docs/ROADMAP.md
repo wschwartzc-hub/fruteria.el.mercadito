@@ -14,6 +14,8 @@
 - [x] Arte según referencias: ocho animales con cabezas distintas, torre
       morada y amarilla, HUD con avatares. Lienzo de diseño en `design/`.
 - [x] Elegir tu animal y tu nombre (se recuerdan en el teléfono).
+- [x] Jet pack en paracaídas: mantener salto para volar, 1.4 s de gasolina,
+      rescata a los aventados. Machacar golpe para despertar antes.
 
 ## v0.2 — Sensación (game feel)
 - [ ] Ajustar números jugando con gente (`docs/LOGICA.md` §11).

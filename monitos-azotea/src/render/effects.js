@@ -63,6 +63,14 @@ export class Effects {
         this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
         break;
       }
+      case 'jetpackPickup': this.text(ev.x, ev.y - 20, '¡JET PACK!', '#6ad1ff', 28); this.stars(ev.x, ev.y + 20, 5); break;
+      case 'jetpackSave': this.text(ev.x, ev.y - 30, '¡SALVADO!', '#6ad1ff', 32); this.ring(ev.x, ev.y + 30, 60, '#6ad1ff'); break;
+      case 'jetpackEmpty': this.text(ev.x, ev.y - 20, '¡SIN GAS!', '#ff8a8a', 24); this.dust(ev.x, ev.y + 30, 6); break;
+      case 'mash': {
+        const a = Math.random() * Math.PI * 2;
+        this.parts.push({ type: 'star', x: ev.x + Math.cos(a) * 20, y: ev.y, vx: Math.cos(a) * 80, vy: -160, life: 0.35, max: 0.35, rot: 0, size: 5, color: '#ffd23f' });
+        break;
+      }
       case 'wake': { const m = world.get(ev.id); this.text(m.x, m.y - 90, '¿eh?', '#fff', 22); break; }
       default: break;
     }

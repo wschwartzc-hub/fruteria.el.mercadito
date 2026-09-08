@@ -15,7 +15,9 @@ export const B = Object.freeze({
   CARRIED: 'carried', THROWN: 'thrown', EXPLODING: 'exploding', GONE: 'gone',
 });
 
-const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, punch: false, grab: false, fart: false });
+const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false });
+// Estados desde los que un jet pack te puede rescatar.
+const RESCUABLE = new Set([S.THROWN, S.LAUNCHED, S.FALLING]);
 
 // Estados en los que un puñetazo tiene efecto sobre la víctima.
 const HITTABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.HITSTUN, S.PICKUP, S.CARRYING, S.CARRIED, S.FART]);
@@ -41,6 +43,7 @@ export function createMonito(id, x, y, opts = {}) {
     carryingId: null, carryingBarrelId: null, carriedById: null, pickupTargetId: null,
     punchHit: false,
     beans: 0, fartCloud: 0,
+    jetpack: null, thrusting: false,   // jetpack = { fuel } cuando la traes puesta
     stocks: CFG.match.stocks, score: 0, respawnTimer: 0,
     justLanded: false,
   };
@@ -56,6 +59,10 @@ export function createBarrel(id, x, y) {
 
 export function createBean(id, x, y) {
   return { id, x, y, vx: 0, vy: 0, w: CFG.bean.w, h: CFG.bean.h, state: 'falling', ttl: CFG.bean.ttl, spin: 0 };
+}
+
+export function createJetpackItem(id, x, y) {
+  return { id, x, y, vx: 0, vy: 0, w: CFG.jetpack.w, h: CFG.jetpack.h, state: 'falling', ttl: CFG.jetpack.ttl, spin: 0 };
 }
 
 export function boxOf(e) {
@@ -78,6 +85,10 @@ export class World {
     this.beansEnabled = opts.beans ?? true;
     this.nextBeanIn = CFG.bean.firstAt;
     this.beanSeq = 0;
+    this.jetpacks = [];
+    this.jetpacksEnabled = opts.jetpacks ?? true;
+    this.nextJetpackIn = CFG.jetpack.firstAt;
+    this.jetpackSeq = 0;
     this.rng = opts.rng ?? Math.random;
     this.barrelsEnabled = opts.barrels ?? true;
     this.nextBarrelIn = CFG.barrel.spawnGraceInitial;
@@ -114,6 +125,7 @@ export class World {
     for (const m of this.monitos) this.resolvePunch(m);
     this.updateBarrels(dt);
     this.updateBeans(dt);
+    this.updateJetpacks(dt);
     for (const m of this.monitos) this.checkFall(m);
     this.checkWin();
   }
@@ -121,6 +133,7 @@ export class World {
   // ---------- máquina de estados del monito ----------
   updateMonito(m, inp, dt) {
     m.t += dt;
+    m.thrusting = false;
     if (m.invuln > 0) m.invuln -= dt;
 
     switch (m.state) {
@@ -130,12 +143,14 @@ export class World {
         return;
       case S.KO:
         m.koTimer -= dt;
+        if (inp.punch) this.mash(m);
         this.groundFriction(m, dt);
         if (m.koTimer <= 0) this.wake(m);
         return;
       case S.CARRIED:
         // El reloj del desmayo sigue corriendo: si despierta en brazos, se zafa.
         m.koTimer -= dt;
+        if (inp.punch) this.mash(m);
         if (m.koTimer <= 0) this.breakFree(m);
         return;
       case S.HITSTUN:
@@ -144,9 +159,11 @@ export class World {
         return;
       case S.LAUNCHED:
       case S.THROWN:
+        if (this.canRescue(m) && inp.jump) { this.jetpackSave(m, inp, dt); return; }
         if (m.onGround && m.t > 0.08) this.enterKO(m, m.state === S.THROWN ? Math.max(m.koTimer, CFG.ko.minAfterThrow) : CFG.ko.duration);
         return;
       case S.FALLING:
+        if (this.canRescue(m) && inp.jump) { this.jetpackSave(m, inp, dt); return; }
         return; // ya no hay control: sólo cae
       case S.PUNCH: {
         const p = CFG.punch;
@@ -167,7 +184,8 @@ export class World {
         if (inp.grab) this.throwCarried(m);
         return;
       default: // IDLE / WALK / JUMP
-        this.move(m, inp, dt, CFG.monito.walkSpeed);
+        this.move(m, inp, dt, CFG.monito.walkSpeed, this.wantsThrust(m, inp));
+        if (this.wantsThrust(m, inp)) this.thrust(m, dt);
         if (inp.punch) { this.setState(m, S.PUNCH); m.punchHit = false; return; }
         if (inp.grab && m.onGround && this.tryGrab(m)) return;
         if (inp.fart && m.onGround && m.beans > 0) { this.setState(m, S.FART); this.emit('fartStart', { id: m.id }); return; }
@@ -179,9 +197,9 @@ export class World {
 
   setState(m, s) { if (m.state !== s) { m.state = s; m.t = 0; } }
 
-  move(m, inp, dt, speed) {
+  move(m, inp, dt, speed, flying = false) {
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    const ctrl = m.onGround ? 1 : CFG.monito.airControl;
+    const ctrl = m.onGround ? 1 : flying ? CFG.jetpack.airControl : CFG.monito.airControl;
     if (dir !== 0) {
       m.facing = dir;
       const target = dir * speed;
@@ -406,6 +424,78 @@ export class World {
     }
   }
 
+  // ---------- jet pack ----------
+  wantsThrust(m, inp) { return !!m.jetpack && m.jetpack.fuel > 0 && inp.jumpHeld && !m.onGround; }
+  canRescue(m) { return !!m.jetpack && m.jetpack.fuel > 0; }
+
+  thrust(m, dt) {
+    m.thrusting = true;
+    m.vy = Math.max(m.vy - CFG.jetpack.thrust * dt, -CFG.jetpack.maxUp);
+    if (m.y - m.h < 30 && m.vy < 0) m.vy = 0; // techo: no se sale de la pantalla
+    m.jetpack.fuel -= dt;
+    if (m.jetpack.fuel <= 0) { m.jetpack = null; m.thrusting = false; this.emit('jetpackEmpty', { id: m.id, x: m.x, y: m.y - m.h }); }
+  }
+
+  // Un aventado / lanzado / cayendo con jet pack presiona salto: despierta y vuela.
+  jetpackSave(m, inp, dt) {
+    m.koTimer = 0; m.carriedById = null;
+    m.invuln = Math.max(m.invuln, 0.4);
+    m.onGround = false;
+    if (m.vy > 200) m.vy = 200; // frena la caída para que se sienta el rescate
+    this.setState(m, S.JUMP);
+    this.emit('jetpackSave', { id: m.id, x: m.x, y: m.y - m.h });
+    this.thrust(m, dt);
+  }
+
+  // Machacar golpe mientras estás KO (o cargado) acorta el desmayo.
+  mash(m) {
+    m.koTimer -= CFG.ko.mashReduce;
+    this.emit('mash', { id: m.id, x: m.x, y: m.y - m.h * 0.6 });
+  }
+
+  spawnJetpack(x) {
+    const j = createJetpackItem(this.jetpackSeq++, x ?? this.roof.x + 80 + this.rng() * (this.roof.w - 160), -90);
+    this.jetpacks.push(j);
+    this.emit('jetpackSpawn', { jetpackId: j.id, x: j.x });
+    return j;
+  }
+
+  updateJetpacks(dt) {
+    if (this.jetpacksEnabled && !this.over) {
+      this.nextJetpackIn -= dt;
+      if (this.nextJetpackIn <= 0) {
+        this.spawnJetpack();
+        this.nextJetpackIn = CFG.jetpack.spawnMin + this.rng() * (CFG.jetpack.spawnMax - CFG.jetpack.spawnMin);
+      }
+    }
+    for (const j of this.jetpacks) {
+      if (j.state === 'falling') {
+        const prevY = j.y;
+        j.vy += CFG.gravity * 0.35 * dt; // baja despacio, como con paracaídas
+        j.vy = Math.min(j.vy, 260);
+        j.spin += dt;
+        j.x += Math.sin(j.spin * 3) * 30 * dt;
+        j.y += j.vy * dt;
+        if (this.overRoof(j.x) && j.y >= this.roof.y && prevY <= this.roof.y + 0.5) { j.y = this.roof.y; j.vy = 0; j.state = 'rest'; this.emit('jetpackLand', { jetpackId: j.id, x: j.x }); }
+        else if (j.y > this.deathY) j.state = 'gone';
+      } else if (j.state === 'rest') {
+        j.ttl -= dt;
+        if (j.ttl <= 0) { j.state = 'gone'; continue; }
+      }
+      if (j.state === 'gone') continue;
+      const jb = boxOf(j);
+      for (const m of this.monitos) {
+        if (!CAN_EAT.has(m.state) || m.jetpack) continue;
+        if (!overlaps(jb, boxOf(m))) continue;
+        m.jetpack = { fuel: CFG.jetpack.fuel };
+        j.state = 'gone';
+        this.emit('jetpackPickup', { id: m.id, jetpackId: j.id, x: m.x, y: m.y - m.h });
+        break;
+      }
+    }
+    this.jetpacks = this.jetpacks.filter((j) => j.state !== 'gone');
+  }
+
   // ---------- frijoles y pedos ----------
   spawnBean(x) {
     const b = createBean(this.beanSeq++, x ?? this.roof.x + 60 + this.rng() * (this.roof.w - 120), -80);
@@ -580,7 +670,8 @@ export class World {
   // ---------- caídas, muerte, respawn ----------
   checkFall(m) {
     if (m.state === S.DEAD || m.state === S.CARRIED) return;
-    if (m.state !== S.FALLING && !this.overRoof(m.x) && m.y > this.roof.y + 24) {
+    const flying = m.state === S.JUMP && this.canRescue(m);
+    if (m.state !== S.FALLING && !flying && !this.overRoof(m.x) && m.y > this.roof.y + 24) {
       if (m.carryingId != null) {
         const o = this.get(m.carryingId);
         o.carriedById = null; o.vx = m.vx; o.vy = m.vy; this.setState(o, S.FALLING);
@@ -601,6 +692,7 @@ export class World {
 
   die(m) {
     m.stocks -= 1;
+    m.jetpack = null; m.thrusting = false;
     m.vx = 0; m.vy = 0;
     m.respawnTimer = CFG.match.respawnDelay;
     m.koTimer = 0; m.combo.count = 0; m.combo.attackerId = null;

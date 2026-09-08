@@ -3,8 +3,9 @@
 Juego 2D de peleas caóticas estilo *Gang Beasts*: animales de gelatina (mono,
 león, zorro, panda…) se empujan a golpes en la azotea de una torre. Combo de
 4 golpes = sale volando y queda desmayado; cárgalo y aviéntalo al vacío antes
-de que despierte. Del cielo caen barriles que explotan y frijoles que, si te
-los comes, te dejan tirar un pedo que desmaya a todos los que estén cerca.
+de que despierte. Del cielo caen barriles que explotan, frijoles que te dejan tirar un pedo que
+desmaya a los cercanos, y mochilas jet pack para volar de regreso cuando te
+avientan. Si te desmayan, machaca golpe para despertar antes.
 
 ## Jugar
 
@@ -29,7 +30,7 @@ Pensado para celular en horizontal (se pone en pantalla completa al tocar un mod
 | Táctil | |
 |---|---|
 | Joystick (pulgar izquierdo, aparece donde tocas) | mover (empujar arriba también salta) |
-| ⬆️ botón morado | saltar |
+| ⬆️ botón morado | saltar; mantenerlo en el aire enciende el jet pack si traes uno |
 | 👊 botón grande | golpear |
 | ✋ botón amarillo | agarrar / aventar (desmayados y barriles) |
 | 💨 botón verde | pedo (se enciende cuando llevas frijol) |
