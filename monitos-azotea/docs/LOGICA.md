@@ -190,7 +190,7 @@ Spawn: `nextBarrelIn` empieza en 5 s y después toma valores en [6, 12] s.
   de invulnerabilidad.
 - `checkWin`: con 2+ jugadores, si queda ≤ 1 con vidas termina la partida.
 
-## 9. Eventos que emite el mundo
+## 10. Eventos que emite el mundo
 
 | Evento | Datos | Uso en render |
 |---|---|---|
@@ -207,27 +207,36 @@ Spawn: `nextBarrelIn` empieza en 5 s y después toma valores en [6, 12] s.
 | `explode` | barrelId, x, y, radius | explosión completa |
 | `land` / `jump` | id, x, y | polvo |
 | `fallStart` / `fallOff` / `respawn` | id, stocks | ¡ADIÓS! |
+| `beanSpawn` / `beanLand` | beanId, x | — |
+| `eat` | id, beanId, x, y, beans | ¡ÑAM! |
+| `fartStart` | id | — (pose agachado) |
+| `fart` | id, x, y, radius | anillo verde, nube, ¡PRRRT!, shake |
+| `gassed` | id, byId | ¡GUÁCALA! sobre la víctima |
 | `matchOver` | winnerId | pantalla final |
 
 El render nunca modifica el mundo; sólo lee y consume eventos. Eso deja la
 puerta abierta a repetir partidas (replays) o a correr el mundo en un servidor.
 
-## 10. Entrada táctil (`src/touch.js`)
+## 11. Entrada táctil (`src/touch.js`)
 
-- Cada jugador táctil tiene `dx, dy` (joystick en −1..1) y `punch, grab`
-  (botones mantenidos). `read(i)` convierte eso al input del mundo:
-  `left = dx < −0.32`, `right = dx > 0.32`, `jump` = flanco cuando `dy < −0.62`
-  (se re-arma al volver `dy > −0.31`), `punch`/`grab` = flanco al presionar.
+- Cada jugador táctil tiene `dx, dy` (joystick en −1..1) y `punch, grab,
+  jumpBtn, fart` (botones mantenidos). `read(i)` convierte eso al input del
+  mundo: `left = dx < −0.32`, `right = dx > 0.32`, `jump` = flanco del botón
+  o del joystick empujado arriba (`dy < −0.62`, se re-arma al volver
+  `dy > −0.31`), `punch`/`grab`/`fart` = flanco al presionar.
+- `setBeans(i, n)` enciende el botón de pedo y muestra `×n`.
 - El joystick es flotante: el centro se fija donde cae el primer toque de la
   zona; el radio útil es 56 px CSS.
 - Cada zona/botón captura su propio `pointerId`, así un dedo no interfiere
   con otro (necesario para 2 jugadores en la misma pantalla).
 
-## 11. Bot (`src/bot.js`)
+## 12. Bot (`src/bot.js`)
 
 Prioridades, de mayor a menor:
 1. Cargando a un monito → caminar al borde más cercano y aventar.
 2. Cargando un barril → acercarse al rival y aventarlo a < 260 px.
+2b. Con frijol y un rival a < 100 px → pedo.
+2c. Frijol en el piso a < 240 px (y sin KO cerca que aprovechar) → ir por él.
 3. Hay un KO a < 260 px que nadie levanta → ir y agarrar.
 4. Hay barril en el piso a < 200 px (y no viene otro cayendo) → ir y agarrar.
 5. Viene un barril cayendo a < 90 px → alejarse.
@@ -235,7 +244,7 @@ Prioridades, de mayor a menor:
    el rival está arriba. Nunca camina a menos de 40 px del borde salvo que
    esté cargando a alguien.
 
-## 12. Parámetros para "tunear" primero
+## 13. Parámetros para "tunear" primero
 
 | Parámetro | Valor | Qué cambia |
 |---|---|---|
@@ -246,3 +255,6 @@ Prioridades, de mayor a menor:
 | `monito.carrySpeed` | 150 | Qué tan lejos llegas antes de que despierte |
 | `barrel.spawnMin/Max` | 6–12 s | Caos ambiental |
 | `barrel.explodeRadius` | 150 | Cuántos se lleva una explosión |
+| `fart.radius` | 125 | Qué tan letal es el pedo |
+| `fart.windup` | 0.45 s | Cuánto tiempo pueden interrumpirte |
+| `bean.spawnMin/Max` | 7–13 s | Cuántos pedos hay por partida |

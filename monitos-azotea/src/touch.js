@@ -26,7 +26,7 @@ export class TouchControls {
   }
 
   buildPlayer(i, n) {
-    const p = { dx: 0, dy: 0, punch: false, grab: false, jumpArmed: true, prev: { punch: false, grab: false, jump: false }, pointerId: null };
+    const p = { dx: 0, dy: 0, punch: false, grab: false, jumpBtn: false, fart: false, jumpArmed: true, prev: { punch: false, grab: false, jumpBtn: false, fart: false }, pointerId: null, els: {} };
     const side = n === 1 ? 'solo' : i === 0 ? 'left' : 'right';
 
     const zone = document.createElement('div');
@@ -74,13 +74,27 @@ export class TouchControls {
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
       return b;
     };
-    btns.appendChild(mk('tc-punch', '👊', 'golpe', 'punch'));
-    btns.appendChild(mk('tc-grab', '✋', 'agarrar', 'grab'));
+    const top = document.createElement('div'); top.className = 'tc-row';
+    const bottom = document.createElement('div'); bottom.className = 'tc-row';
+    p.els.fart = mk('tc-fart', '💨', 'pedo', 'fart'); p.els.fart.classList.add('off');
+    top.appendChild(p.els.fart);
+    top.appendChild(mk('tc-jump', '⬆️', 'salto', 'jumpBtn'));
+    bottom.appendChild(mk('tc-grab', '✋', 'agarrar', 'grab'));
+    bottom.appendChild(mk('tc-punch', '👊', 'golpe', 'punch'));
+    btns.appendChild(top); btns.appendChild(bottom);
     this.root.appendChild(zone); this.root.appendChild(btns);
     return p;
   }
 
-  // Devuelve el input del jugador i con flancos (jump/punch/grab sólo el tick en que se presionan).
+  // Muestra cuántos frijoles tiene el jugador (el botón de pedo se enciende).
+  setBeans(i, n) {
+    const p = this.players[i];
+    if (!p || !p.els.fart) return;
+    p.els.fart.classList.toggle('off', n <= 0);
+    p.els.fart.querySelector('.tc-sub').textContent = n > 0 ? `pedo ×${n}` : 'pedo';
+  }
+
+  // Devuelve el input del jugador i con flancos (jump/punch/grab/fart sólo el tick en que se presionan).
   read(i) {
     const p = this.players[i];
     if (!p) return null;
@@ -88,8 +102,8 @@ export class TouchControls {
     let jump = false;
     if (jumpHeld && p.jumpArmed) { jump = true; p.jumpArmed = false; }
     if (p.dy > JUMP_PUSH * 0.5) p.jumpArmed = true; // hay que soltar hacia el centro para volver a saltar
-    const punch = p.punch && !p.prev.punch, grab = p.grab && !p.prev.grab;
-    p.prev.punch = p.punch; p.prev.grab = p.grab;
-    return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, punch, grab };
+    const edge = (k) => { const v = p[k] && !p.prev[k]; p.prev[k] = p[k]; return v; };
+    jump = edge('jumpBtn') || jump;
+    return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
   }
 }

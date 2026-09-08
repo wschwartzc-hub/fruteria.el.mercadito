@@ -11,7 +11,7 @@ const memo = new Map(); // id -> { nextPunch, nextJump }
 export function botInput(world, me, time) {
   const st = memo.get(me.id) || { nextPunch: 0, nextJump: 0, edge: 1 };
   memo.set(me.id, st);
-  const inp = { left: false, right: false, jump: false, punch: false, grab: false };
+  const inp = { left: false, right: false, jump: false, punch: false, grab: false, fart: false };
   if (![S.IDLE, S.WALK, S.JUMP, S.CARRYING].includes(me.state)) return inp;
 
   const roof = world.roof;
@@ -35,6 +35,12 @@ export function botInput(world, me, time) {
     } else inp.grab = true;
     return inp;
   }
+
+  // pedo si hay rival cerca y tengo frijol
+  if (me.beans > 0 && me.onGround && nearest && world.dist(me, nearest) < CFG.fart.radius * 0.8 && nearest.state !== S.KO) { inp.fart = true; return inp; }
+  // frijol cerca: ir por él
+  const bean = world.beans.find((b) => b.state === 'rest' && Math.abs(b.x - me.x) < 240);
+  if (bean && me.beans < CFG.bean.maxCharges && !others.some((o) => o.state === S.KO && Math.abs(o.x - me.x) < 120)) { safeGoTo(bean.x); return inp; }
 
   const ko = others.find((m) => m.state === S.KO && Math.abs(m.x - me.x) < 260 && !world.monitos.some((k) => k.pickupTargetId === m.id));
   if (ko) {

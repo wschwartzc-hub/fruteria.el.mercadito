@@ -1,5 +1,5 @@
 // Partículas, textos flotantes y screen shake. Consume eventos del mundo.
-const OUTLINE = '#1d1a24';
+const OUTLINE = '#3a2a25';
 
 export class Effects {
   constructor() { this.parts = []; this.shake = 0; this.flash = 0; }
@@ -42,6 +42,25 @@ export class Effects {
       case 'breakFree': {
         const m = world.get(ev.id);
         this.text(m.x, m.y - 90, '¡ME ZAFÉ!', '#fff', 24);
+        break;
+      }
+      case 'eat': {
+        this.text(ev.x, ev.y - 10, '¡ÑAM!', '#ffd23f', 24);
+        this.stars(ev.x, ev.y + 20, 3);
+        break;
+      }
+      case 'fart':
+        this.ring(ev.x, ev.y, ev.radius, '#8fd15a');
+        this.text(ev.x, ev.y - 70, '¡PRRRT!', '#a5e06a', 40);
+        for (let i = 0; i < 16; i++) {
+          const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 160;
+          this.parts.push({ type: 'smoke', x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, life: 0.8 + Math.random() * 0.6, max: 1.4, size: 14 + Math.random() * 16, color: 'rgba(150,205,90,.55)' });
+        }
+        this.shake = Math.max(this.shake, 0.5);
+        break;
+      case 'gassed': {
+        const m = world.get(ev.id);
+        this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
         break;
       }
       case 'wake': { const m = world.get(ev.id); this.text(m.x, m.y - 90, '¿eh?', '#fff', 22); break; }

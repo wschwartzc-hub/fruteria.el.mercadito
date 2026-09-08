@@ -8,8 +8,11 @@
       aventar, reacción en cadena.
 - [x] Monitos vectoriales con animación procedural y caras por estado.
 - [x] Escenario tipo boceto, efectos, HUD, menú, bot de prueba, gamepad básico.
-- [x] Controles táctiles: joystick flotante (↑ salta) + 2 botones; 2 jugadores
-      en la misma pantalla; pantalla completa y aviso de orientación.
+- [x] Controles táctiles: joystick flotante + 4 botones (salto, golpe,
+      agarrar, pedo); 2 jugadores en la misma pantalla; pantalla completa.
+- [x] Frijoles que caen, se comen al pisarlos y cargan pedos que desmayan.
+- [x] Arte según referencias: ocho animales con cabezas distintas, torre
+      morada y amarilla, HUD con avatares. Lienzo de diseño en `design/`.
 
 ## v0.2 — Sensación (game feel)
 - [ ] Ajustar números jugando con gente (`docs/LOGICA.md` §11).

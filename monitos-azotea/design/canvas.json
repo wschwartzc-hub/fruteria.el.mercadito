@@ -1,0 +1,9 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Personajes", "x": 0, "y": 0, "w": 1200, "h": 640 },
+    { "file": "Expresiones.dc.html", "title": "Expresiones y poses", "x": 0, "y": 780, "w": 1200, "h": 560 },
+    { "file": "Azotea.dc.html", "title": "Escenario", "x": 1320, "y": 0, "w": 1280, "h": 980 },
+    { "file": "Controles.dc.html", "title": "Controles en celular", "x": 1320, "y": 1120, "w": 960, "h": 640 }
+  ],
+  "launch": { "view": "canvas" }
+}

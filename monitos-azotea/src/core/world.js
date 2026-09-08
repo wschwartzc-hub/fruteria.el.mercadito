@@ -7,7 +7,7 @@ export const S = Object.freeze({
   IDLE: 'idle', WALK: 'walk', JUMP: 'jump', PUNCH: 'punch',
   HITSTUN: 'hitstun', LAUNCHED: 'launched', KO: 'ko',
   PICKUP: 'pickup', CARRYING: 'carrying', CARRIED: 'carried',
-  THROWN: 'thrown', FALLING: 'falling', DEAD: 'dead',
+  THROWN: 'thrown', FALLING: 'falling', DEAD: 'dead', FART: 'fart',
 });
 
 export const B = Object.freeze({
@@ -15,19 +15,24 @@ export const B = Object.freeze({
   CARRIED: 'carried', THROWN: 'thrown', EXPLODING: 'exploding', GONE: 'gone',
 });
 
-const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, punch: false, grab: false });
+const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, punch: false, grab: false, fart: false });
 
 // Estados en los que un puñetazo tiene efecto sobre la víctima.
-const HITTABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.HITSTUN, S.PICKUP, S.CARRYING, S.CARRIED]);
+const HITTABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.HITSTUN, S.PICKUP, S.CARRYING, S.CARRIED, S.FART]);
+// Estados en los que se puede comer un frijol al pisarlo.
+const CAN_EAT = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.CARRYING]);
 // Estados en los que el jugador puede recibir input de movimiento/acción.
 const ACTIONABLE = new Set([S.IDLE, S.WALK, S.JUMP]);
 
-const PALETTE = ['#e8433f', '#2f7de1', '#3cb54a', '#f2b632'];
-const NAMES = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
+// Especies: el render dibuja la cabeza según `species`; el color es el del cuerpo.
+export const SPECIES = ['mono', 'leon', 'zorro', 'panda', 'elefante', 'jirafa', 'pinguino', 'buho'];
+const PALETTE = { mono: '#b07a4f', leon: '#f2a93b', zorro: '#ef8a3c', panda: '#f4f1ec', elefante: '#a9b4c4', jirafa: '#f5c445', pinguino: '#3a4661', buho: '#a0703f' };
+const NAMES = { mono: 'Mono', leon: 'León', zorro: 'Zorro', panda: 'Panda', elefante: 'Elefante', jirafa: 'Jirafa', pinguino: 'Pingüino', buho: 'Búho' };
 
 export function createMonito(id, x, y, opts = {}) {
+  const species = opts.species ?? SPECIES[id % SPECIES.length];
   return {
-    id, name: opts.name ?? NAMES[id % NAMES.length], color: opts.color ?? PALETTE[id % PALETTE.length],
+    id, species, name: opts.name ?? NAMES[species], color: opts.color ?? PALETTE[species],
     x, y, vx: 0, vy: 0, w: CFG.monito.w, h: CFG.monito.h,
     facing: opts.facing ?? 1, onGround: false,
     state: S.IDLE, t: 0,                 // t = tiempo dentro del estado actual
@@ -35,6 +40,7 @@ export function createMonito(id, x, y, opts = {}) {
     koTimer: 0, invuln: 0,
     carryingId: null, carryingBarrelId: null, carriedById: null, pickupTargetId: null,
     punchHit: false,
+    beans: 0, fartCloud: 0,
     stocks: CFG.match.stocks, score: 0, respawnTimer: 0,
     justLanded: false,
   };
@@ -46,6 +52,10 @@ export function createBarrel(id, x, y) {
     state: B.WARNING, t: 0, armed: true, fuse: 0,
     carriedById: null, thrownById: null, spin: 0,
   };
+}
+
+export function createBean(id, x, y) {
+  return { id, x, y, vx: 0, vy: 0, w: CFG.bean.w, h: CFG.bean.h, state: 'falling', ttl: CFG.bean.ttl, spin: 0 };
 }
 
 export function boxOf(e) {
@@ -63,7 +73,11 @@ export class World {
     this.time = 0;
     this.monitos = [];
     this.barrels = [];
+    this.beans = [];
     this.events = [];
+    this.beansEnabled = opts.beans ?? true;
+    this.nextBeanIn = CFG.bean.firstAt;
+    this.beanSeq = 0;
     this.rng = opts.rng ?? Math.random;
     this.barrelsEnabled = opts.barrels ?? true;
     this.nextBarrelIn = CFG.barrel.spawnGraceInitial;
@@ -99,6 +113,7 @@ export class World {
     for (const m of this.monitos) this.syncCarried(m);
     for (const m of this.monitos) this.resolvePunch(m);
     this.updateBarrels(dt);
+    this.updateBeans(dt);
     for (const m of this.monitos) this.checkFall(m);
     this.checkWin();
   }
@@ -143,6 +158,10 @@ export class World {
         this.groundFriction(m, dt);
         if (m.t >= CFG.grab.windup) this.completePickup(m);
         return;
+      case S.FART:
+        this.groundFriction(m, dt);
+        if (m.t >= CFG.fart.windup) this.fart(m);
+        return;
       case S.CARRYING:
         this.move(m, inp, dt, CFG.monito.carrySpeed);
         if (inp.grab) this.throwCarried(m);
@@ -151,6 +170,7 @@ export class World {
         this.move(m, inp, dt, CFG.monito.walkSpeed);
         if (inp.punch) { this.setState(m, S.PUNCH); m.punchHit = false; return; }
         if (inp.grab && m.onGround && this.tryGrab(m)) return;
+        if (inp.fart && m.onGround && m.beans > 0) { this.setState(m, S.FART); this.emit('fartStart', { id: m.id }); return; }
         if (inp.jump && m.onGround) { m.vy = -CFG.monito.jumpVel; m.onGround = false; this.setState(m, S.JUMP); this.emit('jump', { id: m.id }); return; }
         if (m.onGround) this.setState(m, Math.abs(m.vx) > 8 ? S.WALK : S.IDLE);
         else if (m.state !== S.JUMP) this.setState(m, S.JUMP);
@@ -383,6 +403,72 @@ export class World {
       b.x = m.x + m.facing * 20; b.y = m.y - m.h * 0.7;
       b.vx = m.facing * CFG.barrel.throwX + m.vx * 0.5; b.vy = -CFG.barrel.throwY;
       this.emit('barrelThrow', { id: m.id, barrelId: b.id });
+    }
+  }
+
+  // ---------- frijoles y pedos ----------
+  spawnBean(x) {
+    const b = createBean(this.beanSeq++, x ?? this.roof.x + 60 + this.rng() * (this.roof.w - 120), -80);
+    this.beans.push(b);
+    this.emit('beanSpawn', { beanId: b.id, x: b.x });
+    return b;
+  }
+
+  updateBeans(dt) {
+    if (this.beansEnabled && !this.over) {
+      this.nextBeanIn -= dt;
+      if (this.nextBeanIn <= 0) {
+        this.spawnBean();
+        this.nextBeanIn = CFG.bean.spawnMin + this.rng() * (CFG.bean.spawnMax - CFG.bean.spawnMin);
+      }
+    }
+    for (const b of this.beans) {
+      if (b.state === 'falling') {
+        const prevY = b.y;
+        b.vy += CFG.gravity * 0.45 * dt; // caen lento, como si flotaran
+        b.y += b.vy * dt; b.spin += 2 * dt;
+        if (this.overRoof(b.x) && b.y >= this.roof.y && prevY <= this.roof.y + 0.5) { b.y = this.roof.y; b.vy = 0; b.state = 'rest'; this.emit('beanLand', { beanId: b.id, x: b.x }); }
+        else if (b.y > this.deathY) b.state = 'gone';
+      } else if (b.state === 'rest') {
+        b.ttl -= dt;
+        if (b.ttl <= 0) { b.state = 'gone'; continue; }
+      }
+      if (b.state === 'gone') continue;
+      const bb = boxOf(b);
+      for (const m of this.monitos) {
+        if (!CAN_EAT.has(m.state) || m.beans >= CFG.bean.maxCharges) continue;
+        if (!overlaps(bb, boxOf(m))) continue;
+        m.beans += 1; b.state = 'gone';
+        this.emit('eat', { id: m.id, beanId: b.id, x: m.x, y: m.y - m.h, beans: m.beans });
+        break;
+      }
+    }
+    this.beans = this.beans.filter((b) => b.state !== 'gone');
+    for (const m of this.monitos) if (m.fartCloud > 0) m.fartCloud -= dt;
+  }
+
+  // El pedo: todos los demás dentro del radio se desmayan. El barril que
+  // esté dentro también se enciende (gas + mecha = mala idea).
+  fart(m) {
+    m.beans = Math.max(0, m.beans - 1);
+    m.fartCloud = CFG.fart.cloud;
+    const cx = m.x, cy = m.y - m.h / 2, R = CFG.fart.radius;
+    this.setState(m, S.IDLE);
+    this.emit('fart', { id: m.id, x: cx, y: cy, radius: R });
+    const inRange = (e) => { const c = this.center(e); return Math.hypot(c.x - cx, c.y - cy) <= R; };
+    for (const o of this.monitos) {
+      if (o === m || o.state === S.DEAD || o.state === S.FALLING || o.state === S.CARRIED || o.invuln > 0 || !inRange(o)) continue;
+      if (o.state === S.PICKUP || o.state === S.CARRYING) this.cancelCarry(o, 'fart');
+      if (o.state === S.KO) { o.koTimer = Math.max(o.koTimer, CFG.ko.duration); continue; }
+      o.vx = 0;
+      this.enterKO(o, CFG.ko.duration);
+      this.emit('gassed', { id: o.id, byId: m.id });
+    }
+    for (const b of this.barrels) {
+      if ((b.state === B.REST || b.state === B.CARRIED) && inRange(b)) {
+        if (b.carriedById != null) { const c = this.get(b.carriedById); c.carryingBarrelId = null; if (c.state === S.CARRYING) this.setState(c, S.IDLE); b.carriedById = null; }
+        b.state = B.EXPLODING; b.fuse = CFG.barrel.chainDelay * 2; b.armed = true;
+      }
     }
   }
 

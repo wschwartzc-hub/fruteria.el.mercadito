@@ -53,18 +53,29 @@
   .tc-base.on { display: block; }
   .tc-knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(255,255,255,.85); border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
   .tc-hint { position: absolute; left: 0; right: 0; bottom: calc(14px + var(--safe-b)); text-align: center; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.75); text-shadow: 0 1px 2px var(--ink); pointer-events: none; }
-  .tc-btns { bottom: calc(18px + var(--safe-b)); display: flex; gap: 14px; align-items: flex-end; }
-  .tc-btns.tc-solo { right: calc(18px + var(--safe-r)); flex-direction: row; }
-  .tc-btns.tc-left { left: calc(26% + 10px); flex-direction: row; }
-  .tc-btns.tc-right { right: calc(26% + 10px); flex-direction: row-reverse; }
+  .tc-btns { bottom: calc(14px + var(--safe-b)); display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .tc-row { display: flex; gap: 12px; align-items: flex-end; }
+  .tc-btns.tc-solo { right: calc(16px + var(--safe-r)); }
+  .tc-btns.tc-left { left: calc(26% + 8px); align-items: flex-start; }
+  .tc-btns.tc-left .tc-row { flex-direction: row-reverse; }
+  .tc-btns.tc-right { right: calc(26% + 8px); }
   .tc-btn { width: 88px; height: 88px; border-radius: 50%; background: rgba(255,255,255,.88); border: 3px solid var(--ink); box-shadow: 0 5px 0 var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 34px; line-height: 1; }
-  .tc-btn.tc-grab { width: 76px; height: 76px; font-size: 28px; background: rgba(255,210,63,.9); }
+  .tc-btn.tc-grab { background: rgba(255,210,63,.9); }
+  .tc-btn.tc-jump { width: 66px; height: 66px; font-size: 26px; background: rgba(154,99,214,.9); }
+  .tc-btn.tc-jump .tc-sub { color: #fff; }
+  .tc-btn.tc-fart { width: 66px; height: 66px; font-size: 26px; background: rgba(165,224,106,.95); }
+  .tc-btn.tc-fart.off { opacity: .35; }
   .tc-btn.on { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
   .tc-sub { font-size: 11px; font-weight: 800; color: var(--ink); margin-top: 2px; }
-  #touch[data-players="2"] .tc-btn { width: 70px; height: 70px; font-size: 26px; }
-  #touch[data-players="2"] .tc-btn.tc-grab { width: 60px; height: 60px; font-size: 22px; }
-  #touch[data-players="2"] .tc-btns { gap: 10px; bottom: calc(12px + var(--safe-b)); }
-  #touch[data-players="2"] .tc-zone { width: 24%; }
+  /* 2 jugadores: los 4 botones en una sola fila baja, para no tapar la azotea */
+  #touch[data-players="2"] .tc-btns { flex-direction: row; gap: 8px; bottom: calc(10px + var(--safe-b)); }
+  #touch[data-players="2"] .tc-btns.tc-left { left: calc(20% + 6px); flex-direction: row-reverse; }
+  #touch[data-players="2"] .tc-btns.tc-right { right: calc(20% + 6px); }
+  #touch[data-players="2"] .tc-row { gap: 8px; }
+  #touch[data-players="2"] .tc-btn { width: 50px; height: 50px; font-size: 20px; box-shadow: 0 3px 0 var(--ink); }
+  #touch[data-players="2"] .tc-sub { font-size: 9px; }
+  #touch[data-players="2"] .tc-zone { width: 20%; }
+  #touch[data-players="2"] .tc-hint { font-size: 10px; }
 
   /* ---------- gira el teléfono ---------- */
   #rotate { display: none; }
@@ -88,9 +99,9 @@
     <button class="btn" data-mode="duo">2 jugadores <small class="touch-only">misma pantalla, cada uno en su mitad</small><small class="kbd-only">teclado: WASD+F/G y flechas+,/.</small></button>
     <button class="btn" data-mode="duo2">2 jugadores + 2 Bots</button>
   </div>
-  <p class="rules">4 golpes seguidos = ¡a volar y desmayado! Levanta al desmayado y aviéntalo al vacío antes de que despierte. Si te pegan mientras lo cargas, se te escapa. Cuidado con los barriles.</p>
-  <p class="keys touch-only">Joystick: mover · empuja hacia arriba para saltar · 👊 golpe · ✋ agarrar / aventar</p>
-  <p class="keys kbd-only">J1: A/D mover · W saltar · F golpe · G agarrar &nbsp;|&nbsp; J2: ←/→ · ↑ · , · . &nbsp;|&nbsp; Gamepad: A saltar · X golpe · B agarrar</p>
+  <p class="rules">4 golpes seguidos = ¡a volar y desmayado! Levanta al desmayado y aviéntalo al vacío. Cómete los frijoles que caen y tira un pedo: todos los que estén cerca se desmayan. Cuidado con los barriles.</p>
+  <p class="keys touch-only">Joystick: mover · ⬆️ salto · 👊 golpe · ✋ agarrar / aventar · 💨 pedo (con frijol)</p>
+  <p class="keys kbd-only">J1: A/D · W salto · F golpe · G agarrar · H pedo &nbsp;|&nbsp; J2: ←/→ · ↑ · , · . · / &nbsp;|&nbsp; Gamepad: A · X · B · Y</p>
 </div>
 
 <div id="over" class="ov" hidden>

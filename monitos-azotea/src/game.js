@@ -1,19 +1,18 @@
 // Ensambla todo: mundo + render + input + HUD + bot.
 import { CFG } from './core/config.js';
 import { World, S, B } from './core/world.js';
-import { drawMonito, drawShadow, stepMonitoAnim } from './render/monito.js';
-import { drawBackground, drawBarrel } from './render/scene.js';
+import { drawMonito, drawShadow, stepMonitoAnim, drawHead, drawFartCloud, OUTLINE } from './render/monito.js';
+import { drawBackground, drawBarrel, drawBean } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { botInput } from './bot.js';
 import { TouchControls } from './touch.js';
 
 export const VIEW = { w: 1280, h: 720 };
-const OUTLINE = '#1d1a24';
 
 // Mapas de teclado por jugador.
 const KEYMAPS = [
-  { left: ['KeyA'], right: ['KeyD'], jump: ['KeyW', 'Space'], punch: ['KeyF', 'KeyJ'], grab: ['KeyG', 'KeyK'] },
-  { left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['ArrowUp'], punch: ['Comma', 'KeyO'], grab: ['Period', 'KeyP'] },
+  { left: ['KeyA'], right: ['KeyD'], jump: ['KeyW', 'Space'], punch: ['KeyF', 'KeyJ'], grab: ['KeyG', 'KeyK'], fart: ['KeyH', 'KeyL'] },
+  { left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['ArrowUp'], punch: ['Comma', 'KeyO'], grab: ['Period', 'KeyP'], fart: ['Slash', 'KeyI'] },
 ];
 
 export class Game {
@@ -91,7 +90,10 @@ export class Game {
   start(players) {
     this.world = new World();
     this.players = players.map((p, i) => ({ id: i, ...p }));
-    for (const p of this.players) this.world.addMonito({ total: players.length, name: p.kind === 'bot' ? `Bot ${p.id + 1}` : `Jugador ${p.id + 1}` });
+    for (const p of this.players) {
+      const m = this.world.addMonito({ total: players.length });
+      if (p.kind === 'bot') m.name = `${m.name} (bot)`;
+    }
     this.effects = new Effects();
     this.mode = 'playing';
     this.overT = 0;
@@ -108,12 +110,12 @@ export class Game {
       const m = this.world.get(p.id);
       let inp;
       if (p.kind === 'bot') inp = botInput(this.world, m, this.time);
-      else if (p.kind === 'touch') inp = this.touch.read(p.touchIndex) || { left: false, right: false, jump: false, punch: false, grab: false };
+      else if (p.kind === 'touch') { inp = this.touch.read(p.touchIndex) || { left: false, right: false, jump: false, punch: false, grab: false, fart: false }; this.touch.setBeans(p.touchIndex, m.beans); }
       else {
         const km = KEYMAPS[p.keymap];
         const has = (arr) => arr.some((k) => this.keys.has(k));
         const hit = (arr) => arr.some((k) => this.pressed.has(k));
-        inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), punch: hit(km.punch), grab: hit(km.grab) };
+        inp = { left: has(km.left), right: has(km.right), jump: hit(km.jump), punch: hit(km.punch), grab: hit(km.grab), fart: hit(km.fart) };
         // gamepad opcional: el N-ésimo control se suma al N-ésimo jugador humano
         const pad = pads[padIdx++];
         if (pad) {
@@ -122,7 +124,7 @@ export class Game {
           const prev = (p.padPrev ||= {});
           const edge = (name, v) => { const r = v && !prev[name]; prev[name] = v; return r; };
           inp.left ||= ax < -0.4 || btn(14); inp.right ||= ax > 0.4 || btn(15);
-          inp.jump ||= edge('jump', btn(0)); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1));
+          inp.jump ||= edge('jump', btn(0)); inp.punch ||= edge('punch', btn(2)); inp.grab ||= edge('grab', btn(1)); inp.fart ||= edge('fart', btn(3));
         }
       }
       inputs[p.id] = inp;
@@ -185,10 +187,12 @@ export class Game {
     if (this.world) {
       const w = this.world;
       for (const m of w.monitos) drawShadow(ctx, m, roof);
+      for (const b of w.beans) drawBean(ctx, b, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       // Orden de dibujo: los KO al fondo, los que cargan al frente con su carga encima.
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
+      for (const m of w.monitos) drawFartCloud(ctx, m, this.time);
       this.effects.draw(ctx);
       this.drawOverheads(ctx, w);
     }
@@ -227,17 +231,22 @@ export class Game {
     const cardW = 230;
     w.monitos.forEach((m, i) => {
       const x = 20 + i * (cardW + 12), y = 16;
-      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
+      ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.roundRect(x, y, cardW, 58, 12); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = m.color; ctx.beginPath(); ctx.arc(x + 30, y + 29, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = OUTLINE; ctx.font = '800 16px Arial'; ctx.textAlign = 'left';
-      ctx.fillText(m.name, x + 58, y + 24);
+      const pastel = ['#fde7a9', '#cfe6f7', '#f7cdd0', '#dbeed0'][i % 4];
+      ctx.beginPath(); ctx.arc(x + 30, y + 29, 22, 0, Math.PI * 2); ctx.fillStyle = pastel; ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.beginPath(); ctx.arc(x + 30, y + 29, 21, 0, Math.PI * 2); ctx.clip();
+      drawHead(ctx, m.species, x + 30, y + 32, 13, 1, m.stocks > 0 ? 'normal' : 'ko', 0, m.color);
+      ctx.restore();
+      ctx.fillStyle = OUTLINE; ctx.font = '800 15px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(m.name, x + 60, y + 23);
       for (let s = 0; s < CFG.match.stocks; s++) {
         ctx.fillStyle = s < m.stocks ? '#ff4d6d' : '#ddd';
         ctx.beginPath(); ctx.arc(x + 66 + s * 20, y + 42, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
-      ctx.fillStyle = OUTLINE; ctx.font = '700 13px Arial';
-      ctx.fillText(`KOs: ${m.score}`, x + 150, y + 46);
+      ctx.fillStyle = OUTLINE; ctx.font = '700 12px Arial';
+      ctx.fillText(`KOs ${m.score}`, x + 132, y + 46);
+      for (let b = 0; b < m.beans; b++) { ctx.beginPath(); ctx.ellipse(x + 190 + b * 13, y + 42, 6, 4.5, -0.4, 0, Math.PI * 2); ctx.fillStyle = '#8f3f2e'; ctx.fill(); ctx.lineWidth = 2; ctx.stroke(); }
     });
   }
 }

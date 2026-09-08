@@ -69,7 +69,20 @@ te pegan mientras cargas a alguien, el desmayado despierta en tus brazos).
   aventó durante los primeros 0.2 s).
 - Un barril que rueda fuera de la azotea desaparece sin explotar.
 
-### 2.6 Condición de victoria
+### 2.6 Frijoles y pedos
+- A partir del segundo 7 caen **frijoles** del cielo cada 7 a 13 s. Caen
+  lento y quedan en la azotea 12 s; si nadie los come, desaparecen.
+- Se comen **al pisarlos** (caminando, saltando o incluso cargando algo).
+  Cada frijol da una carga; se guardan hasta 3.
+- **Pedo:** con carga y en el piso, el botón 💨 agacha al monito 0.45 s y
+  suelta una nube de 125 px de radio. **Todos los demás dentro del radio se
+  desmayan** (KO de 3 s, igual que un combo). Los que ya estaban KO
+  recargan su reloj. El que lo tira es inmune.
+- Si te pegan mientras te agachas, el pedo se cancela y **conservas** el frijol.
+- Un barril en el piso dentro de la nube se enciende y explota (gas + mecha).
+  Es la forma de que el pedo tenga riesgo: la explosión también te alcanza.
+
+### 2.7 Condición de victoria
 - Cada monito tiene **3 vidas**. Pierde una al caer del edificio.
 - Gana el último con vidas. Se muestra un marcador de "KOs" (combos de 4 y
   explosiones que provocaste) para picar el orgullo.
@@ -83,17 +96,17 @@ agarrar) para que quepan en dos pulgares sin mirar la pantalla.
 
 ### 3.1 Táctil (principal)
 - **Joystick flotante** en la mitad izquierda: aparece donde apoyas el pulgar,
-  así no hay que buscarlo. Izquierda/derecha mueve; **empujar hacia arriba
-  salta** (hay que regresar el pulgar al centro para volver a saltar, evita
-  saltos accidentales). Zona muerta del 32 % para que caminar sea estable.
-- **👊 Golpe**: botón grande (88 px) abajo a la derecha, bajo el pulgar derecho.
-- **✋ Agarrar / Aventar**: botón amarillo junto al de golpe. Misma tecla
-  para levantar, aventar y tomar barriles: una sola idea, "manos".
+  así no hay que buscarlo. Izquierda/derecha mueve; empujar hacia arriba
+  también salta. Zona muerta del 32 % para que caminar sea estable.
+- Cuatro botones bajo el pulgar derecho, en dos filas. Abajo los más usados:
+  **👊 Golpe** (grande) y **✋ Agarrar / Aventar** (amarillo; levanta, avienta
+  y toma barriles). Arriba **⬆️ Salto** (morado) y **💨 Pedo** (verde), que
+  se ve apagado hasta que llevas un frijol y muestra cuántos tienes.
 - Al elegir modo se pide pantalla completa y orientación horizontal. En
   vertical aparece un aviso de "gira tu teléfono".
 - **2 jugadores en el mismo aparato:** la pantalla se parte en mitades. Cada
-  jugador tiene su joystick en la esquina exterior y sus dos botones al lado,
-  todos pegados al borde inferior para no tapar la azotea. Cómodo en tablet;
+  jugador tiene su joystick en la esquina exterior y sus cuatro botones en
+  una sola fila baja junto a él, para no tapar la azotea. Cómodo en tablet;
   en teléfono funciona pero queda apretado.
 - Los controles son elementos HTML encima del canvas (`src/touch.js`), con
   `pointer events` y captura por dedo, para que dos o cuatro pulgares a la vez
@@ -106,29 +119,43 @@ agarrar) para que quepan en dos pulgares sin mirar la pantalla.
 | Saltar | W (o Espacio) | ↑ | A |
 | Golpear | F (o J) | , (o O) | X |
 | Agarrar / Aventar | G (o K) | . (o P) | B |
+| Pedo | H (o L) | / (o I) | Y |
 
 Menú con botones tocables; en teclado también `1`..`4`. `R` = revancha,
 `Esc` = menú.
 
 ## 4. Dirección de arte
 
+Referencias: avatares de animales estilo *flat* (contorno grueso, cabezas
+redondas, ojitos de punto, cachetes rosas, fondos en círculo pastel) y una
+torre cartoon morada y amarilla con azotea. El lienzo de diseño con las
+láminas de personajes, expresiones, escenario y controles está en `design/`.
+
 - **Monitos vectoriales, no sprites.** Se dibujan con trazos de canvas, así el
   cuerpo se puede deformar (squash & stretch al aterrizar, estirarse al saltar,
   temblar al recibir golpe) y la cara cambia de expresión por estado.
-- Estilo: contorno grueso oscuro, colores planos con una luz suave, cabezas
-  grandes, brazos "de gelatina" (curvas con codo), pies tipo tenis.
-- Cada jugador tiene color y accesorio propio: gorra, cresta, banda, goggles.
-- **Caras por estado:** normal, feliz (caminando), enojado (golpeando), "ouch"
-  (aturdido), gritando (volando o cayendo), esfuerzo (cargando), KO (ojos en X,
-  lengua fuera, pajaritos).
-- Escenario inspirado en el boceto original: nubes garabateadas, edificio con
-  ventanas chuecas, tinaco y antena. Ciudad al fondo.
+- **Ocho animales, un mismo cuerpo:** Mono, León, Zorro, Panda (jugadores) y
+  Elefante, Jirafa, Pingüino, Búho (bots). Cambia la cabeza; el cuerpo de
+  gelatina, brazos y pies son iguales. El color del cuerpo es el del animal.
+- Estilo: contorno café oscuro `#3a2a25` de 4 px en todo (nunca negro puro),
+  colores planos con una mancha clara como luz, panza crema `#f6dfbf`,
+  cachetes rosas siempre. Ojos de punto con brillo; panda y búho con ojos grandes.
+- **Caras por estado:** normal, feliz (caminando), enojado (golpeando),
+  preocupado (saltando), "ouch" (aturdido), esfuerzo (cargando), cachetes
+  inflados (pedo), gritando (volando o cayendo), KO (ojos en X, lengua fuera,
+  pajaritos).
+- **Escenario** según la referencia: piso alto morado `#9a63d6` con toldos
+  grises, pisos amarillos `#f2c53d` con balcón de madera, barandal y bandera
+  naranja en la azotea, aire acondicionado al fondo, árbol al lado, ciudad
+  lavanda `#cbb9ea` y nubes redondas. El barandal va sólo al fondo: los
+  bordes siguen libres para caer.
+- HUD: avatar de cada animal en círculo pastel, vidas, KOs y frijoles guardados.
 - Efectos: onomatopeyas (¡POW!, ¡ZAS!, ¡BOOM!), estrellas, polvo al aterrizar,
   anillo de explosión, tablas del barril volando, screen shake y flash.
 
 ### Pendiente de arte
 - Animación de aterrizaje de reaparición (paracaídas o globo).
-- Ropa/gestos extra por personaje, variantes de skin.
+- Que el jugador elija su animal en el menú.
 - Fondo con parallax (nubes en dos capas, ciudad lejana más lenta).
 
 ## 5. Audio (pendiente)

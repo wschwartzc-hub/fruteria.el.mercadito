@@ -59,6 +59,20 @@ export const CFG = {
     restFriction: 4,
   },
 
+  bean: {
+    w: 28, h: 24,
+    firstAt: 7,            // primer frijol
+    spawnMin: 7, spawnMax: 13,
+    ttl: 12,               // segundos en el piso antes de desaparecer
+    maxCharges: 3,         // frijoles que puedes guardar
+  },
+
+  fart: {
+    windup: 0.45,          // agacharse antes del pedo; si te pegan, se cancela
+    radius: 125,           // todos los demás dentro del radio se desmayan
+    cloud: 1.0,            // duración de la nube (solo visual)
+  },
+
   match: {
     stocks: 3,
     respawnDelay: 2.0,

@@ -1,9 +1,10 @@
 # 🐒 Monitos en la Azotea
 
-Juego 2D de peleas caóticas estilo *Gang Beasts*: monitos de gelatina se
-empujan a golpes en la azotea de un edificio. Combo de 4 golpes = sale volando
-y queda desmayado; cárgalo y aviéntalo al vacío antes de que despierte. Del
-cielo caen barriles que explotan.
+Juego 2D de peleas caóticas estilo *Gang Beasts*: animales de gelatina (mono,
+león, zorro, panda…) se empujan a golpes en la azotea de una torre. Combo de
+4 golpes = sale volando y queda desmayado; cárgalo y aviéntalo al vacío antes
+de que despierte. Del cielo caen barriles que explotan y frijoles que, si te
+los comes, te dejan tirar un pedo que desmaya a todos los que estén cerca.
 
 ## Jugar
 
@@ -27,9 +28,11 @@ Pensado para celular en horizontal (se pone en pantalla completa al tocar un mod
 
 | Táctil | |
 |---|---|
-| Joystick (pulgar izquierdo, aparece donde tocas) | mover · **empujar hacia arriba = saltar** |
+| Joystick (pulgar izquierdo, aparece donde tocas) | mover (empujar arriba también salta) |
+| ⬆️ botón morado | saltar |
 | 👊 botón grande | golpear |
 | ✋ botón amarillo | agarrar / aventar (desmayados y barriles) |
+| 💨 botón verde | pedo (se enciende cuando llevas frijol) |
 
 Modo "2 jugadores" en un solo teléfono o tablet: cada quien controla su mitad
 de la pantalla (joystick en la esquina, botones junto a él).
@@ -40,6 +43,7 @@ de la pantalla (joystick en la esquina, botones junto a él).
 | Saltar | W | ↑ | A |
 | Golpear | F | , | X |
 | Agarrar / Aventar | G | . | B |
+| Pedo | H | / | Y |
 
 ## Pruebas
 
@@ -68,6 +72,7 @@ src/bot.js          → IA sencilla
 src/game.js         → loop, input, HUD, menús
 tests/              → pruebas de reglas
 scripts/bundle.mjs  → empaqueta todo en dist/monitos-azotea.html
+design/             → láminas del lienzo de diseño (personajes, escenario, controles)
 ```
 
 ## Mover este proyecto a su propio repositorio
