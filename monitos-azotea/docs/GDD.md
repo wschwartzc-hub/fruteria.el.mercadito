@@ -223,6 +223,12 @@ láminas de personajes, expresiones, escenario y controles está en `design/`.
 - Implementar con Web Audio (osciladores + ruido) para no depender de assets,
   o con archivos .ogg en `assets/sfx/`.
 
+### Pantallas anchas
+El mundo mide 1280 × 720 unidades, pero el lienzo se estira al ancho real
+de la pantalla (hasta 1900) y el mundo se centra: en teléfonos 19.5:9 se ve
+más ciudad y cielo a los lados en lugar de franjas negras. La azotea nunca
+cambia de tamaño.
+
 ## 6. Interfaz
 - Tarjetas por jugador arriba: color, nombre, vidas, KOs.
 - Sobre cada monito: nombre, contador de combo `n/4` y anillo de tiempo de KO.

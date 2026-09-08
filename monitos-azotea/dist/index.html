@@ -802,7 +802,7 @@ class World {
     const dir = opts.dir ?? (this.rng() < 0.5 ? 1 : -1);
     const low = opts.low ?? this.rng() < CFG.bird.lowChance;
     const y = opts.y ?? (low ? this.roof.y - 18 - this.rng() * 40 : this.roof.y - 160 - this.rng() * 220);
-    const x = dir > 0 ? -60 : this.roof.x * 2 + this.roof.w + 60;
+    const x = dir > 0 ? -460 : this.roof.x * 2 + this.roof.w + 460; // fuera de pantalla incluso en teléfonos anchos
     const b = createBird(this.birdSeq++, x, y, dir);
     this.birds.push(b);
     this.emit('birdSpawn', { birdId: b.id, dir, low });
@@ -817,13 +817,13 @@ class World {
         this.nextBirdIn = CFG.bird.spawnMin + this.rng() * (CFG.bird.spawnMax - CFG.bird.spawnMin);
       }
     }
-    const limitR = this.roof.x * 2 + this.roof.w + 120;
+    const limitR = this.roof.x * 2 + this.roof.w + 520;
     for (const b of this.birds) {
       b.flap += dt * 14;
       b.x += b.vx * dt;
       if (b.scared) { b.vy -= 900 * dt; b.y += b.vy * dt; }
       else b.y += Math.sin(b.flap * 0.5) * 12 * dt;
-      if (b.x < -120 || b.x > limitR || b.y < -80) { b.state = 'gone'; continue; }
+      if (b.x < -520 || b.x > limitR || b.y < -80) { b.state = 'gone'; continue; }
       const bb = boxOf(b);
       for (const m of this.monitos) {
         if (!BIRDABLE.has(m.state) || m.invuln > 0 || b.hit.includes(m.id)) continue;
@@ -1863,7 +1863,7 @@ return { Effects };
 })();
 
 // ---- src/render/scene.js ----
-const { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird, drawBarrel } = (() => {
+const { drawSky, drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird, drawBarrel } = (() => {
 // Escenario según la referencia: torre cartoon con piso alto morado, pisos
 // amarillos, toldos en las ventanas, barandal y bandera en la azotea, árbol
 // al lado, ciudad lavanda al fondo. También barriles y frijoles.
@@ -1926,21 +1926,26 @@ function tree(ctx, x, base) {
   ctx.fillStyle = P.leafLight; ctx.fill();
 }
 
-function drawBackground(ctx, W, H, roof, time) {
+// Cielo y nubes en coordenadas de pantalla: cubren todo el ancho, sea cual sea.
+function drawSky(ctx, W, H, time) {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, P.skyTop); sky.addColorStop(1, P.skyBottom);
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  const span = W + 300;
+  const drift = (time * 10) % span;
+  cloud(ctx, ((80 + drift) % span) - 150, 110, 1.1);
+  cloud(ctx, ((640 + drift * 0.7) % span) - 150, 70, 0.8);
+  cloud(ctx, ((1000 + drift * 0.5) % span) - 150, 170, 0.95);
+  if (W > 1400) cloud(ctx, ((1500 + drift * 0.6) % span) - 150, 130, 0.9);
+}
 
-  const drift = (time * 10) % (W + 300);
-  cloud(ctx, ((80 + drift) % (W + 300)) - 150, 110, 1.1);
-  cloud(ctx, ((640 + drift * 0.7) % (W + 300)) - 150, 70, 0.8);
-  cloud(ctx, ((1000 + drift * 0.5) % (W + 300)) - 150, 170, 0.95);
-
-  // ciudad lavanda al fondo (dos planos)
+// Ciudad y edificio en coordenadas de mundo (la azotea siempre en el mismo lugar).
+function drawBackground(ctx, W, H, roof, time) {
+  // ciudad lavanda al fondo (dos planos); se extiende más allá de los 1280 px base
   ctx.fillStyle = P.city2;
-  for (const [x, y, w] of [[-20, 330, 130], [120, 380, 90], [1100, 300, 120], [1210, 360, 100]]) ctx.fillRect(x, y, w, H - y);
+  for (const [x, y, w] of [[-520, 350, 140], [-330, 300, 110], [-20, 330, 130], [120, 380, 90], [1100, 300, 120], [1210, 360, 100], [1420, 320, 130], [1620, 370, 120]]) ctx.fillRect(x, y, w, H - y);
   ctx.fillStyle = P.city;
-  for (const [x, y, w] of [[40, 420, 110], [1010, 400, 70], [1140, 440, 150]]) { ctx.fillRect(x, y, w, H - y); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, H - y + 10); }
+  for (const [x, y, w] of [[-460, 430, 120], [-200, 410, 90], [40, 420, 110], [1010, 400, 70], [1140, 440, 150], [1360, 420, 100], [1540, 450, 130]]) { ctx.fillRect(x, y, w, H - y); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, H - y + 10); }
 
   const bx = roof.x, by = roof.y, bw = roof.w;
   tree(ctx, bx + bw + 60, H + 10);
@@ -2119,7 +2124,7 @@ function drawBarrel(ctx, b, roof, time) {
   ctx.restore();
 }
 
-return { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird, drawBarrel };
+return { drawSky, drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird, drawBarrel };
 })();
 
 // ---- src/bot.js ----
@@ -2695,7 +2700,8 @@ const { VIEW, Game } = (() => {
 
 
 
-const VIEW = { w: 1280, h: 720 };
+const VIEW = { w: 1280, h: 720 };   // tamaño base del mundo
+const VIEW_MAX_W = 1900;                     // en pantallas muy anchas se ve más ciudad, no más azotea
 const NO_INPUT = { left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false };
 const SPECIES_COLORS = { mono: '#b07a4f', leon: '#f2a93b', zorro: '#ef8a3c', panda: '#f4f1ec', elefante: '#a9b4c4', jirafa: '#f5c445', pinguino: '#3a4661', buho: '#a0703f' };
 
@@ -3088,18 +3094,24 @@ class Game {
   resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.sizedW = window.innerWidth; this.sizedH = window.innerHeight;
-    const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
-    this.canvas.width = VIEW.w * dpr; this.canvas.height = VIEW.h * dpr;
-    this.canvas.style.width = `${VIEW.w * scale}px`; this.canvas.style.height = `${VIEW.h * scale}px`;
+    // La altura lógica es fija (720); el ancho crece con la pantalla para no dejar franjas negras.
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.viewW = Math.max(VIEW.w, Math.min(VIEW_MAX_W, Math.round(VIEW.h * aspect)));
+    this.ox = Math.round((this.viewW - VIEW.w) / 2); // desplazamiento para centrar el mundo
+    const scale = Math.min(window.innerWidth / this.viewW, window.innerHeight / VIEW.h);
+    this.canvas.width = this.viewW * dpr; this.canvas.height = VIEW.h * dpr;
+    this.canvas.style.width = `${this.viewW * scale}px`; this.canvas.style.height = `${VIEW.h * scale}px`;
     this.dpr = dpr;
   }
 
   draw() {
-    const ctx = this.ctx, W = VIEW.w, H = VIEW.h;
+    const ctx = this.ctx, W = this.viewW || VIEW.w, H = VIEW.h;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     const roof = this.world ? this.world.roof : CFG.roof;
     const sh = this.effects.shake;
+    drawSky(ctx, W, H, this.time);
     ctx.save();
+    ctx.translate(this.ox || 0, 0); // de aquí en adelante, coordenadas de mundo
     if (sh > 0) ctx.translate((Math.random() - 0.5) * 18 * sh, (Math.random() - 0.5) * 12 * sh);
     drawBackground(ctx, W, H, roof, this.time);
     if (this.world && (this.mode === 'playing' || this.mode === 'over')) {

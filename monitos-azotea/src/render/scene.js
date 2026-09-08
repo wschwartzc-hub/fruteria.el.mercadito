@@ -61,21 +61,26 @@ function tree(ctx, x, base) {
   ctx.fillStyle = P.leafLight; ctx.fill();
 }
 
-export function drawBackground(ctx, W, H, roof, time) {
+// Cielo y nubes en coordenadas de pantalla: cubren todo el ancho, sea cual sea.
+export function drawSky(ctx, W, H, time) {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, P.skyTop); sky.addColorStop(1, P.skyBottom);
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  const span = W + 300;
+  const drift = (time * 10) % span;
+  cloud(ctx, ((80 + drift) % span) - 150, 110, 1.1);
+  cloud(ctx, ((640 + drift * 0.7) % span) - 150, 70, 0.8);
+  cloud(ctx, ((1000 + drift * 0.5) % span) - 150, 170, 0.95);
+  if (W > 1400) cloud(ctx, ((1500 + drift * 0.6) % span) - 150, 130, 0.9);
+}
 
-  const drift = (time * 10) % (W + 300);
-  cloud(ctx, ((80 + drift) % (W + 300)) - 150, 110, 1.1);
-  cloud(ctx, ((640 + drift * 0.7) % (W + 300)) - 150, 70, 0.8);
-  cloud(ctx, ((1000 + drift * 0.5) % (W + 300)) - 150, 170, 0.95);
-
-  // ciudad lavanda al fondo (dos planos)
+// Ciudad y edificio en coordenadas de mundo (la azotea siempre en el mismo lugar).
+export function drawBackground(ctx, W, H, roof, time) {
+  // ciudad lavanda al fondo (dos planos); se extiende más allá de los 1280 px base
   ctx.fillStyle = P.city2;
-  for (const [x, y, w] of [[-20, 330, 130], [120, 380, 90], [1100, 300, 120], [1210, 360, 100]]) ctx.fillRect(x, y, w, H - y);
+  for (const [x, y, w] of [[-520, 350, 140], [-330, 300, 110], [-20, 330, 130], [120, 380, 90], [1100, 300, 120], [1210, 360, 100], [1420, 320, 130], [1620, 370, 120]]) ctx.fillRect(x, y, w, H - y);
   ctx.fillStyle = P.city;
-  for (const [x, y, w] of [[40, 420, 110], [1010, 400, 70], [1140, 440, 150]]) { ctx.fillRect(x, y, w, H - y); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, H - y + 10); }
+  for (const [x, y, w] of [[-460, 430, 120], [-200, 410, 90], [40, 420, 110], [1010, 400, 70], [1140, 440, 150], [1360, 420, 100], [1540, 450, 130]]) { ctx.fillRect(x, y, w, H - y); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, H - y + 10); }
 
   const bx = roof.x, by = roof.y, bw = roof.w;
   tree(ctx, bx + bw + 60, H + 10);

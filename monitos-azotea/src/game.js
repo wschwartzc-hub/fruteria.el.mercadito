@@ -2,14 +2,15 @@
 import { CFG } from './core/config.js';
 import { World, S, SPECIES } from './core/world.js';
 import { drawMonito, drawShadow, stepMonitoAnim, drawHead, drawFartCloud, OUTLINE } from './render/monito.js';
-import { drawBackground, drawBarrel, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird } from './render/scene.js';
+import { drawSky, drawBackground, drawBarrel, drawBean, drawJetpackItem, drawMalletItem, drawKarateItem, drawBird } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { botInput } from './bot.js';
 import { TouchControls } from './touch.js';
 import { HostSession, ClientSession, Replica, InputSender, encodeSnapshot, SNAP_INTERVAL } from './net/session.js';
 import { normalizeCode } from './net/peer.js';
 
-export const VIEW = { w: 1280, h: 720 };
+export const VIEW = { w: 1280, h: 720 };   // tamaño base del mundo
+const VIEW_MAX_W = 1900;                     // en pantallas muy anchas se ve más ciudad, no más azotea
 const NO_INPUT = { left: false, right: false, jump: false, jumpHeld: false, punch: false, grab: false, fart: false };
 const SPECIES_COLORS = { mono: '#b07a4f', leon: '#f2a93b', zorro: '#ef8a3c', panda: '#f4f1ec', elefante: '#a9b4c4', jirafa: '#f5c445', pinguino: '#3a4661', buho: '#a0703f' };
 
@@ -402,18 +403,24 @@ export class Game {
   resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.sizedW = window.innerWidth; this.sizedH = window.innerHeight;
-    const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
-    this.canvas.width = VIEW.w * dpr; this.canvas.height = VIEW.h * dpr;
-    this.canvas.style.width = `${VIEW.w * scale}px`; this.canvas.style.height = `${VIEW.h * scale}px`;
+    // La altura lógica es fija (720); el ancho crece con la pantalla para no dejar franjas negras.
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.viewW = Math.max(VIEW.w, Math.min(VIEW_MAX_W, Math.round(VIEW.h * aspect)));
+    this.ox = Math.round((this.viewW - VIEW.w) / 2); // desplazamiento para centrar el mundo
+    const scale = Math.min(window.innerWidth / this.viewW, window.innerHeight / VIEW.h);
+    this.canvas.width = this.viewW * dpr; this.canvas.height = VIEW.h * dpr;
+    this.canvas.style.width = `${this.viewW * scale}px`; this.canvas.style.height = `${VIEW.h * scale}px`;
     this.dpr = dpr;
   }
 
   draw() {
-    const ctx = this.ctx, W = VIEW.w, H = VIEW.h;
+    const ctx = this.ctx, W = this.viewW || VIEW.w, H = VIEW.h;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     const roof = this.world ? this.world.roof : CFG.roof;
     const sh = this.effects.shake;
+    drawSky(ctx, W, H, this.time);
     ctx.save();
+    ctx.translate(this.ox || 0, 0); // de aquí en adelante, coordenadas de mundo
     if (sh > 0) ctx.translate((Math.random() - 0.5) * 18 * sh, (Math.random() - 0.5) * 12 * sh);
     drawBackground(ctx, W, H, roof, this.time);
     if (this.world && (this.mode === 'playing' || this.mode === 'over')) {

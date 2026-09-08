@@ -476,7 +476,7 @@ export class World {
     const dir = opts.dir ?? (this.rng() < 0.5 ? 1 : -1);
     const low = opts.low ?? this.rng() < CFG.bird.lowChance;
     const y = opts.y ?? (low ? this.roof.y - 18 - this.rng() * 40 : this.roof.y - 160 - this.rng() * 220);
-    const x = dir > 0 ? -60 : this.roof.x * 2 + this.roof.w + 60;
+    const x = dir > 0 ? -460 : this.roof.x * 2 + this.roof.w + 460; // fuera de pantalla incluso en teléfonos anchos
     const b = createBird(this.birdSeq++, x, y, dir);
     this.birds.push(b);
     this.emit('birdSpawn', { birdId: b.id, dir, low });
@@ -491,13 +491,13 @@ export class World {
         this.nextBirdIn = CFG.bird.spawnMin + this.rng() * (CFG.bird.spawnMax - CFG.bird.spawnMin);
       }
     }
-    const limitR = this.roof.x * 2 + this.roof.w + 120;
+    const limitR = this.roof.x * 2 + this.roof.w + 520;
     for (const b of this.birds) {
       b.flap += dt * 14;
       b.x += b.vx * dt;
       if (b.scared) { b.vy -= 900 * dt; b.y += b.vy * dt; }
       else b.y += Math.sin(b.flap * 0.5) * 12 * dt;
-      if (b.x < -120 || b.x > limitR || b.y < -80) { b.state = 'gone'; continue; }
+      if (b.x < -520 || b.x > limitR || b.y < -80) { b.state = 'gone'; continue; }
       const bb = boxOf(b);
       for (const m of this.monitos) {
         if (!BIRDABLE.has(m.state) || m.invuln > 0 || b.hit.includes(m.id)) continue;
