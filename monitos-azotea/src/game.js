@@ -5,6 +5,7 @@ import { drawMonito, drawShadow, stepMonitoAnim } from './render/monito.js';
 import { drawBackground, drawBarrel } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { botInput } from './bot.js';
+import { TouchControls } from './touch.js';
 
 export const VIEW = { w: 1280, h: 720 };
 const OUTLINE = '#1d1a24';
@@ -16,19 +17,58 @@ const KEYMAPS = [
 ];
 
 export class Game {
-  constructor(canvas) {
+  constructor(canvas, ui) {
     this.canvas = canvas;
+    this.ui = ui;
     this.ctx = canvas.getContext('2d');
     this.keys = new Set();
     this.pressed = new Set();
     this.effects = new Effects();
     this.mode = 'menu'; // menu | playing | over
-    this.players = [];   // { id, kind: 'key'|'pad'|'bot', keymap?, padIndex? }
+    this.players = [];   // { id, kind: 'key'|'touch'|'bot', keymap?, touchIndex? }
     this.acc = 0; this.last = performance.now(); this.time = 0;
+    this.isTouch = TouchControls.isTouchDevice();
+    document.body.classList.toggle('touch', this.isTouch);
+    this.touch = new TouchControls(ui.touch);
     this.bindInput();
+    this.bindUI();
     this.resize();
     window.addEventListener('resize', () => this.resize());
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  bindUI() {
+    for (const b of this.ui.menu.querySelectorAll('[data-mode]')) {
+      b.addEventListener('click', () => { this.goFullscreen(); this.startMode(b.dataset.mode); });
+    }
+    this.ui.over.querySelector('#rematch').addEventListener('click', () => this.startMode(this.lastMode));
+    this.ui.over.querySelector('#tomenu').addEventListener('click', () => this.showMenu());
+  }
+
+  // En celular: pantalla completa y bloquear en horizontal (si el navegador lo permite).
+  goFullscreen() {
+    if (!this.isTouch) return;
+    const el = document.documentElement;
+    const p = el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.();
+    Promise.resolve(p).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  }
+
+  showMenu() {
+    this.mode = 'menu';
+    this.ui.menu.hidden = false; this.ui.over.hidden = true;
+    this.touch.setup(0);
+  }
+
+  // Modos del menú. En táctil los humanos usan la pantalla; en escritorio, el teclado.
+  startMode(mode) {
+    this.lastMode = mode;
+    const human = (i) => (this.isTouch ? { kind: 'touch', touchIndex: i } : { kind: 'key', keymap: i });
+    const bot = { kind: 'bot' };
+    const modes = {
+      solo1: [human(0), bot], solo2: [human(0), bot, bot],
+      duo: [human(0), human(1)], duo2: [human(0), human(1), bot, bot],
+    };
+    this.start(modes[mode] || modes.solo1);
   }
 
   bindInput() {
@@ -37,17 +77,15 @@ export class Game {
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
       this.keys.add(e.code); this.pressed.add(e.code);
       if (this.mode === 'menu') this.menuKey(e.code);
-      else if (this.mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter')) this.mode = 'menu';
-      else if (e.code === 'Escape') this.mode = 'menu';
+      else if (this.mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter')) this.startMode(this.lastMode);
+      else if (e.code === 'Escape') this.showMenu();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
   }
 
   menuKey(code) {
-    if (code === 'Digit1') this.start([{ kind: 'key', keymap: 0 }, { kind: 'bot' }]);
-    if (code === 'Digit2') this.start([{ kind: 'key', keymap: 0 }, { kind: 'key', keymap: 1 }]);
-    if (code === 'Digit3') this.start([{ kind: 'key', keymap: 0 }, { kind: 'key', keymap: 1 }, { kind: 'bot' }]);
-    if (code === 'Digit4') this.start([{ kind: 'key', keymap: 0 }, { kind: 'key', keymap: 1 }, { kind: 'bot' }, { kind: 'bot' }]);
+    const map = { Digit1: 'solo1', Digit2: 'duo', Digit3: 'solo2', Digit4: 'duo2' };
+    if (map[code]) this.startMode(map[code]);
   }
 
   start(players) {
@@ -57,6 +95,8 @@ export class Game {
     this.effects = new Effects();
     this.mode = 'playing';
     this.overT = 0;
+    this.ui.menu.hidden = true; this.ui.over.hidden = true;
+    this.touch.setup(this.players.filter((p) => p.kind === 'touch').length);
   }
 
   // Lee input de todos los jugadores para este tick.
@@ -68,6 +108,7 @@ export class Game {
       const m = this.world.get(p.id);
       let inp;
       if (p.kind === 'bot') inp = botInput(this.world, m, this.time);
+      else if (p.kind === 'touch') inp = this.touch.read(p.touchIndex) || { left: false, right: false, jump: false, punch: false, grab: false };
       else {
         const km = KEYMAPS[p.keymap];
         const has = (arr) => arr.some((k) => this.keys.has(k));
@@ -105,7 +146,7 @@ export class Game {
       }
       for (const ev of this.world.drain()) {
         this.effects.handle(ev, this.world);
-        if (ev.type === 'matchOver') { this.mode = 'over'; this.overT = 0; }
+        if (ev.type === 'matchOver') this.finish(ev.winnerId);
       }
       this.effects.step(dtReal);
       if (this.mode === 'over') this.overT += dtReal;
@@ -113,6 +154,15 @@ export class Game {
     this.pressed.clear();
     this.draw();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  finish(winnerId) {
+    this.mode = 'over';
+    const win = winnerId != null ? this.world.get(winnerId) : null;
+    this.ui.winner.textContent = win ? `¡GANA ${win.name.toUpperCase()}!` : 'EMPATE';
+    this.ui.winner.style.color = win ? win.color : '#fff';
+    this.touch.setup(0);
+    setTimeout(() => { if (this.mode === 'over') this.ui.over.hidden = false; }, 900);
   }
 
   resize() {
@@ -145,8 +195,7 @@ export class Game {
     ctx.restore();
     if (this.effects.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.effects.flash * 2})`; ctx.fillRect(0, 0, W, H); }
 
-    if (this.mode === 'menu') this.drawMenu(ctx, W, H);
-    else { this.drawHUD(ctx, W, H); if (this.mode === 'over') this.drawOver(ctx, W, H); }
+    if (this.mode !== 'menu') this.drawHUD(ctx, W, H);
   }
 
   drawOverheads(ctx, w) {
@@ -190,35 +239,5 @@ export class Game {
       ctx.fillStyle = OUTLINE; ctx.font = '700 13px Arial';
       ctx.fillText(`KOs: ${m.score}`, x + 150, y + 46);
     });
-  }
-
-  drawMenu(ctx, W, H) {
-    ctx.fillStyle = 'rgba(20,18,30,.55)'; ctx.fillRect(0, 0, W, H);
-    ctx.textAlign = 'center';
-    ctx.font = '900 72px "Arial Black", Impact, sans-serif'; ctx.lineJoin = 'round';
-    ctx.lineWidth = 10; ctx.strokeStyle = OUTLINE; ctx.strokeText('MONITOS EN LA AZOTEA', W / 2, 170);
-    ctx.fillStyle = '#ffd23f'; ctx.fillText('MONITOS EN LA AZOTEA', W / 2, 170);
-    const lines = [
-      '[1]  1 jugador vs Bot', '[2]  2 jugadores (teclado)', '[3]  2 jugadores + 1 Bot', '[4]  2 jugadores + 2 Bots', '',
-      'J1: A / D mover · W saltar · F golpear · G agarrar/aventar',
-      'J2: ← / → mover · ↑ saltar · , golpear · . agarrar/aventar',
-      'Gamepad: stick mover · A saltar · X golpear · B agarrar', '',
-      '4 golpes seguidos = ¡a volar! · Levanta al desmayado y aviéntalo al vacío',
-      'Cuidado con los barriles que caen del cielo',
-    ];
-    ctx.font = '700 24px Arial'; ctx.fillStyle = '#fff'; ctx.lineWidth = 6;
-    lines.forEach((l, i) => { ctx.strokeText(l, W / 2, 250 + i * 36); ctx.fillText(l, W / 2, 250 + i * 36); });
-  }
-
-  drawOver(ctx, W, H) {
-    const w = this.world;
-    const win = w.winnerId != null ? w.get(w.winnerId) : null;
-    ctx.fillStyle = 'rgba(20,18,30,.45)'; ctx.fillRect(0, 0, W, H);
-    ctx.textAlign = 'center'; ctx.font = '900 64px "Arial Black", Impact, sans-serif';
-    ctx.lineWidth = 10; ctx.strokeStyle = OUTLINE;
-    const msg = win ? `¡GANA ${win.name.toUpperCase()}!` : 'EMPATE';
-    ctx.strokeText(msg, W / 2, H / 2 - 20); ctx.fillStyle = win ? win.color : '#fff'; ctx.fillText(msg, W / 2, H / 2 - 20);
-    ctx.font = '700 26px Arial'; ctx.lineWidth = 6; ctx.fillStyle = '#fff';
-    ctx.strokeText('R = revancha', W / 2, H / 2 + 40); ctx.fillText('R = revancha', W / 2, H / 2 + 40);
   }
 }

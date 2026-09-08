@@ -17,14 +17,25 @@ npm start          # http://localhost:5173
 
 En GitHub Pages funciona directo.
 
-| | Jugador 1 | Jugador 2 | Gamepad |
+### Controles
+
+Pensado para celular en horizontal (se pone en pantalla completa al tocar un modo):
+
+| Táctil | |
+|---|---|
+| Joystick (pulgar izquierdo, aparece donde tocas) | mover · **empujar hacia arriba = saltar** |
+| 👊 botón grande | golpear |
+| ✋ botón amarillo | agarrar / aventar (desmayados y barriles) |
+
+Modo "2 jugadores" en un solo teléfono o tablet: cada quien controla su mitad
+de la pantalla (joystick en la esquina, botones junto a él).
+
+| Teclado / gamepad | Jugador 1 | Jugador 2 | Gamepad |
 |---|---|---|---|
 | Mover | A / D | ← / → | Stick / D-pad |
 | Saltar | W | ↑ | A |
 | Golpear | F | , | X |
 | Agarrar / Aventar | G | . | B |
-
-En el menú: `1` un jugador contra bot, `2` dos jugadores, `3`/`4` agregan bots.
 
 ## Pruebas
 

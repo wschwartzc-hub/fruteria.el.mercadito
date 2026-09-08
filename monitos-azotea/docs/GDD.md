@@ -78,6 +78,28 @@ te pegan mientras cargas a alguien, el desmayado despierta en tus brazos).
 
 ## 3. Controles
 
+**Prioridad: celular.** Sólo hay tres acciones (mover/saltar, golpear,
+agarrar) para que quepan en dos pulgares sin mirar la pantalla.
+
+### 3.1 Táctil (principal)
+- **Joystick flotante** en la mitad izquierda: aparece donde apoyas el pulgar,
+  así no hay que buscarlo. Izquierda/derecha mueve; **empujar hacia arriba
+  salta** (hay que regresar el pulgar al centro para volver a saltar, evita
+  saltos accidentales). Zona muerta del 32 % para que caminar sea estable.
+- **👊 Golpe**: botón grande (88 px) abajo a la derecha, bajo el pulgar derecho.
+- **✋ Agarrar / Aventar**: botón amarillo junto al de golpe. Misma tecla
+  para levantar, aventar y tomar barriles: una sola idea, "manos".
+- Al elegir modo se pide pantalla completa y orientación horizontal. En
+  vertical aparece un aviso de "gira tu teléfono".
+- **2 jugadores en el mismo aparato:** la pantalla se parte en mitades. Cada
+  jugador tiene su joystick en la esquina exterior y sus dos botones al lado,
+  todos pegados al borde inferior para no tapar la azotea. Cómodo en tablet;
+  en teléfono funciona pero queda apretado.
+- Los controles son elementos HTML encima del canvas (`src/touch.js`), con
+  `pointer events` y captura por dedo, para que dos o cuatro pulgares a la vez
+  no se estorben.
+
+### 3.2 Teclado y gamepad (escritorio)
 | | Jugador 1 | Jugador 2 | Gamepad |
 |---|---|---|---|
 | Mover | A / D | ← / → | Stick izq. / D-pad |
@@ -85,8 +107,8 @@ te pegan mientras cargas a alguien, el desmayado despierta en tus brazos).
 | Golpear | F (o J) | , (o O) | X |
 | Agarrar / Aventar | G (o K) | . (o P) | B |
 
-Menú: `1` = 1 jugador vs bot, `2` = 2 jugadores, `3` y `4` agregan bots.
-`R` = revancha, `Esc` = menú.
+Menú con botones tocables; en teclado también `1`..`4`. `R` = revancha,
+`Esc` = menú.
 
 ## 4. Dirección de arte
 

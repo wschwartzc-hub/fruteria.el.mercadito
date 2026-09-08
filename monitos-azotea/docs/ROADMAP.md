@@ -8,6 +8,8 @@
       aventar, reacción en cadena.
 - [x] Monitos vectoriales con animación procedural y caras por estado.
 - [x] Escenario tipo boceto, efectos, HUD, menú, bot de prueba, gamepad básico.
+- [x] Controles táctiles: joystick flotante (↑ salta) + 2 botones; 2 jugadores
+      en la misma pantalla; pantalla completa y aviso de orientación.
 
 ## v0.2 — Sensación (game feel)
 - [ ] Ajustar números jugando con gente (`docs/LOGICA.md` §11).
@@ -15,7 +17,9 @@
 - [ ] Animación de reaparición (paracaídas) y de "levantarse" tras KO.
 - [ ] Arrastre de la víctima al aventarla (estela) y rebote en el pretil.
 - [ ] Sonidos con Web Audio (sin assets externos).
-- [ ] Controles táctiles en pantalla para jugar en celular (2 jugadores, mitad y mitad).
+- [ ] Vibración (`navigator.vibrate`) al golpear y al explotar, en Android.
+- [ ] Probar el joystick con gente: tamaño de zona muerta y umbral de salto.
+- [ ] Manifest PWA para instalar en el teléfono y jugar sin barra del navegador.
 
 ## v0.3 — Contenido
 - [ ] 2 o 3 azoteas más: con desnivel, con tinaco que sirve de plataforma,

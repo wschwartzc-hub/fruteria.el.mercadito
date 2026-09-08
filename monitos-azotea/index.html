@@ -2,24 +2,111 @@
 <html lang="es-MX">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1d1a24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Monitos en la Azotea</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #1d1a24; overflow: hidden; }
-  body { display: flex; align-items: center; justify-content: center; font-family: Arial, sans-serif; }
-  canvas { display: block; image-rendering: auto; }
-  #note { position: fixed; left: 0; right: 0; bottom: 8px; text-align: center; color: #aaa; font-size: 12px; pointer-events: none; }
+  :root { --ink: #1d1a24; --sun: #ffd23f; --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; overscroll-behavior: none; touch-action: none; }
+  body { display: flex; align-items: center; justify-content: center; font-family: -apple-system, "Segoe UI", Arial, sans-serif; color: #fff; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; }
+
+  /* ---------- overlays ---------- */
+  .ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(20,18,30,.55); text-align: center; padding: 16px; }
+  .ov[hidden] { display: none; }
+  .menu-grid { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  /* teléfonos en horizontal: todo más compacto y en dos columnas */
+  @media (max-height: 520px) {
+    .ov { gap: 6px; padding: 8px 16px; }
+    .title { font-size: clamp(22px, 4.5vh, 34px); margin-bottom: 4px; }
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(92vw, 640px); }
+    .btn { min-width: 0; width: 100%; padding: 10px 12px; font-size: 15px; border-width: 2px; }
+    .btn small, body.touch .btn small, body:not(.touch) .btn small { display: none; }
+    .rules { font-size: 11px; max-width: 640px; margin: 2px 0 0; line-height: 1.3; }
+    .keys { font-size: 10px; margin: 0; }
+    #winner { font-size: 34px; }
+  }
+  .title { font: 900 clamp(28px, 7vw, 64px)/1 "Arial Black", Impact, sans-serif; color: var(--sun); -webkit-text-stroke: 2px var(--ink); text-shadow: 4px 4px 0 var(--ink); margin: 0 0 8px; letter-spacing: 1px; }
+  .btn { font: 800 clamp(16px, 2.6vw, 22px)/1 inherit; color: var(--ink); background: #fff; border: 3px solid var(--ink); border-radius: 14px; padding: 14px 22px; min-width: min(78vw, 360px); box-shadow: 0 5px 0 var(--ink); cursor: pointer; }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  .btn.primary { background: var(--sun); }
+  .btn small { display: block; font-weight: 600; font-size: .75em; opacity: .7; margin-top: 4px; }
+  .rules { font-size: clamp(12px, 1.9vw, 16px); opacity: .9; max-width: 640px; line-height: 1.4; margin-top: 6px; }
+  .keys { font-size: clamp(11px, 1.6vw, 14px); opacity: .75; }
+  .touch-only, .kbd-only { display: none; }
+  body.touch .touch-only { display: block; }
+  body:not(.touch) .kbd-only { display: block; }
+  #winner { font: 900 clamp(30px, 8vw, 70px)/1.1 "Arial Black", Impact, sans-serif; -webkit-text-stroke: 2px var(--ink); text-shadow: 4px 4px 0 var(--ink); }
+
+  /* ---------- controles táctiles ---------- */
+  #touch { position: fixed; inset: 0; pointer-events: none; }
+  #touch[hidden] { display: none; }
+  .tc-zone, .tc-btns { position: absolute; pointer-events: auto; touch-action: none; }
+  .tc-zone { bottom: 0; height: 58%; }
+  .tc-zone.tc-solo { left: 0; width: 48%; }
+  .tc-zone.tc-left { left: 0; width: 26%; }
+  .tc-zone.tc-right { right: 0; width: 26%; }
+  .tc-base { position: absolute; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 50%; background: rgba(255,255,255,.18); border: 3px solid rgba(255,255,255,.55); display: none; }
+  .tc-base.on { display: block; }
+  .tc-knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(255,255,255,.85); border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
+  .tc-hint { position: absolute; left: 0; right: 0; bottom: calc(14px + var(--safe-b)); text-align: center; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.75); text-shadow: 0 1px 2px var(--ink); pointer-events: none; }
+  .tc-btns { bottom: calc(18px + var(--safe-b)); display: flex; gap: 14px; align-items: flex-end; }
+  .tc-btns.tc-solo { right: calc(18px + var(--safe-r)); flex-direction: row; }
+  .tc-btns.tc-left { left: calc(26% + 10px); flex-direction: row; }
+  .tc-btns.tc-right { right: calc(26% + 10px); flex-direction: row-reverse; }
+  .tc-btn { width: 88px; height: 88px; border-radius: 50%; background: rgba(255,255,255,.88); border: 3px solid var(--ink); box-shadow: 0 5px 0 var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 34px; line-height: 1; }
+  .tc-btn.tc-grab { width: 76px; height: 76px; font-size: 28px; background: rgba(255,210,63,.9); }
+  .tc-btn.on { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  .tc-sub { font-size: 11px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+  #touch[data-players="2"] .tc-btn { width: 70px; height: 70px; font-size: 26px; }
+  #touch[data-players="2"] .tc-btn.tc-grab { width: 60px; height: 60px; font-size: 22px; }
+  #touch[data-players="2"] .tc-btns { gap: 10px; bottom: calc(12px + var(--safe-b)); }
+  #touch[data-players="2"] .tc-zone { width: 24%; }
+
+  /* ---------- gira el teléfono ---------- */
+  #rotate { display: none; }
+  @media (orientation: portrait) and (pointer: coarse) {
+    #rotate { display: flex; z-index: 50; background: var(--ink); font-size: 20px; font-weight: 800; }
+    #rotate .phone { font-size: 72px; animation: spin 1.6s ease-in-out infinite; }
+  }
+  @keyframes spin { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="note" hidden>Este juego usa módulos ES: ábrelo con un servidor local (<code>npm start</code>) o desde GitHub Pages, no con doble clic.</div>
+
+<div id="touch" hidden></div>
+
+<div id="menu" class="ov">
+  <h1 class="title">MONITOS EN LA AZOTEA</h1>
+  <div class="menu-grid">
+    <button class="btn primary" data-mode="solo1">1 jugador vs Bot</button>
+    <button class="btn" data-mode="solo2">1 jugador vs 2 Bots</button>
+    <button class="btn" data-mode="duo">2 jugadores <small class="touch-only">misma pantalla, cada uno en su mitad</small><small class="kbd-only">teclado: WASD+F/G y flechas+,/.</small></button>
+    <button class="btn" data-mode="duo2">2 jugadores + 2 Bots</button>
+  </div>
+  <p class="rules">4 golpes seguidos = ¡a volar y desmayado! Levanta al desmayado y aviéntalo al vacío antes de que despierte. Si te pegan mientras lo cargas, se te escapa. Cuidado con los barriles.</p>
+  <p class="keys touch-only">Joystick: mover · empuja hacia arriba para saltar · 👊 golpe · ✋ agarrar / aventar</p>
+  <p class="keys kbd-only">J1: A/D mover · W saltar · F golpe · G agarrar &nbsp;|&nbsp; J2: ←/→ · ↑ · , · . &nbsp;|&nbsp; Gamepad: A saltar · X golpe · B agarrar</p>
+</div>
+
+<div id="over" class="ov" hidden>
+  <div id="winner">¡GANA!</div>
+  <button class="btn primary" id="rematch">Revancha</button>
+  <button class="btn" id="tomenu">Menú</button>
+</div>
+
+<div id="rotate" class="ov"><div class="phone">📱</div>Gira tu teléfono<br><small>el juego es en horizontal</small></div>
+
 <script type="module">
   import { Game } from './src/game.js';
-  window.game = new Game(document.getElementById('game'));
-</script>
-<script>
-  if (location.protocol === 'file:') document.getElementById('note').hidden = false;
+  window.game = new Game(document.getElementById('game'), {
+    menu: document.getElementById('menu'), over: document.getElementById('over'),
+    winner: document.getElementById('winner'), touch: document.getElementById('touch'),
+  });
 </script>
 </body>
 </html>

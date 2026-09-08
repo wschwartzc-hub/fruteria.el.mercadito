@@ -212,7 +212,18 @@ Spawn: `nextBarrelIn` empieza en 5 s y después toma valores en [6, 12] s.
 El render nunca modifica el mundo; sólo lee y consume eventos. Eso deja la
 puerta abierta a repetir partidas (replays) o a correr el mundo en un servidor.
 
-## 10. Bot (`src/bot.js`)
+## 10. Entrada táctil (`src/touch.js`)
+
+- Cada jugador táctil tiene `dx, dy` (joystick en −1..1) y `punch, grab`
+  (botones mantenidos). `read(i)` convierte eso al input del mundo:
+  `left = dx < −0.32`, `right = dx > 0.32`, `jump` = flanco cuando `dy < −0.62`
+  (se re-arma al volver `dy > −0.31`), `punch`/`grab` = flanco al presionar.
+- El joystick es flotante: el centro se fija donde cae el primer toque de la
+  zona; el radio útil es 56 px CSS.
+- Cada zona/botón captura su propio `pointerId`, así un dedo no interfiere
+  con otro (necesario para 2 jugadores en la misma pantalla).
+
+## 11. Bot (`src/bot.js`)
 
 Prioridades, de mayor a menor:
 1. Cargando a un monito → caminar al borde más cercano y aventar.
@@ -224,7 +235,7 @@ Prioridades, de mayor a menor:
    el rival está arriba. Nunca camina a menos de 40 px del borde salvo que
    esté cargando a alguien.
 
-## 11. Parámetros para "tunear" primero
+## 12. Parámetros para "tunear" primero
 
 | Parámetro | Valor | Qué cambia |
 |---|---|---|
