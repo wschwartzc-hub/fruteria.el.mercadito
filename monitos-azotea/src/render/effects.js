@@ -63,6 +63,18 @@ export class Effects {
         this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
         break;
       }
+      case 'malletPickup': this.text(ev.x, ev.y - 20, '¡MAZO!', '#ff8c42', 30); this.stars(ev.x, ev.y + 20, 5); break;
+      case 'malletHit':
+        this.text(ev.x, ev.y - 50, '¡PUM!', '#ff6b35', 44); this.stars(ev.x, ev.y, 10);
+        this.ring(ev.x, ev.y + 20, 70, '#ff8c42'); this.shake = Math.max(this.shake, 0.8);
+        break;
+      case 'malletBroken': this.text(ev.x, ev.y - 20, '¡SE ROMPIÓ!', '#fff', 22); this.dust(ev.x, ev.y + 30, 6); break;
+      case 'birdHit': {
+        this.text(ev.x, ev.y - 30, '¡PALOMA!', '#fff', 24);
+        for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2; this.parts.push({ type: 'feather', x: ev.x, y: ev.y + 10, vx: Math.cos(a) * 90, vy: -60 + Math.random() * 40, life: 1.2, max: 1.2, rot: Math.random() * 6, color: '#dfe4ee' }); }
+        this.shake = Math.max(this.shake, 0.2);
+        break;
+      }
       case 'jetpackPickup': this.text(ev.x, ev.y - 20, '¡JET PACK!', '#6ad1ff', 28); this.stars(ev.x, ev.y + 20, 5); break;
       case 'jetpackSave': this.text(ev.x, ev.y - 30, '¡SALVADO!', '#6ad1ff', 32); this.ring(ev.x, ev.y + 30, 60, '#6ad1ff'); break;
       case 'jetpackEmpty': this.text(ev.x, ev.y - 20, '¡SIN GAS!', '#ff8a8a', 24); this.dust(ev.x, ev.y + 30, 6); break;
@@ -113,7 +125,8 @@ export class Effects {
     for (const p of this.parts) {
       p.life -= dt;
       if (p.type === 'ring' || p.type === 'text') { if (p.type === 'text') p.y += p.vy * dt; continue; }
-      const g = p.type === 'smoke' ? -80 : p.type === 'dust' ? 200 : 1200;
+      const g = p.type === 'smoke' ? -80 : p.type === 'dust' ? 200 : p.type === 'feather' ? 60 : 1200;
+      if (p.type === 'feather') { p.vx *= 0.98; p.rot += 4 * dt; p.x += Math.sin(p.rot * 2) * 30 * dt; }
       p.vy += g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.type === 'plank') p.rot += p.vr * dt;
       if (p.type === 'smoke') p.size += 25 * dt;
@@ -152,6 +165,11 @@ export class Effects {
         case 'dust': case 'smoke':
           ctx.globalAlpha = k * 0.9; ctx.fillStyle = p.color;
           ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+          break;
+        case 'feather':
+          ctx.globalAlpha = Math.min(1, k * 2); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.color; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.ellipse(0, 0, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
           break;
         case 'plank':
           ctx.globalAlpha = Math.min(1, k * 3); ctx.translate(p.x, p.y); ctx.rotate(p.rot);

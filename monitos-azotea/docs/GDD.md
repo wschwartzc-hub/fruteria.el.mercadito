@@ -36,8 +36,10 @@ te pegan mientras cargas a alguien, el desmayado despierta en tus brazos).
 
 ### 2.3 Combo de 4 golpes
 - Cada golpe que conecta suma 1 al **combo de la víctima**.
-- El combo cuenta sólo si el siguiente golpe llega en menos de **1.4 s** y viene
-  del **mismo atacante** (otro atacante reinicia el conteo en 1).
+- El combo sigue vivo mientras el contador esté arriba de cero y venga del
+  **mismo atacante** (otro atacante reinicia el conteo en 1). Tras **2.2 s**
+  sin golpes el contador **baja de uno en uno** cada 0.7 s, visible sobre la
+  víctima, en lugar de reiniciarse de golpe.
 - Al **4.º golpe** la víctima sale volando (`launched`) y al aterrizar queda
   **desmayada (KO) 3 segundos**, con pajaritos dando vueltas sobre la cabeza.
 - Mientras está KO no puede hacer nada. Al despertar tiene 0.5 s de
@@ -105,14 +107,31 @@ presionando botones en vez de mirar.
   que te está cargando. Sobre tu monito parpadea "¡MACHACA GOLPE!".
 - Esto obliga al que carga a decidir rápido y a los demás a no confiarse.
 
-### 2.9 En línea
+### 2.9 Mazo
+- A partir del segundo 18 cae un **mazo** cada 22 a 36 s. Se recoge solo al
+  pisarlo y se lleva al hombro (uno por monito, 3 golpes antes de romperse).
+- Con mazo, el botón de golpe hace un **barrido por abajo**: 0.3 s de aviso
+  (el mazo se levanta atrás), 0.14 s de golpe con 95 px de alcance que sólo
+  pega hasta el 45 % de la altura del cuerpo, y 0.45 s de recuperación.
+- Todo el que esté en el barrido **sale volando** (queda KO al caer), también
+  los ya desmayados. Pega a varios a la vez. La única defensa es **saltar** a
+  tiempo, como con una cuerda. Si te pegan durante el aviso, el golpe se cancela.
+
+### 2.10 Palomas
+- Cada 10 a 18 s cruza una paloma. Dos de cada tres van a la altura de los
+  monitos; el resto pasan alto, de adorno.
+- Si una paloma baja choca contigo, te **aturde ligeramente** (mismo empujón
+  que un golpe, pero **no cuenta para el combo**) y sale volando asustada
+  soltando plumas. Se esquiva saltando.
+
+### 2.11 En línea
 - Sala con código de 4 letras. Hasta **8 jugadores** (uno por animal). El
   anfitrión decide cuándo empezar y puede agregar bots.
 - Cada jugador ve su propio nombre en blanco y una flechita sobre su monito
   cuando hay más de dos.
 - Si alguien se desconecta, su monito lo controla un bot. Ver `docs/ONLINE.md`.
 
-### 2.10 Condición de victoria
+### 2.12 Condición de victoria
 - Cada monito tiene **3 vidas**. Pierde una al caer del edificio.
 - Gana el último con vidas. Se muestra un marcador de "KOs" (combos de 4 y
   explosiones que provocaste) para picar el orgullo.

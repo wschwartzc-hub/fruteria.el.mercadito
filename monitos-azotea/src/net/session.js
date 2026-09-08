@@ -12,10 +12,12 @@ const r1 = (v) => Math.round(v * 10) / 10;
 export function encodeSnapshot(world, events) {
   return {
     t: 'snap', time: r1(world.time), over: world.over, winnerId: world.winnerId,
-    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0]),
+    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0, m.mallet ? m.mallet.uses : -1]),
     b: world.barrels.map((b) => [b.id, r1(b.x), r1(b.y), b.state, b.armed ? 1 : 0, r1(b.fuse), r1(b.spin), r1(b.t)]),
     f: world.beans.map((b) => [b.id, r1(b.x), r1(b.y), b.state, r1(b.spin)]),
     j: world.jetpacks.map((j) => [j.id, r1(j.x), r1(j.y), j.state, r1(j.spin)]),
+    k: world.mallets.map((it) => [it.id, r1(it.x), r1(it.y), it.state, r1(it.spin)]),
+    p: world.birds.map((b) => [b.id, r1(b.x), r1(b.y), b.dir, r1(b.flap)]),
     ev: events.map((e) => { const { t, ...rest } = e; return rest; }),
   };
 }
@@ -26,7 +28,7 @@ export class Replica {
     this.roof = { ...CFG.roof };
     this.time = 0; this.over = false; this.winnerId = null;
     this.monitos = players.map((p, i) => { const m = createMonito(i, this.roof.x + 100, this.roof.y, { species: p.species, name: p.name }); m.justLanded = false; return m; });
-    this.barrels = []; this.beans = []; this.jetpacks = [];
+    this.barrels = []; this.beans = []; this.jetpacks = []; this.mallets = []; this.birds = [];
     this.prev = null; this.next = null; this.prevAt = 0; this.nextAt = 0;
     this.events = [];
   }
@@ -40,6 +42,7 @@ export class Replica {
       [, m.tx, m.ty, m.vx, m.vy, m.facing, m.state, m.t, m.koTimer, m.invuln, m.beans, m.fartCloud, m.stocks, m.score, m.combo.count, m.combo.lastAt] = row;
       m.onGround = row[16] === 1; m.carriedById = row[17] < 0 ? null : row[17];
       m.jetpack = row[18] >= 0 ? { fuel: row[18] } : null; m.thrusting = row[19] === 1;
+      m.mallet = row[20] >= 0 ? { uses: row[20] } : null;
       if (m.x == null || m.state === 'dead') { m.x = m.tx; m.y = m.ty; }
       m.px = m.x; m.py = m.y; // punto de partida de la interpolación
       if (Math.hypot(m.tx - m.x, m.ty - m.y) > 200) { m.px = m.tx; m.py = m.ty; } // teletransporte (respawn)
@@ -47,6 +50,8 @@ export class Replica {
     this.barrels = snap.b.map(([id, x, y, state, armed, fuse, spin, t]) => ({ id, x, y, w: CFG.barrel.w, h: CFG.barrel.h, state, armed: armed === 1, fuse, spin, t, carriedById: null }));
     this.beans = snap.f.map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.bean.w, h: CFG.bean.h, state, spin }));
     this.jetpacks = (snap.j || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.jetpack.w, h: CFG.jetpack.h, state, spin }));
+    this.mallets = (snap.k || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.mallet.w, h: CFG.mallet.h, state, spin }));
+    this.birds = (snap.p || []).map(([id, x, y, dir, flap]) => ({ id, x, y, dir, flap, w: 34, h: 22, state: 'flying' }));
     this.events.push(...snap.ev.map((e) => ({ t: snap.time, ...e })));
   }
   // Avanza la posición dibujada hacia la última foto.

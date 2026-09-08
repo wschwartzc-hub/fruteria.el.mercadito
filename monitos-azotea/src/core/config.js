@@ -28,7 +28,8 @@ export const CFG = {
 
   combo: {
     hitsToLaunch: 4,     // 4to golpe = sale volando
-    window: 1.4,         // segundos máximos entre golpes para que cuente
+    window: 2.2,         // segundos sin golpes antes de que el contador empiece a bajar
+    decay: 0.7,          // después, baja 1 cada tanto (visible, no se reinicia de golpe)
     launchX: 520,
     launchY: 560,
   },
@@ -83,6 +84,28 @@ export const CFG = {
     windup: 0.45,          // agacharse antes del pedo; si te pegan, se cancela
     radius: 125,           // todos los demás dentro del radio se desmayan
     cloud: 1.0,            // duración de la nube (solo visual)
+  },
+
+  mallet: {
+    w: 30, h: 46,
+    firstAt: 18,
+    spawnMin: 22, spawnMax: 36,
+    ttl: 14,               // en el piso antes de desaparecer
+    uses: 3,               // golpes antes de romperse
+    windup: 0.3,           // se ve venir: el mazo se levanta
+    active: 0.14,
+    recovery: 0.45,
+    range: 95,             // alcance al frente
+    heightFrac: 0.45,      // el golpe va por abajo: sólo pega hasta esta fracción de la altura
+    launchX: 560, launchY: 520,
+  },
+
+  bird: {
+    firstAt: 9,
+    spawnMin: 10, spawnMax: 18,
+    speed: 340,
+    lowChance: 0.65,       // probabilidad de que pase a la altura de los monitos
+    knockX: 150, knockY: 110,
   },
 
   match: {

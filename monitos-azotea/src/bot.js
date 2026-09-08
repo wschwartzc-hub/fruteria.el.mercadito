@@ -48,6 +48,12 @@ export function botInput(world, me, time) {
 
   // pedo si hay rival cerca y tengo frijol
   if (me.beans > 0 && me.onGround && nearest && world.dist(me, nearest) < CFG.fart.radius * 0.8 && nearest.state !== S.KO) { inp.fart = true; return inp; }
+  // alguien está levantando el mazo hacia mí: ¡salta!
+  const swinger = others.find((o) => o.state === S.MALLET && o.t < CFG.mallet.windup + 0.05 && Math.sign(me.x - o.x) === o.facing && Math.abs(o.x - me.x) < CFG.mallet.range + 60);
+  if (swinger && me.onGround) { inp.jump = true; return inp; }
+  // mazo en el piso: también vale oro
+  const mz = world.mallets.find((it) => it.state === 'rest' && Math.abs(it.x - me.x) < 320);
+  if (mz && !me.mallet) { safeGoTo(mz.x); return inp; }
   // jet pack en el piso: vale oro
   const jp = world.jetpacks.find((j) => j.state === 'rest' && Math.abs(j.x - me.x) < 320);
   if (jp && !me.jetpack) { safeGoTo(jp.x); return inp; }
@@ -75,7 +81,8 @@ export function botInput(world, me, time) {
 
   if (!nearest) return inp;
   const dx = nearest.x - me.x;
-  const inRange = Math.abs(dx) < me.w / 2 + CFG.punch.range + 10 && Math.abs(nearest.y - me.y) < 40;
+  const reach = me.mallet ? CFG.mallet.range - 10 : CFG.punch.range + 10;
+  const inRange = Math.abs(dx) < me.w / 2 + reach && Math.abs(nearest.y - me.y) < 40;
   if (inRange) {
     if (Math.sign(dx) !== me.facing) goTo(nearest.x, 0);
     if (time > st.nextPunch) { inp.punch = true; st.nextPunch = time + 0.35 + Math.random() * 0.45; }

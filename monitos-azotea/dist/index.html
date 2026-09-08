@@ -213,7 +213,8 @@ const CFG = {
 
   combo: {
     hitsToLaunch: 4,     // 4to golpe = sale volando
-    window: 1.4,         // segundos máximos entre golpes para que cuente
+    window: 2.2,         // segundos sin golpes antes de que el contador empiece a bajar
+    decay: 0.7,          // después, baja 1 cada tanto (visible, no se reinicia de golpe)
     launchX: 520,
     launchY: 560,
   },
@@ -270,6 +271,28 @@ const CFG = {
     cloud: 1.0,            // duración de la nube (solo visual)
   },
 
+  mallet: {
+    w: 30, h: 46,
+    firstAt: 18,
+    spawnMin: 22, spawnMax: 36,
+    ttl: 14,               // en el piso antes de desaparecer
+    uses: 3,               // golpes antes de romperse
+    windup: 0.3,           // se ve venir: el mazo se levanta
+    active: 0.14,
+    recovery: 0.45,
+    range: 95,             // alcance al frente
+    heightFrac: 0.45,      // el golpe va por abajo: sólo pega hasta esta fracción de la altura
+    launchX: 560, launchY: 520,
+  },
+
+  bird: {
+    firstAt: 9,
+    spawnMin: 10, spawnMax: 18,
+    speed: 340,
+    lowChance: 0.65,       // probabilidad de que pase a la altura de los monitos
+    knockX: 150, knockY: 110,
+  },
+
   match: {
     maxPlayers: 8,         // una especie por jugador
     stocks: 3,
@@ -283,7 +306,7 @@ return { CFG };
 })();
 
 // ---- src/core/world.js ----
-const { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, boxOf, overlaps, World } = (() => {
+const { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, createMalletItem, createBird, boxOf, overlaps, World } = (() => {
 // Núcleo del juego: física simple + reglas + máquinas de estado.
 // Es JS puro sin canvas ni DOM para poder probarlo con `node --test`.
 // El renderer sólo lee el estado y consume `world.drain()` (eventos).
@@ -292,7 +315,7 @@ const S = Object.freeze({
   IDLE: 'idle', WALK: 'walk', JUMP: 'jump', PUNCH: 'punch',
   HITSTUN: 'hitstun', LAUNCHED: 'launched', KO: 'ko',
   PICKUP: 'pickup', CARRYING: 'carrying', CARRIED: 'carried',
-  THROWN: 'thrown', FALLING: 'falling', DEAD: 'dead', FART: 'fart',
+  THROWN: 'thrown', FALLING: 'falling', DEAD: 'dead', FART: 'fart', MALLET: 'mallet',
 });
 
 const B = Object.freeze({
@@ -305,7 +328,11 @@ const EMPTY_INPUT = Object.freeze({ left: false, right: false, jump: false, jump
 const RESCUABLE = new Set([S.THROWN, S.LAUNCHED, S.FALLING]);
 
 // Estados en los que un puñetazo tiene efecto sobre la víctima.
-const HITTABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.HITSTUN, S.PICKUP, S.CARRYING, S.CARRIED, S.FART]);
+const HITTABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.HITSTUN, S.PICKUP, S.CARRYING, S.CARRIED, S.FART, S.MALLET]);
+// A quién le pega el mazo (también a los desmayados: los manda a volar).
+const MALLETABLE = new Set([...HITTABLE, S.KO]);
+// A quién tumba una paloma.
+const BIRDABLE = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.PICKUP, S.CARRYING, S.FART, S.MALLET]);
 // Estados en los que se puede comer un frijol al pisarlo.
 const CAN_EAT = new Set([S.IDLE, S.WALK, S.JUMP, S.PUNCH, S.CARRYING]);
 // Estados en los que el jugador puede recibir input de movimiento/acción.
@@ -329,6 +356,7 @@ function createMonito(id, x, y, opts = {}) {
     punchHit: false,
     beans: 0, fartCloud: 0,
     jetpack: null, thrusting: false,   // jetpack = { fuel } cuando la traes puesta
+    mallet: null, malletHit: false,    // mallet = { uses } cuando traes mazo
     stocks: CFG.match.stocks, score: 0, respawnTimer: 0,
     justLanded: false,
   };
@@ -348,6 +376,13 @@ function createBean(id, x, y) {
 
 function createJetpackItem(id, x, y) {
   return { id, x, y, vx: 0, vy: 0, w: CFG.jetpack.w, h: CFG.jetpack.h, state: 'falling', ttl: CFG.jetpack.ttl, spin: 0 };
+}
+
+function createMalletItem(id, x, y) {
+  return { id, x, y, vx: 0, vy: 0, w: CFG.mallet.w, h: CFG.mallet.h, state: 'falling', ttl: CFG.mallet.ttl, spin: 0 };
+}
+function createBird(id, x, y, dir) {
+  return { id, x, y, dir, vx: dir * CFG.bird.speed, vy: 0, w: 34, h: 22, state: 'flying', flap: 0, scared: false, hit: [] };
 }
 
 function boxOf(e) {
@@ -374,6 +409,14 @@ class World {
     this.jetpacksEnabled = opts.jetpacks ?? true;
     this.nextJetpackIn = CFG.jetpack.firstAt;
     this.jetpackSeq = 0;
+    this.mallets = [];
+    this.malletsEnabled = opts.mallets ?? true;
+    this.nextMalletIn = CFG.mallet.firstAt;
+    this.malletSeq = 0;
+    this.birds = [];
+    this.birdsEnabled = opts.birds ?? true;
+    this.nextBirdIn = CFG.bird.firstAt;
+    this.birdSeq = 0;
     this.rng = opts.rng ?? Math.random;
     this.barrelsEnabled = opts.barrels ?? true;
     this.nextBarrelIn = CFG.barrel.spawnGraceInitial;
@@ -408,9 +451,13 @@ class World {
     for (const m of this.monitos) this.integrate(m, dt);
     for (const m of this.monitos) this.syncCarried(m);
     for (const m of this.monitos) this.resolvePunch(m);
+    for (const m of this.monitos) this.resolveMallet(m);
+    for (const m of this.monitos) this.decayCombo(m);
     this.updateBarrels(dt);
     this.updateBeans(dt);
     this.updateJetpacks(dt);
+    this.updateMallets(dt);
+    this.updateBirds(dt);
     for (const m of this.monitos) this.checkFall(m);
     this.checkWin();
   }
@@ -464,6 +511,12 @@ class World {
         this.groundFriction(m, dt);
         if (m.t >= CFG.fart.windup) this.fart(m);
         return;
+      case S.MALLET: {
+        const k = CFG.mallet;
+        this.groundFriction(m, dt);
+        if (m.t >= k.windup + k.active + k.recovery) this.setState(m, m.onGround ? S.IDLE : S.JUMP);
+        return;
+      }
       case S.CARRYING:
         this.move(m, inp, dt, CFG.monito.carrySpeed);
         if (inp.grab) this.throwCarried(m);
@@ -471,7 +524,10 @@ class World {
       default: // IDLE / WALK / JUMP
         this.move(m, inp, dt, CFG.monito.walkSpeed, this.wantsThrust(m, inp));
         if (this.wantsThrust(m, inp)) this.thrust(m, dt);
-        if (inp.punch) { this.setState(m, S.PUNCH); m.punchHit = false; return; }
+        if (inp.punch) {
+          if (m.mallet && m.onGround) { this.setState(m, S.MALLET); m.malletHit = false; this.emit('malletSwing', { id: m.id }); return; }
+          this.setState(m, S.PUNCH); m.punchHit = false; return;
+        }
         if (inp.grab && m.onGround && this.tryGrab(m)) return;
         if (inp.fart && m.onGround && m.beans > 0) { this.setState(m, S.FART); this.emit('fartStart', { id: m.id }); return; }
         if (inp.jump && m.onGround) { m.vy = -CFG.monito.jumpVel; m.onGround = false; this.setState(m, S.JUMP); this.emit('jump', { id: m.id }); return; }
@@ -565,8 +621,7 @@ class World {
     if (v.state === S.PICKUP || v.state === S.CARRYING) this.cancelCarry(v, 'hit');
 
     const c = v.combo;
-    const within = this.time - c.lastAt <= CFG.combo.window;
-    if (c.attackerId === a.id && within) c.count += 1; else { c.attackerId = a.id; c.count = 1; }
+    if (c.attackerId === a.id && c.count > 0) c.count += 1; else { c.attackerId = a.id; c.count = 1; }
     c.lastAt = this.time;
     this.emit('hit', { attackerId: a.id, victimId: v.id, x: v.x, y: v.y - v.h / 2, dir, combo: c.count });
 
@@ -582,6 +637,130 @@ class World {
     v.onGround = false;
     v.facing = -dir;
     this.setState(v, S.HITSTUN);
+  }
+
+  // Sin golpes, el contador baja de uno en uno (se ve en pantalla) en vez de
+  // desaparecer de golpe.
+  decayCombo(m) {
+    const c = m.combo;
+    if (c.count <= 0) return;
+    if (this.time - c.lastAt > CFG.combo.window) {
+      c.count -= 1;
+      c.lastAt = this.time - CFG.combo.window + CFG.combo.decay;
+      if (c.count <= 0) { c.count = 0; c.attackerId = null; }
+    }
+  }
+
+  // ---------- mazo ----------
+  malletBox(m) {
+    const k = CFG.mallet;
+    const front = m.x + m.facing * (m.w / 2);
+    return { l: Math.min(front, front + m.facing * k.range), r: Math.max(front, front + m.facing * k.range), t: m.y - m.h * k.heightFrac, b: m.y + 2 };
+  }
+
+  resolveMallet(m) {
+    if (m.state !== S.MALLET || m.malletHit || !m.mallet) return;
+    const k = CFG.mallet;
+    if (m.t < k.windup || m.t > k.windup + k.active) return;
+    const hb = this.malletBox(m);
+    let hit = false;
+    for (const v of this.monitos) {
+      if (v === m || !MALLETABLE.has(v.state) || v.invuln > 0) continue;
+      if (!overlaps(hb, boxOf(v))) continue;
+      hit = true;
+      const dir = sign(v.x - m.x) || m.facing;
+      if (v.state === S.CARRIED) { this.cancelCarry(this.get(v.carriedById), 'mallet'); continue; }
+      if (v.state === S.PICKUP || v.state === S.CARRYING) this.cancelCarry(v, 'mallet');
+      v.combo.count = 0; v.combo.attackerId = null;
+      this.launch(v, dir, k.launchX, k.launchY);
+      m.score += 1;
+      this.emit('malletHit', { attackerId: m.id, victimId: v.id, x: v.x, y: v.y - v.h / 2, dir });
+    }
+    if (hit) {
+      m.malletHit = true;
+      m.mallet.uses -= 1;
+      if (m.mallet.uses <= 0) { m.mallet = null; this.emit('malletBroken', { id: m.id, x: m.x, y: m.y - m.h }); }
+    }
+  }
+
+  spawnMallet(x) {
+    const it = createMalletItem(this.malletSeq++, x ?? this.roof.x + 80 + this.rng() * (this.roof.w - 160), -80);
+    this.mallets.push(it);
+    this.emit('malletSpawn', { malletId: it.id, x: it.x });
+    return it;
+  }
+
+  updateMallets(dt) {
+    if (this.malletsEnabled && !this.over) {
+      this.nextMalletIn -= dt;
+      if (this.nextMalletIn <= 0) {
+        this.spawnMallet();
+        this.nextMalletIn = CFG.mallet.spawnMin + this.rng() * (CFG.mallet.spawnMax - CFG.mallet.spawnMin);
+      }
+    }
+    for (const it of this.mallets) {
+      if (it.state === 'falling') {
+        const prevY = it.y;
+        it.vy += CFG.gravity * 0.7 * dt; it.y += it.vy * dt; it.spin += 4 * dt;
+        if (this.overRoof(it.x) && it.y >= this.roof.y && prevY <= this.roof.y + 0.5) { it.y = this.roof.y; it.vy = 0; it.state = 'rest'; this.emit('malletLand', { malletId: it.id, x: it.x }); }
+        else if (it.y > this.deathY) it.state = 'gone';
+      } else if (it.state === 'rest') {
+        it.ttl -= dt;
+        if (it.ttl <= 0) { it.state = 'gone'; continue; }
+      }
+      if (it.state === 'gone') continue;
+      const ib = boxOf(it);
+      for (const m of this.monitos) {
+        if (!CAN_EAT.has(m.state) || m.mallet) continue;
+        if (!overlaps(ib, boxOf(m))) continue;
+        m.mallet = { uses: CFG.mallet.uses };
+        it.state = 'gone';
+        this.emit('malletPickup', { id: m.id, malletId: it.id, x: m.x, y: m.y - m.h });
+        break;
+      }
+    }
+    this.mallets = this.mallets.filter((it) => it.state !== 'gone');
+  }
+
+  // ---------- palomas ----------
+  spawnBird(opts = {}) {
+    const dir = opts.dir ?? (this.rng() < 0.5 ? 1 : -1);
+    const low = opts.low ?? this.rng() < CFG.bird.lowChance;
+    const y = opts.y ?? (low ? this.roof.y - 18 - this.rng() * 40 : this.roof.y - 160 - this.rng() * 220);
+    const x = dir > 0 ? -60 : this.roof.x * 2 + this.roof.w + 60;
+    const b = createBird(this.birdSeq++, x, y, dir);
+    this.birds.push(b);
+    this.emit('birdSpawn', { birdId: b.id, dir, low });
+    return b;
+  }
+
+  updateBirds(dt) {
+    if (this.birdsEnabled && !this.over) {
+      this.nextBirdIn -= dt;
+      if (this.nextBirdIn <= 0) {
+        this.spawnBird();
+        this.nextBirdIn = CFG.bird.spawnMin + this.rng() * (CFG.bird.spawnMax - CFG.bird.spawnMin);
+      }
+    }
+    const limitR = this.roof.x * 2 + this.roof.w + 120;
+    for (const b of this.birds) {
+      b.flap += dt * 14;
+      b.x += b.vx * dt;
+      if (b.scared) { b.vy -= 900 * dt; b.y += b.vy * dt; }
+      else b.y += Math.sin(b.flap * 0.5) * 12 * dt;
+      if (b.x < -120 || b.x > limitR || b.y < -80) { b.state = 'gone'; continue; }
+      const bb = boxOf(b);
+      for (const m of this.monitos) {
+        if (!BIRDABLE.has(m.state) || m.invuln > 0 || b.hit.includes(m.id)) continue;
+        if (!overlaps(bb, boxOf(m))) continue;
+        b.hit.push(m.id); b.scared = true; b.vy = -150;
+        if (m.state === S.PICKUP || m.state === S.CARRYING) this.cancelCarry(m, 'bird');
+        m.vx = b.dir * CFG.bird.knockX; m.vy = -CFG.bird.knockY; m.onGround = false; m.facing = -b.dir;
+        this.setState(m, S.HITSTUN);
+        this.emit('birdHit', { id: m.id, birdId: b.id, x: m.x, y: m.y - m.h, dir: b.dir });
+      }
+    }
+    this.birds = this.birds.filter((b) => b.state !== 'gone');
   }
 
   launch(m, dir, vx, vy) {
@@ -977,7 +1156,7 @@ class World {
 
   die(m) {
     m.stocks -= 1;
-    m.jetpack = null; m.thrusting = false;
+    m.jetpack = null; m.thrusting = false; m.mallet = null;
     m.vx = 0; m.vy = 0;
     m.respawnTimer = CFG.match.respawnDelay;
     m.koTimer = 0; m.combo.count = 0; m.combo.attackerId = null;
@@ -1005,11 +1184,11 @@ class World {
   }
 }
 
-return { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, boxOf, overlaps, World };
+return { S, B, SPECIES, createMonito, createBarrel, createBean, createJetpackItem, createMalletItem, createBird, boxOf, overlaps, World };
 })();
 
 // ---- src/render/monito.js ----
-const { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawShadow, drawFartCloud, drawMonito } = (() => {
+const { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawMallet, drawShadow, drawFartCloud, drawMonito } = (() => {
 // Dibujo vectorial de los monitos: cuerpo de gelatina + cabeza de animal
 // estilo "flat" (contorno grueso, ojitos de punto, cachetes rosas).
 
@@ -1245,6 +1424,18 @@ function drawJetpack(ctx, x, y, dir, thrusting, time, scale = 1) {
   ctx.restore();
 }
 
+// Mazo: mango + cabeza de madera con bandas. Origen en la mano, apunta hacia +y local.
+function drawMallet(ctx, x, y, angle, scale = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(scale, scale);
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -46); ctx.stroke();
+  ctx.strokeStyle = '#c47d3a'; ctx.lineWidth = 6; ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(-24, -66, 48, 26, 7); ctx.fillStyle = '#8f3f2e'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.fillStyle = '#e8c28a'; ctx.fillRect(-19, -62, 6, 18); ctx.fillRect(13, -62, 6, 18);
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.strokeRect(-19, -62, 6, 18); ctx.strokeRect(13, -62, 6, 18);
+  ctx.restore();
+}
+
 function drawShadow(ctx, m, roof) {
   if (m.state === S.DEAD || m.state === S.CARRIED) return;
   if (m.x <= roof.x || m.x >= roof.x + roof.w) return;
@@ -1333,6 +1524,18 @@ function drawMonito(ctx, m, time, cfg) {
     case S.CARRYING: fh = { x: dir * W * 0.3, y: -H - 2 }; bh = { x: -dir * W * 0.3, y: -H - 2 }; break;
     case S.PICKUP: fh = { x: dir * W * 0.7, y: -6 }; bh = { x: dir * W * 0.4, y: -4 }; break;
     case S.FART: fh = { x: dir * W * 0.55, y: shoulderY + 16 }; bh = { x: -dir * W * 0.55, y: shoulderY + 16 }; break;
+    case S.MALLET: {
+      const k = cfg.mallet, t = m.t;
+      // levanta el mazo atrás, lo barre por abajo al frente y lo regresa
+      let ph;
+      if (t < k.windup) ph = -0.9 * Math.min(1, t / k.windup);
+      else if (t < k.windup + k.active) ph = 1.6;
+      else ph = 1.6 - 1.6 * Math.min(1, (t - k.windup - k.active) / k.recovery);
+      m._malletPh = ph;
+      fh = { x: dir * (W * 0.35 + ph * 22), y: shoulderY + 8 + Math.max(0, ph) * 18 };
+      bh = { x: -dir * W * 0.3, y: shoulderY + 14 };
+      break;
+    }
     case S.JUMP: fh = { x: dir * W * 0.6, y: shoulderY - 18 }; bh = { x: -dir * W * 0.6, y: shoulderY - 14 }; break;
     case S.FALLING: { const f = m.t * 22; fh = { x: dir * W * 0.7, y: shoulderY - 22 + Math.sin(f) * 8 }; bh = { x: -dir * W * 0.7, y: shoulderY - 22 + Math.cos(f) * 8 }; break; }
     case S.LAUNCHED: case S.THROWN: fh = { x: dir * W * 0.8, y: shoulderY - 10 }; bh = { x: -dir * W * 0.8, y: shoulderY + 12 }; break;
@@ -1348,6 +1551,12 @@ function drawMonito(ctx, m, time, cfg) {
   body(ctx, 0, -4 + bob, bodyW, bodyH + 4, c);
 
   limb(ctx, frontSh.x, frontSh.y, fh.x, fh.y, -dir * 8, dark, 9);
+  if (m.mallet) {
+    // ángulo: descansando sobre el hombro; en el golpe barre por el suelo al frente
+    let ang = -dir * 0.55;
+    if (st === S.MALLET) { const ph = m._malletPh || 0; ang = ph < 0 ? -dir * (0.55 - ph * 1.2) : dir * (Math.PI * 0.45 * (ph / 1.6) + 0.15) - dir * 0.55 * (1 - ph / 1.6); }
+    drawMallet(ctx, fh.x, fh.y, ang, 0.85);
+  }
   fist(ctx, fh.x, fh.y, 6.5, c);
 
   let expr = 'normal';
@@ -1367,7 +1576,7 @@ function drawMonito(ctx, m, time, cfg) {
   if (st === S.CARRIED) birds(ctx, m.x + dir * W * 0.6, m.y - H * 0.45, time);
 }
 
-return { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawShadow, drawFartCloud, drawMonito };
+return { OUTLINE, stepMonitoAnim, shade, drawHead, drawJetpack, drawMallet, drawShadow, drawFartCloud, drawMonito };
 })();
 
 // ---- src/render/effects.js ----
@@ -1437,6 +1646,18 @@ class Effects {
         this.text(m.x, m.y - 100, '¡GUÁCALA!', '#9be26a', 26);
         break;
       }
+      case 'malletPickup': this.text(ev.x, ev.y - 20, '¡MAZO!', '#ff8c42', 30); this.stars(ev.x, ev.y + 20, 5); break;
+      case 'malletHit':
+        this.text(ev.x, ev.y - 50, '¡PUM!', '#ff6b35', 44); this.stars(ev.x, ev.y, 10);
+        this.ring(ev.x, ev.y + 20, 70, '#ff8c42'); this.shake = Math.max(this.shake, 0.8);
+        break;
+      case 'malletBroken': this.text(ev.x, ev.y - 20, '¡SE ROMPIÓ!', '#fff', 22); this.dust(ev.x, ev.y + 30, 6); break;
+      case 'birdHit': {
+        this.text(ev.x, ev.y - 30, '¡PALOMA!', '#fff', 24);
+        for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2; this.parts.push({ type: 'feather', x: ev.x, y: ev.y + 10, vx: Math.cos(a) * 90, vy: -60 + Math.random() * 40, life: 1.2, max: 1.2, rot: Math.random() * 6, color: '#dfe4ee' }); }
+        this.shake = Math.max(this.shake, 0.2);
+        break;
+      }
       case 'jetpackPickup': this.text(ev.x, ev.y - 20, '¡JET PACK!', '#6ad1ff', 28); this.stars(ev.x, ev.y + 20, 5); break;
       case 'jetpackSave': this.text(ev.x, ev.y - 30, '¡SALVADO!', '#6ad1ff', 32); this.ring(ev.x, ev.y + 30, 60, '#6ad1ff'); break;
       case 'jetpackEmpty': this.text(ev.x, ev.y - 20, '¡SIN GAS!', '#ff8a8a', 24); this.dust(ev.x, ev.y + 30, 6); break;
@@ -1487,7 +1708,8 @@ class Effects {
     for (const p of this.parts) {
       p.life -= dt;
       if (p.type === 'ring' || p.type === 'text') { if (p.type === 'text') p.y += p.vy * dt; continue; }
-      const g = p.type === 'smoke' ? -80 : p.type === 'dust' ? 200 : 1200;
+      const g = p.type === 'smoke' ? -80 : p.type === 'dust' ? 200 : p.type === 'feather' ? 60 : 1200;
+      if (p.type === 'feather') { p.vx *= 0.98; p.rot += 4 * dt; p.x += Math.sin(p.rot * 2) * 30 * dt; }
       p.vy += g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.type === 'plank') p.rot += p.vr * dt;
       if (p.type === 'smoke') p.size += 25 * dt;
@@ -1527,6 +1749,11 @@ class Effects {
           ctx.globalAlpha = k * 0.9; ctx.fillStyle = p.color;
           ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
           break;
+        case 'feather':
+          ctx.globalAlpha = Math.min(1, k * 2); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.color; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.ellipse(0, 0, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          break;
         case 'plank':
           ctx.globalAlpha = Math.min(1, k * 3); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
           ctx.fillStyle = p.color; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2;
@@ -1543,7 +1770,7 @@ return { Effects };
 })();
 
 // ---- src/render/scene.js ----
-const { drawBackground, drawBean, drawJetpackItem, drawBarrel } = (() => {
+const { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawBird, drawBarrel } = (() => {
 // Escenario según la referencia: torre cartoon con piso alto morado, pisos
 // amarillos, toldos en las ventanas, barandal y bandera en la azotea, árbol
 // al lado, ciudad lavanda al fondo. También barriles y frijoles.
@@ -1709,6 +1936,41 @@ function drawJetpackItem(ctx, j, roof, time) {
   }
 }
 
+function drawMalletItem(ctx, it, roof, time) {
+  if (it.state === 'gone') return;
+  if (it.state === 'falling' && it.x > roof.x && it.x < roof.x + roof.w) {
+    const k = Math.max(0.3, 1 - Math.max(0, roof.y - it.y) / 700);
+    ctx.fillStyle = `rgba(40,20,60,${0.3 * k})`; ctx.beginPath(); ctx.ellipse(it.x, roof.y + 2, 22 * k, 6 * k, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  const bob = it.state === 'rest' ? Math.sin(time * 4) * 2 : 0;
+  drawMallet(ctx, it.x, it.y + bob, it.state === 'falling' ? it.spin : -0.35, 1);
+  if (it.state === 'rest') {
+    const k = (Math.sin(time * 6) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
+    ctx.beginPath(); ctx.moveTo(it.x + 30, it.y - 70); ctx.lineTo(it.x + 33, it.y - 64); ctx.lineTo(it.x + 39, it.y - 62); ctx.lineTo(it.x + 33, it.y - 60); ctx.lineTo(it.x + 30, it.y - 54); ctx.lineTo(it.x + 27, it.y - 60); ctx.lineTo(it.x + 21, it.y - 62); ctx.lineTo(it.x + 27, it.y - 64); ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawBird(ctx, b, time) {
+  if (b.state === 'gone') return;
+  ctx.save(); ctx.translate(b.x, b.y - b.h / 2); ctx.scale(b.dir, 1);
+  const flap = Math.sin(b.flap) * 0.9;
+  // alas
+  ctx.fillStyle = '#9aa3b5'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-4, -2); ctx.quadraticCurveTo(-14, -14 - flap * 16, -30, -4 - flap * 20); ctx.quadraticCurveTo(-16, 2, -4, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // cuerpo
+  ctx.beginPath(); ctx.ellipse(0, 0, 17, 10, 0, 0, Math.PI * 2); ctx.fillStyle = '#b8c0cf'; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14, 2); ctx.lineTo(-26, 6); ctx.lineTo(-24, -2); ctx.closePath(); ctx.fillStyle = '#9aa3b5'; ctx.fill(); ctx.stroke(); // cola
+  // cabeza
+  ctx.beginPath(); ctx.arc(15, -7, 8, 0, Math.PI * 2); ctx.fillStyle = '#7e8aa3'; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(17, -8, 2.2, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(17.6, -8, 1.1, 0, Math.PI * 2); ctx.fillStyle = OUTLINE; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(22, -7); ctx.lineTo(30, -5); ctx.lineTo(22, -3); ctx.closePath(); ctx.fillStyle = '#f2a03a'; ctx.fill(); ctx.stroke();
+  // patitas
+  ctx.strokeStyle = '#f2a03a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(2, 9); ctx.lineTo(2, 14); ctx.moveTo(7, 9); ctx.lineTo(7, 14); ctx.stroke();
+  ctx.restore();
+}
+
 function drawBarrel(ctx, b, roof, time) {
   if (b.state === B.GONE) return;
   if (b.state === B.WARNING) {
@@ -1747,7 +2009,7 @@ function drawBarrel(ctx, b, roof, time) {
   ctx.restore();
 }
 
-return { drawBackground, drawBean, drawJetpackItem, drawBarrel };
+return { drawBackground, drawBean, drawJetpackItem, drawMalletItem, drawBird, drawBarrel };
 })();
 
 // ---- src/bot.js ----
@@ -1801,6 +2063,12 @@ function botInput(world, me, time) {
 
   // pedo si hay rival cerca y tengo frijol
   if (me.beans > 0 && me.onGround && nearest && world.dist(me, nearest) < CFG.fart.radius * 0.8 && nearest.state !== S.KO) { inp.fart = true; return inp; }
+  // alguien está levantando el mazo hacia mí: ¡salta!
+  const swinger = others.find((o) => o.state === S.MALLET && o.t < CFG.mallet.windup + 0.05 && Math.sign(me.x - o.x) === o.facing && Math.abs(o.x - me.x) < CFG.mallet.range + 60);
+  if (swinger && me.onGround) { inp.jump = true; return inp; }
+  // mazo en el piso: también vale oro
+  const mz = world.mallets.find((it) => it.state === 'rest' && Math.abs(it.x - me.x) < 320);
+  if (mz && !me.mallet) { safeGoTo(mz.x); return inp; }
   // jet pack en el piso: vale oro
   const jp = world.jetpacks.find((j) => j.state === 'rest' && Math.abs(j.x - me.x) < 320);
   if (jp && !me.jetpack) { safeGoTo(jp.x); return inp; }
@@ -1828,7 +2096,8 @@ function botInput(world, me, time) {
 
   if (!nearest) return inp;
   const dx = nearest.x - me.x;
-  const inRange = Math.abs(dx) < me.w / 2 + CFG.punch.range + 10 && Math.abs(nearest.y - me.y) < 40;
+  const reach = me.mallet ? CFG.mallet.range - 10 : CFG.punch.range + 10;
+  const inRange = Math.abs(dx) < me.w / 2 + reach && Math.abs(nearest.y - me.y) < 40;
   if (inRange) {
     if (Math.sign(dx) !== me.facing) goTo(nearest.x, 0);
     if (time > st.nextPunch) { inp.punch = true; st.nextPunch = time + 0.35 + Math.random() * 0.45; }
@@ -1856,6 +2125,12 @@ class TouchControls {
     this.root = root;
     this.players = [];
     this.enabled = false;
+    // Con dos dedos (salto mantenido + joystick) iOS intenta hacer zoom y
+    // manda pointercancel: se cancelaba el joystick. Bloqueamos el gesto.
+    const block = (e) => { if (this.enabled) e.preventDefault(); };
+    document.addEventListener('touchstart', block, { passive: false });
+    document.addEventListener('touchmove', block, { passive: false });
+    for (const g of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(g, (e) => e.preventDefault(), { passive: false });
   }
 
   static isTouchDevice() {
@@ -1872,7 +2147,7 @@ class TouchControls {
   }
 
   buildPlayer(i, n) {
-    const p = { dx: 0, dy: 0, punch: false, grab: false, jumpBtn: false, fart: false, jumpArmed: true, prev: { punch: false, grab: false, jumpBtn: false, fart: false }, pointerId: null, els: {} };
+    const p = { dx: 0, dy: 0, punch: false, grab: false, jumpBtn: false, fart: false, jumpArmed: true, latch: { punch: false, grab: false, jumpBtn: false, fart: false }, pointerId: null, els: {} };
     const side = n === 1 ? 'solo' : i === 0 ? 'left' : 'right';
 
     const zone = document.createElement('div');
@@ -1914,7 +2189,8 @@ class TouchControls {
       const b = document.createElement('div');
       b.className = `tc-btn ${cls}`;
       b.innerHTML = `<span class="tc-ico">${label}</span><span class="tc-sub">${sub}</span>`;
-      const down = (e) => { p[key] = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); e.preventDefault(); };
+      // latch: un toque muy corto (menor a un tick de física) también cuenta
+      const down = (e) => { p[key] = true; p.latch[key] = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); e.preventDefault(); };
       const up = () => { p[key] = false; b.classList.remove('on'); };
       b.addEventListener('pointerdown', down);
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
@@ -1948,7 +2224,7 @@ class TouchControls {
     let jump = false;
     if (jumpHeld && p.jumpArmed) { jump = true; p.jumpArmed = false; }
     if (p.dy > JUMP_PUSH * 0.5) p.jumpArmed = true; // hay que soltar hacia el centro para volver a saltar
-    const edge = (k) => { const v = p[k] && !p.prev[k]; p.prev[k] = p[k]; return v; };
+    const edge = (k) => { const v = p.latch[k]; p.latch[k] = false; return v; };
     jump = edge('jumpBtn') || jump;
     return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, jumpHeld: p.jumpBtn || jumpHeld, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
   }
@@ -2092,10 +2368,12 @@ const r1 = (v) => Math.round(v * 10) / 10;
 function encodeSnapshot(world, events) {
   return {
     t: 'snap', time: r1(world.time), over: world.over, winnerId: world.winnerId,
-    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0]),
+    m: world.monitos.map((m) => [m.id, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy), m.facing, m.state, r1(m.t), r1(m.koTimer), r1(m.invuln), m.beans, r1(m.fartCloud), m.stocks, m.score, m.combo.count, r1(m.combo.lastAt), m.onGround ? 1 : 0, m.carriedById ?? -1, m.jetpack ? r1(m.jetpack.fuel) : -1, m.thrusting ? 1 : 0, m.mallet ? m.mallet.uses : -1]),
     b: world.barrels.map((b) => [b.id, r1(b.x), r1(b.y), b.state, b.armed ? 1 : 0, r1(b.fuse), r1(b.spin), r1(b.t)]),
     f: world.beans.map((b) => [b.id, r1(b.x), r1(b.y), b.state, r1(b.spin)]),
     j: world.jetpacks.map((j) => [j.id, r1(j.x), r1(j.y), j.state, r1(j.spin)]),
+    k: world.mallets.map((it) => [it.id, r1(it.x), r1(it.y), it.state, r1(it.spin)]),
+    p: world.birds.map((b) => [b.id, r1(b.x), r1(b.y), b.dir, r1(b.flap)]),
     ev: events.map((e) => { const { t, ...rest } = e; return rest; }),
   };
 }
@@ -2106,7 +2384,7 @@ class Replica {
     this.roof = { ...CFG.roof };
     this.time = 0; this.over = false; this.winnerId = null;
     this.monitos = players.map((p, i) => { const m = createMonito(i, this.roof.x + 100, this.roof.y, { species: p.species, name: p.name }); m.justLanded = false; return m; });
-    this.barrels = []; this.beans = []; this.jetpacks = [];
+    this.barrels = []; this.beans = []; this.jetpacks = []; this.mallets = []; this.birds = [];
     this.prev = null; this.next = null; this.prevAt = 0; this.nextAt = 0;
     this.events = [];
   }
@@ -2120,6 +2398,7 @@ class Replica {
       [, m.tx, m.ty, m.vx, m.vy, m.facing, m.state, m.t, m.koTimer, m.invuln, m.beans, m.fartCloud, m.stocks, m.score, m.combo.count, m.combo.lastAt] = row;
       m.onGround = row[16] === 1; m.carriedById = row[17] < 0 ? null : row[17];
       m.jetpack = row[18] >= 0 ? { fuel: row[18] } : null; m.thrusting = row[19] === 1;
+      m.mallet = row[20] >= 0 ? { uses: row[20] } : null;
       if (m.x == null || m.state === 'dead') { m.x = m.tx; m.y = m.ty; }
       m.px = m.x; m.py = m.y; // punto de partida de la interpolación
       if (Math.hypot(m.tx - m.x, m.ty - m.y) > 200) { m.px = m.tx; m.py = m.ty; } // teletransporte (respawn)
@@ -2127,6 +2406,8 @@ class Replica {
     this.barrels = snap.b.map(([id, x, y, state, armed, fuse, spin, t]) => ({ id, x, y, w: CFG.barrel.w, h: CFG.barrel.h, state, armed: armed === 1, fuse, spin, t, carriedById: null }));
     this.beans = snap.f.map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.bean.w, h: CFG.bean.h, state, spin }));
     this.jetpacks = (snap.j || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.jetpack.w, h: CFG.jetpack.h, state, spin }));
+    this.mallets = (snap.k || []).map(([id, x, y, state, spin]) => ({ id, x, y, w: CFG.mallet.w, h: CFG.mallet.h, state, spin }));
+    this.birds = (snap.p || []).map(([id, x, y, dir, flap]) => ({ id, x, y, dir, flap, w: 34, h: 22, state: 'flying' }));
     this.events.push(...snap.ev.map((e) => ({ t: snap.time, ...e })));
   }
   // Avanza la posición dibujada hacia la última foto.
@@ -2653,10 +2934,12 @@ class Game {
       for (const m of w.monitos) drawShadow(ctx, m, roof);
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
       for (const j of w.jetpacks) drawJetpackItem(ctx, j, roof, this.time);
+      for (const it of w.mallets) drawMalletItem(ctx, it, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
       for (const m of w.monitos) drawFartCloud(ctx, m, this.time);
+      for (const b of w.birds) drawBird(ctx, b, this.time);
       this.effects.draw(ctx);
       this.drawOverheads(ctx, w);
     }
@@ -2677,6 +2960,11 @@ class Game {
       if (m.id === mine && this.players.length > 2) { // flechita "eres tú"
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(m.x, topY - 22); ctx.lineTo(m.x - 7, topY - 34); ctx.lineTo(m.x + 7, topY - 34); ctx.closePath(); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
       }
+      if (m.mallet) { // usos del mazo
+        ctx.font = '900 13px "Arial Black", Impact, sans-serif';
+        ctx.lineWidth = 4; ctx.strokeStyle = OUTLINE; ctx.strokeText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
+        ctx.fillStyle = '#ff8c42'; ctx.fillText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
+      }
       if (m.jetpack) { // medidor de gasolina
         const k = Math.max(0, Math.min(1, m.jetpack.fuel / CFG.jetpack.fuel));
         ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY - 2, 44, 8, 4); ctx.fill();
@@ -2692,7 +2980,7 @@ class Game {
         ctx.strokeStyle = OUTLINE; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(m.x, topY - 30, 12, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, topY - 30, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
       }
-      if (m.combo.count > 0 && w.time - m.combo.lastAt < CFG.combo.window) {
+      if (m.combo.count > 0) {
         ctx.font = '900 18px "Arial Black", Impact, sans-serif';
         ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText(`${m.combo.count}/${CFG.combo.hitsToLaunch}`, m.x + 30, topY - 24);
         ctx.fillStyle = '#ffd23f'; ctx.fillText(`${m.combo.count}/${CFG.combo.hitsToLaunch}`, m.x + 30, topY - 24);

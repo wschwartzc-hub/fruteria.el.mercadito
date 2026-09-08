@@ -16,6 +16,9 @@
 - [x] Elegir tu animal y tu nombre (se recuerdan en el teléfono).
 - [x] Jet pack en paracaídas: mantener salto para volar, 1.4 s de gasolina,
       rescata a los aventados. Machacar golpe para despertar antes.
+- [x] Mazo que cae del cielo: barrido por abajo que manda a volar a varios,
+      se salta como cuerda, 3 usos. Palomas que aturden ligeramente.
+- [x] Combo que baja de uno en uno en vez de reiniciarse.
 
 ## v0.2 — Sensación (game feel)
 - [ ] Ajustar números jugando con gente (`docs/LOGICA.md` §11).

@@ -10,6 +10,12 @@ export class TouchControls {
     this.root = root;
     this.players = [];
     this.enabled = false;
+    // Con dos dedos (salto mantenido + joystick) iOS intenta hacer zoom y
+    // manda pointercancel: se cancelaba el joystick. Bloqueamos el gesto.
+    const block = (e) => { if (this.enabled) e.preventDefault(); };
+    document.addEventListener('touchstart', block, { passive: false });
+    document.addEventListener('touchmove', block, { passive: false });
+    for (const g of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(g, (e) => e.preventDefault(), { passive: false });
   }
 
   static isTouchDevice() {
@@ -26,7 +32,7 @@ export class TouchControls {
   }
 
   buildPlayer(i, n) {
-    const p = { dx: 0, dy: 0, punch: false, grab: false, jumpBtn: false, fart: false, jumpArmed: true, prev: { punch: false, grab: false, jumpBtn: false, fart: false }, pointerId: null, els: {} };
+    const p = { dx: 0, dy: 0, punch: false, grab: false, jumpBtn: false, fart: false, jumpArmed: true, latch: { punch: false, grab: false, jumpBtn: false, fart: false }, pointerId: null, els: {} };
     const side = n === 1 ? 'solo' : i === 0 ? 'left' : 'right';
 
     const zone = document.createElement('div');
@@ -68,7 +74,8 @@ export class TouchControls {
       const b = document.createElement('div');
       b.className = `tc-btn ${cls}`;
       b.innerHTML = `<span class="tc-ico">${label}</span><span class="tc-sub">${sub}</span>`;
-      const down = (e) => { p[key] = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); e.preventDefault(); };
+      // latch: un toque muy corto (menor a un tick de física) también cuenta
+      const down = (e) => { p[key] = true; p.latch[key] = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); e.preventDefault(); };
       const up = () => { p[key] = false; b.classList.remove('on'); };
       b.addEventListener('pointerdown', down);
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
@@ -102,7 +109,7 @@ export class TouchControls {
     let jump = false;
     if (jumpHeld && p.jumpArmed) { jump = true; p.jumpArmed = false; }
     if (p.dy > JUMP_PUSH * 0.5) p.jumpArmed = true; // hay que soltar hacia el centro para volver a saltar
-    const edge = (k) => { const v = p[k] && !p.prev[k]; p.prev[k] = p[k]; return v; };
+    const edge = (k) => { const v = p.latch[k]; p.latch[k] = false; return v; };
     jump = edge('jumpBtn') || jump;
     return { left: p.dx < -DEAD, right: p.dx > DEAD, jump, jumpHeld: p.jumpBtn || jumpHeld, punch: edge('punch'), grab: edge('grab'), fart: edge('fart') };
   }

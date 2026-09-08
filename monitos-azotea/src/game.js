@@ -2,7 +2,7 @@
 import { CFG } from './core/config.js';
 import { World, S, SPECIES } from './core/world.js';
 import { drawMonito, drawShadow, stepMonitoAnim, drawHead, drawFartCloud, OUTLINE } from './render/monito.js';
-import { drawBackground, drawBarrel, drawBean, drawJetpackItem } from './render/scene.js';
+import { drawBackground, drawBarrel, drawBean, drawJetpackItem, drawMalletItem, drawBird } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { botInput } from './bot.js';
 import { TouchControls } from './touch.js';
@@ -386,10 +386,12 @@ export class Game {
       for (const m of w.monitos) drawShadow(ctx, m, roof);
       for (const b of w.beans) drawBean(ctx, b, roof, this.time);
       for (const j of w.jetpacks) drawJetpackItem(ctx, j, roof, this.time);
+      for (const it of w.mallets) drawMalletItem(ctx, it, roof, this.time);
       for (const b of w.barrels) drawBarrel(ctx, b, roof, this.time);
       const order = [...w.monitos].sort((a, b) => (a.state === S.KO ? -1 : 0) - (b.state === S.KO ? -1 : 0));
       for (const m of order) drawMonito(ctx, m, this.time, CFG);
       for (const m of w.monitos) drawFartCloud(ctx, m, this.time);
+      for (const b of w.birds) drawBird(ctx, b, this.time);
       this.effects.draw(ctx);
       this.drawOverheads(ctx, w);
     }
@@ -410,6 +412,11 @@ export class Game {
       if (m.id === mine && this.players.length > 2) { // flechita "eres tú"
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(m.x, topY - 22); ctx.lineTo(m.x - 7, topY - 34); ctx.lineTo(m.x + 7, topY - 34); ctx.closePath(); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
       }
+      if (m.mallet) { // usos del mazo
+        ctx.font = '900 13px "Arial Black", Impact, sans-serif';
+        ctx.lineWidth = 4; ctx.strokeStyle = OUTLINE; ctx.strokeText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
+        ctx.fillStyle = '#ff8c42'; ctx.fillText(`🔨×${m.mallet.uses}`, m.x - 34, topY - 24);
+      }
       if (m.jetpack) { // medidor de gasolina
         const k = Math.max(0, Math.min(1, m.jetpack.fuel / CFG.jetpack.fuel));
         ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.roundRect(m.x - 22, topY - 2, 44, 8, 4); ctx.fill();
@@ -425,7 +432,7 @@ export class Game {
         ctx.strokeStyle = OUTLINE; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(m.x, topY - 30, 12, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, topY - 30, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
       }
-      if (m.combo.count > 0 && w.time - m.combo.lastAt < CFG.combo.window) {
+      if (m.combo.count > 0) {
         ctx.font = '900 18px "Arial Black", Impact, sans-serif';
         ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.strokeText(`${m.combo.count}/${CFG.combo.hitsToLaunch}`, m.x + 30, topY - 24);
         ctx.fillStyle = '#ffd23f'; ctx.fillText(`${m.combo.count}/${CFG.combo.hitsToLaunch}`, m.x + 30, topY - 24);

@@ -234,6 +234,18 @@ export function drawJetpack(ctx, x, y, dir, thrusting, time, scale = 1) {
   ctx.restore();
 }
 
+// Mazo: mango + cabeza de madera con bandas. Origen en la mano, apunta hacia +y local.
+export function drawMallet(ctx, x, y, angle, scale = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(scale, scale);
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -46); ctx.stroke();
+  ctx.strokeStyle = '#c47d3a'; ctx.lineWidth = 6; ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(-24, -66, 48, 26, 7); ctx.fillStyle = '#8f3f2e'; ctx.fill(); ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.fillStyle = '#e8c28a'; ctx.fillRect(-19, -62, 6, 18); ctx.fillRect(13, -62, 6, 18);
+  ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.strokeRect(-19, -62, 6, 18); ctx.strokeRect(13, -62, 6, 18);
+  ctx.restore();
+}
+
 export function drawShadow(ctx, m, roof) {
   if (m.state === S.DEAD || m.state === S.CARRIED) return;
   if (m.x <= roof.x || m.x >= roof.x + roof.w) return;
@@ -322,6 +334,18 @@ export function drawMonito(ctx, m, time, cfg) {
     case S.CARRYING: fh = { x: dir * W * 0.3, y: -H - 2 }; bh = { x: -dir * W * 0.3, y: -H - 2 }; break;
     case S.PICKUP: fh = { x: dir * W * 0.7, y: -6 }; bh = { x: dir * W * 0.4, y: -4 }; break;
     case S.FART: fh = { x: dir * W * 0.55, y: shoulderY + 16 }; bh = { x: -dir * W * 0.55, y: shoulderY + 16 }; break;
+    case S.MALLET: {
+      const k = cfg.mallet, t = m.t;
+      // levanta el mazo atrás, lo barre por abajo al frente y lo regresa
+      let ph;
+      if (t < k.windup) ph = -0.9 * Math.min(1, t / k.windup);
+      else if (t < k.windup + k.active) ph = 1.6;
+      else ph = 1.6 - 1.6 * Math.min(1, (t - k.windup - k.active) / k.recovery);
+      m._malletPh = ph;
+      fh = { x: dir * (W * 0.35 + ph * 22), y: shoulderY + 8 + Math.max(0, ph) * 18 };
+      bh = { x: -dir * W * 0.3, y: shoulderY + 14 };
+      break;
+    }
     case S.JUMP: fh = { x: dir * W * 0.6, y: shoulderY - 18 }; bh = { x: -dir * W * 0.6, y: shoulderY - 14 }; break;
     case S.FALLING: { const f = m.t * 22; fh = { x: dir * W * 0.7, y: shoulderY - 22 + Math.sin(f) * 8 }; bh = { x: -dir * W * 0.7, y: shoulderY - 22 + Math.cos(f) * 8 }; break; }
     case S.LAUNCHED: case S.THROWN: fh = { x: dir * W * 0.8, y: shoulderY - 10 }; bh = { x: -dir * W * 0.8, y: shoulderY + 12 }; break;
@@ -337,6 +361,12 @@ export function drawMonito(ctx, m, time, cfg) {
   body(ctx, 0, -4 + bob, bodyW, bodyH + 4, c);
 
   limb(ctx, frontSh.x, frontSh.y, fh.x, fh.y, -dir * 8, dark, 9);
+  if (m.mallet) {
+    // ángulo: descansando sobre el hombro; en el golpe barre por el suelo al frente
+    let ang = -dir * 0.55;
+    if (st === S.MALLET) { const ph = m._malletPh || 0; ang = ph < 0 ? -dir * (0.55 - ph * 1.2) : dir * (Math.PI * 0.45 * (ph / 1.6) + 0.15) - dir * 0.55 * (1 - ph / 1.6); }
+    drawMallet(ctx, fh.x, fh.y, ang, 0.85);
+  }
   fist(ctx, fh.x, fh.y, 6.5, c);
 
   let expr = 'normal';

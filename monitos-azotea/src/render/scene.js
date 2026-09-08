@@ -2,7 +2,7 @@
 // amarillos, toldos en las ventanas, barandal y bandera en la azotea, árbol
 // al lado, ciudad lavanda al fondo. También barriles y frijoles.
 import { B } from '../core/world.js';
-import { OUTLINE, drawJetpack } from './monito.js';
+import { OUTLINE, drawJetpack, drawMallet } from './monito.js';
 
 const P = {
   skyTop: '#5cb5ee', skyBottom: '#d6efff', cloud: '#ffffff',
@@ -162,6 +162,41 @@ export function drawJetpackItem(ctx, j, roof, time) {
     ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
     ctx.beginPath(); ctx.moveTo(j.x + 22, j.y - 48); ctx.lineTo(j.x + 25, j.y - 42); ctx.lineTo(j.x + 31, j.y - 40); ctx.lineTo(j.x + 25, j.y - 38); ctx.lineTo(j.x + 22, j.y - 32); ctx.lineTo(j.x + 19, j.y - 38); ctx.lineTo(j.x + 13, j.y - 40); ctx.lineTo(j.x + 19, j.y - 42); ctx.closePath(); ctx.fill();
   }
+}
+
+export function drawMalletItem(ctx, it, roof, time) {
+  if (it.state === 'gone') return;
+  if (it.state === 'falling' && it.x > roof.x && it.x < roof.x + roof.w) {
+    const k = Math.max(0.3, 1 - Math.max(0, roof.y - it.y) / 700);
+    ctx.fillStyle = `rgba(40,20,60,${0.3 * k})`; ctx.beginPath(); ctx.ellipse(it.x, roof.y + 2, 22 * k, 6 * k, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  const bob = it.state === 'rest' ? Math.sin(time * 4) * 2 : 0;
+  drawMallet(ctx, it.x, it.y + bob, it.state === 'falling' ? it.spin : -0.35, 1);
+  if (it.state === 'rest') {
+    const k = (Math.sin(time * 6) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.5 * k})`;
+    ctx.beginPath(); ctx.moveTo(it.x + 30, it.y - 70); ctx.lineTo(it.x + 33, it.y - 64); ctx.lineTo(it.x + 39, it.y - 62); ctx.lineTo(it.x + 33, it.y - 60); ctx.lineTo(it.x + 30, it.y - 54); ctx.lineTo(it.x + 27, it.y - 60); ctx.lineTo(it.x + 21, it.y - 62); ctx.lineTo(it.x + 27, it.y - 64); ctx.closePath(); ctx.fill();
+  }
+}
+
+export function drawBird(ctx, b, time) {
+  if (b.state === 'gone') return;
+  ctx.save(); ctx.translate(b.x, b.y - b.h / 2); ctx.scale(b.dir, 1);
+  const flap = Math.sin(b.flap) * 0.9;
+  // alas
+  ctx.fillStyle = '#9aa3b5'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-4, -2); ctx.quadraticCurveTo(-14, -14 - flap * 16, -30, -4 - flap * 20); ctx.quadraticCurveTo(-16, 2, -4, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // cuerpo
+  ctx.beginPath(); ctx.ellipse(0, 0, 17, 10, 0, 0, Math.PI * 2); ctx.fillStyle = '#b8c0cf'; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14, 2); ctx.lineTo(-26, 6); ctx.lineTo(-24, -2); ctx.closePath(); ctx.fillStyle = '#9aa3b5'; ctx.fill(); ctx.stroke(); // cola
+  // cabeza
+  ctx.beginPath(); ctx.arc(15, -7, 8, 0, Math.PI * 2); ctx.fillStyle = '#7e8aa3'; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(17, -8, 2.2, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(17.6, -8, 1.1, 0, Math.PI * 2); ctx.fillStyle = OUTLINE; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(22, -7); ctx.lineTo(30, -5); ctx.lineTo(22, -3); ctx.closePath(); ctx.fillStyle = '#f2a03a'; ctx.fill(); ctx.stroke();
+  // patitas
+  ctx.strokeStyle = '#f2a03a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(2, 9); ctx.lineTo(2, 14); ctx.moveTo(7, 9); ctx.lineTo(7, 14); ctx.stroke();
+  ctx.restore();
 }
 
 export function drawBarrel(ctx, b, roof, time) {

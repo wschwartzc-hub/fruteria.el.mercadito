@@ -99,11 +99,16 @@ else:
 
 `dir` = signo de (v.x − a.x), o hacia donde mira el atacante si están encimados.
 
+Decaimiento (`decayCombo`, cada tick): si `count > 0` y pasaron más de
+`combo.window` (2.2 s) desde `lastAt`, `count -= 1` y el siguiente descenso
+ocurre `combo.decay` (0.7 s) después. El HUD muestra el contador mientras
+`count > 0`. Un golpe del mismo atacante suma mientras `count > 0`.
+
 Decisiones tomadas (ajustables):
 - El combo es **por pareja atacante→víctima**. Si dos jugadores le pegan al
   mismo, no suman entre ellos. Cambiar a compartido: quitar la comparación de
   `attackerId` en `applyHit`.
-- `hitstun` (0.28 s) es menor que la ventana de combo (1.4 s) para que sea
+- `hitstun` (0.28 s) es mucho menor que la ventana (2.2 s) para que sea
   posible escapar caminando/saltando entre golpes; el 4.º golpe exige presión.
 
 ## 5. Desmayo (KO)
@@ -217,6 +222,12 @@ Spawn: `nextBarrelIn` empieza en 5 s y después toma valores en [6, 12] s.
 | `jetpackSave` | id, x, y | ¡SALVADO! + anillo azul |
 | `jetpackEmpty` | id, x, y | ¡SIN GAS! |
 | `mash` | id, x, y | estrellita por cada toque |
+| `malletSpawn` / `malletLand` / `malletPickup` | id / x, y | ¡MAZO! |
+| `malletSwing` | id | — (pose) |
+| `malletHit` | attackerId, victimId, x, y, dir | ¡PUM!, anillo, shake fuerte |
+| `malletBroken` | id, x, y | ¡SE ROMPIÓ! |
+| `birdSpawn` | birdId, dir, low | — |
+| `birdHit` | id, birdId, x, y, dir | ¡PALOMA! + plumas |
 | `matchOver` | winnerId | pantalla final |
 
 El render nunca modifica el mundo; sólo lee y consume eventos. Eso deja la
@@ -234,6 +245,10 @@ puerta abierta a repetir partidas (replays) o a correr el mundo en un servidor.
   zona; el radio útil es 56 px CSS.
 - Cada zona/botón captura su propio `pointerId`, así un dedo no interfiere
   con otro (necesario para 2 jugadores en la misma pantalla).
+- Mientras los controles están activos se bloquean `touchstart/touchmove`
+  y los eventos `gesture*` del documento: con dos dedos (salto mantenido +
+  joystick) iOS intentaba hacer zoom y mandaba `pointercancel`, lo que
+  soltaba el joystick a media vuelo con el jet pack.
 
 ## 12. Bot (`src/bot.js`)
 
@@ -243,7 +258,9 @@ Prioridades, de mayor a menor:
 0. KO o cargado → machaca golpe cada 0.3 s. Aventado/cayendo con jet pack →
    salto mantenido; en el aire con jet pack y fuera/abajo de la azotea →
    vuela hacia el centro.
-2a. Jet pack en el piso a < 320 px y sin traer uno → ir por él.
+1b. Alguien levanta el mazo hacia mí a < 155 px → saltar.
+2a. Mazo o jet pack en el piso a < 320 px y sin traer uno → ir por él.
+    Con mazo, el rango de ataque del bot crece al del mazo.
 2b. Con frijol y un rival a < 100 px → pedo.
 2c. Frijol en el piso a < 240 px (y sin KO cerca que aprovechar) → ir por él.
 3. Hay un KO a < 260 px que nadie levanta → ir y agarrar.
@@ -257,7 +274,9 @@ Prioridades, de mayor a menor:
 
 | Parámetro | Valor | Qué cambia |
 |---|---|---|
-| `combo.window` | 1.4 s | Qué tan fácil es encadenar 4 |
+| `combo.window` / `decay` | 2.2 s / 0.7 s | Qué tan fácil es encadenar 4 |
+| `mallet.heightFrac` | 0.45 | Qué tan fácil es saltar el mazo |
+| `bird.lowChance` | 0.65 | Cuántas palomas molestan |
 | `punch.hitstun` | 0.28 s | Tiempo sin control tras un golpe |
 | `ko.duration` | 3 s | Ventana para cargar al desmayado |
 | `grab.windup` | 0.35 s | Riesgo de que te interrumpan al levantar |
