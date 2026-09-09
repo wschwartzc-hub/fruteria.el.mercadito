@@ -1,7 +1,13 @@
 # Vecinos360 · Plan de producto y técnico
 
-> Estado: **propuesta para aprobación**. Nada de esto está construido todavía.
-> Cuando se apruebe el plan y la dirección visual, se arranca la Fase 1.
+> Estado: **aprobado y en construcción**. El código vive en el repo `vecinos360` (rama `main`).
+>
+> **Decisiones tomadas (9 sep 2026)**
+> - Dirección visual: **mezcla** de las tres propuestas. Base cálida de *Barrio cálido* (crema, terracota, olivo, formas redondeadas), jerarquía editorial de *Boletín cívico* (títulos en serif DM Serif Display, encabezados de sección con línea) y el enfoque en datos de *Nocturno vivo* (tira de servicios con número grande, botón central de acciones rápidas).
+> - Multi-fraccionamiento desde el inicio.
+> - Aprueba los registros el administrador general (Werner) y, si lo desea, el comité de cada fraccionamiento.
+> - Mercadito sin pagos en la app. Cada casa tiene **un negocio con varios productos** (p. ej. *Rico Pasteles* con 5 productos), con fotos, precios, días disponibles y **pedidos agendados con anticipación**.
+> - Stack: React 19 + TypeScript + Vite + Tailwind 4 como PWA, Supabase (Postgres, Auth, Storage, Realtime, Edge Functions).
 
 ---
 
