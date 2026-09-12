@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.9.2';
+const APP_VERSION = '4.9.3';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -3738,14 +3738,19 @@ async function cloudPull(silent,completo){
   if(!sb||!state.cloud.businessId)return;
   if(!silent)toast('Sincronizando...');
   await refrescarSesion(); // primero token vigente, luego consultas
-  // Descarga incremental: solo lo modificado desde la última sincronización exitosa.
-  // Bajar la tabla completa cada vez son ~1.4 MB de ventas (y creciendo) en cada ciclo,
-  // lo que en una conexión débil tarda o se corta. Cada 10 ciclos —o cuando se pide
-  // explícitamente— se hace una descarga completa de reconciliación, por si algo se
-  // perdió (un registro escrito con fecha atrasada, por ejemplo).
+  // Descarga incremental CON VENTANA DE SOLAPE. Bajar la tabla completa cada vez son ~1.4 MB
+  // de ventas (y creciendo) en cada ciclo, lo que en conexión débil tarda o se corta. Pero una
+  // incremental estricta (solo lo posterior a la última sincronización) NO PUEDE recuperar un
+  // hueco previo: esos registros son más viejos que la marca y nunca se vuelven a pedir.
+  // Por eso se re-piden siempre las últimas 48 h — con el índice (business_id, updated_at) eso
+  // son unas decenas de filas, nada de costo, y cualquier hueco reciente se cura solo.
+  // Además: descarga completa cada 10 ciclos, y SIEMPRE una vez tras actualizar de versión
+  // (una versión nueva puede arrastrar huecos dejados por la anterior).
   const n=(state.config._pullCount||0)+1;
-  const full=!!completo||!state.config._lastPullAt||n%10===0;
-  const desde=full?null:state.config._lastPullAt;
+  const versionCambio=state.config._pullVersion!==APP_VERSION;
+  const full=!!completo||!state.config._lastPullAt||versionCambio||n%10===0;
+  const SOLAPE=48*60*60*1000;
+  const desde=full?null:new Date(new Date(state.config._lastPullAt).getTime()-SOLAPE).toISOString();
   let fallaron=0, authFalla=false;
   const bajar=async t=>{
     let q=sb.from(frt(t)).select('*').eq('business_id',state.cloud.businessId);
@@ -3778,6 +3783,7 @@ async function cloudPull(silent,completo){
   if(fallaron===0){
     state.config._lastPullAt=new Date(Date.now()-2000).toISOString();
     state.config._pullCount=n;
+    state.config._pullVersion=APP_VERSION; // marca que esta versión ya reconcilió completo
   }
   save();refrescarIndicadorSync();render();
   if(!silent)toast(fallaron?(fallaron+' tabla(s) no bajaron'):'Sincronizado ✓', fallaron?'bad':'ok');
