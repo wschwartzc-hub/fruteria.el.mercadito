@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.9.3';
+const APP_VERSION = '4.9.4';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2314,9 +2314,14 @@ function vMovimientos(){
 }
 function actividadHtml(){
   const ev=[];
-  ventas().slice(-30).forEach(v=>ev.push({t:v.fecha,ico:ico('cart',20,'var(--green)',1.7),n:'Venta #'+v.folio,s:(v.items||[]).length+' productos · '+v.metodo_pago,a:'+'+money0(v.total),cls:'pos'}));
-  compras().slice(-20).forEach(c=>ev.push({t:c.fecha,ico:ico('truck',20,'var(--muted)',1.7),n:'Compra'+(c.proveedor?' · '+c.proveedor:''),s:(c.items||[]).length+' productos',a:'−'+money0(c.total),cls:'muted'}));
-  mermas().slice(-20).forEach(m=>ev.push({t:m.fecha,ico:ico('trash',20,'var(--rose)',1.7),n:'Merma · '+m.nombre,s:qty(m.cantidad,m.unidad)+' · '+m.motivo,a:'−'+money0(m.valor_perdido),cls:'neg'}));
+  // Ordenar por fecha ANTES de recortar. Antes se hacía .slice(-30) sobre el arreglo tal cual,
+  // pero tras fusionar con la nube ese orden ya no es cronológico (mergeRows reconstruye el
+  // arreglo por id), así que se recortaban 30 registros arbitrarios y las ventas realmente
+  // recientes quedaban fuera del listado aunque sí estuvieran en el aparato.
+  const recientes=(arr,n)=>arr.slice().sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).slice(0,n);
+  recientes(ventas(),30).forEach(v=>ev.push({t:v.fecha,ico:ico('cart',20,'var(--green)',1.7),n:'Venta #'+v.folio,s:(v.items||[]).length+' productos · '+v.metodo_pago,a:'+'+money0(v.total),cls:'pos'}));
+  recientes(compras(),20).forEach(c=>ev.push({t:c.fecha,ico:ico('truck',20,'var(--muted)',1.7),n:'Compra'+(c.proveedor?' · '+c.proveedor:''),s:(c.items||[]).length+' productos',a:'−'+money0(c.total),cls:'muted'}));
+  recientes(mermas(),20).forEach(m=>ev.push({t:m.fecha,ico:ico('trash',20,'var(--rose)',1.7),n:'Merma · '+m.nombre,s:qty(m.cantidad,m.unidad)+' · '+m.motivo,a:'−'+money0(m.valor_perdido),cls:'neg'}));
   ev.sort((a,b)=>new Date(b.t)-new Date(a.t));
   if(!ev.length)return '<div class="empty"><span class="e-ico">'+ico('swap',34,'var(--faint)',1.6)+'</span>Sin movimientos todavía</div>';
   return ev.slice(0,40).map(e=>`<div class="lrow"><span class="l-emj" style="display:grid;place-items:center">${e.ico}</span>
@@ -3953,6 +3958,36 @@ function ensureRealtime(force){
 }
 // Quita un canal viejo en segundo plano (su nombre nunca se reutiliza, así que no hay carrera)
 function _rtSoltar(ch){if(!ch||ch._soltado)return;ch._soltado=true;try{Promise.resolve(sb.removeChannel(ch)).catch(()=>{});}catch(e){}}
+// Latido de verdad: el canal puede DECIR que está conectado y aun así no entregar nada
+// (WebSocket zombi). Revisar solo su estado no basta — fue justo lo que pasó: el indicador
+// decía "en vivo" mientras se perdían tickets. Así que cada minuto preguntamos al servidor
+// cuál es el registro más nuevo y lo comparamos con lo que tenemos. Si el servidor tiene algo
+// más reciente, el canal está mintiendo: se baja lo que falta y se reconstruye el canal.
+// Es una consulta diminuta (una sola fila, con índice) — pero es lo que hace que la app se
+// cure sola sin que nadie tenga que tocar ningún botón.
+let _latidoBusy=false;
+async function latidoSync(){
+  if(_latidoBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return;
+  if(document.hidden||navigator.onLine===false)return;
+  _latidoBusy=true;
+  try{
+    const{data,error}=await conTimeout(
+      sb.from('frt_ventas').select('updated_at').eq('business_id',state.cloud.businessId)
+        .order('updated_at',{ascending:false}).limit(1).maybeSingle(),8000,'latido');
+    if(error)throw error;
+    const remoto=data&&data.updated_at?new Date(data.updated_at).getTime():0;
+    const local=(state.ventas||[]).reduce((m,v)=>Math.max(m,new Date(v.updated_at||0).getTime()),0);
+    if(remoto>local+1500){ // el servidor tiene algo que aquí no está: el canal no lo entregó
+      console.warn('latido: hay datos nuevos que el canal no entregó — recuperando');
+      await cloudPull(true);
+      ensureRealtime(true); // el canal demostró no ser confiable: se reconstruye
+    }
+  }catch(e){console.warn('latido:',e&&(e.message||e));}
+  _latidoBusy=false;
+}
+setInterval(latidoSync,60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(latidoSync,1500);});
+
 function subscribeRealtime(){ensureRealtime(true);} // compatibilidad con los puntos de llamada existentes
 // Vigilante: si el canal lleva más de un minuto sin estar suscrito (en primer plano), se reconstruye.
 // Cubre el WebSocket "zombi" que deja iOS/Android al volver de segundo plano.
@@ -4160,7 +4195,7 @@ document.addEventListener('visibilitychange',()=>{
 window.addEventListener('focus',()=>{if(document.visibilityState==='visible')alDespertar('focus');});
 // iOS restaura páginas desde caché sin disparar visibilitychange: mismo tratamiento.
 window.addEventListener('pageshow',e=>{if(e.persisted)alDespertar('pageshow');});
-setInterval(_autoResync,5*60*1000); // red de seguridad cada 5 min mientras la app quede abierta
+setInterval(_autoResync,2*60*1000); // red de seguridad cada 2 min (la descarga ahora es incremental: pesa poco)
 
 start();
 </script>
