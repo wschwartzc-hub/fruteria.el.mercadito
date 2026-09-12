@@ -380,7 +380,7 @@ window.NEGOCIO_NOMBRE  = "Frutería El Mercadito";
 window.NEGOCIO_CORREO  = "dasaro0283@gmail.com";
 
 /* ============================ UTILIDADES ============================ */
-const APP_VERSION = '4.9.0';
+const APP_VERSION = '4.9.2';
 
 const $  = s => document.querySelector(s);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -2685,7 +2685,7 @@ function vMas(){const cl=state.cloud;
     <p class="tiny muted" style="margin:6px 0 12px">
       Compara este dispositivo contra la nube y te dice si hay alguna diferencia.
       Úsalo cuando quieras confirmar que no se perdió nada.</p>
-    <button class="btn block sm" onclick="cloudPull(false)">↻ Descargar de la nube</button>
+    <button class="btn block sm" onclick="cloudPull(false,true)">↻ Descargar de la nube</button>
     <button class="btn block sm" style="margin-top:8px" onclick="window._resyncAll()">
       ${ico('upload',16,'currentColor',1.9)} Forzar subida ahora</button>
     <p class="tiny muted" style="margin-top:6px">
@@ -3703,26 +3703,85 @@ window._resyncAll=async function(){
   }
   if(btn){btn.textContent='Subir todos mis datos a la nube';btn.disabled=false;}
 };
-async function cloudPull(silent){
+// Timeout para cualquier promesa de red. Un socket "zombi" tras horas en segundo plano puede
+// dejar un await colgado para siempre — y con él, el candado _autoResyncBusy, matando toda
+// sincronización automática hasta recargar la página.
+function conTimeout(promesa,ms,etiqueta){
+  return Promise.race([promesa,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout '+(etiqueta||'')+' '+ms+'ms')),ms))]);
+}
+
+// Asegura que el token de sesión esté vigente ANTES de consultar. Tras 12+ h congelado en iOS
+// el access token (1 h de vida) ya expiró; la librería lo renueva sola pero tarda un instante,
+// y si disparamos las consultas antes de eso, TODAS fallan con "JWT expired" en silencio.
+// Esto era exactamente el "se le tiene que decir para que aparezca": para cuando el usuario
+// iba a Más y tocaba Descargar, el token ya estaba renovado y por eso ahí sí funcionaba.
+async function refrescarSesion(){
+  if(!sb)return false;
+  try{
+    const {data:{session}}=await conTimeout(sb.auth.getSession(),8000,'getSession');
+    if(!session)return false;
+    const expiraEn=(session.expires_at||0)*1000-Date.now();
+    if(expiraEn<120000){ // ya expiró o le quedan <2 min: renovamos explícitamente y esperamos
+      const {data,error}=await conTimeout(sb.auth.refreshSession(),10000,'refreshSession');
+      if(error||!data||!data.session){console.warn('refreshSession:',error);return false;}
+    }
+    return true;
+  }catch(e){console.warn('refrescarSesion:',e);return false;}
+}
+function _esErrorAuth(e){
+  if(!e)return false;
+  const m=String(e.message||e.msg||'').toLowerCase();
+  return e.code==='PGRST301'||e.status===401||m.includes('jwt')||m.includes('expired')||m.includes('invalid token');
+}
+
+async function cloudPull(silent,completo){
   if(!sb||!state.cloud.businessId)return;
   if(!silent)toast('Sincronizando...');
-  let fallaron=0;
-  for(const t of TABLES){
-    const {data,error}=await sb.from(frt(t)).select('*').eq('business_id',state.cloud.businessId);
-    if(error){console.warn(t,error);fallaron++;continue;}
+  await refrescarSesion(); // primero token vigente, luego consultas
+  // Descarga incremental: solo lo modificado desde la última sincronización exitosa.
+  // Bajar la tabla completa cada vez son ~1.4 MB de ventas (y creciendo) en cada ciclo,
+  // lo que en una conexión débil tarda o se corta. Cada 10 ciclos —o cuando se pide
+  // explícitamente— se hace una descarga completa de reconciliación, por si algo se
+  // perdió (un registro escrito con fecha atrasada, por ejemplo).
+  const n=(state.config._pullCount||0)+1;
+  const full=!!completo||!state.config._lastPullAt||n%10===0;
+  const desde=full?null:state.config._lastPullAt;
+  let fallaron=0, authFalla=false;
+  const bajar=async t=>{
+    let q=sb.from(frt(t)).select('*').eq('business_id',state.cloud.businessId);
+    if(desde)q=q.gt('updated_at',desde);
+    const {data,error}=await conTimeout(q,15000,'pull '+t);
+    if(error)throw error;
     mergeRows(t,data||[]);
+  };
+  for(const t of TABLES){
+    try{await bajar(t);}
+    catch(e){
+      if(_esErrorAuth(e)&&!authFalla){
+        // Token expirado a mitad del ciclo: renovar y reintentar UNA vez esta tabla
+        authFalla=true;
+        if(await refrescarSesion()){try{await bajar(t);continue;}catch(e2){e=e2;}}
+      }
+      console.warn('pull',t,e&&(e.message||e));fallaron++;
+    }
   }
   // El PIN vive a nivel negocio (no por dispositivo) — se trae de frt_businesses,
   // no del batch de TABLES, para que proteja en cualquier aparato, no solo donde se configuró.
   try{
-    const{data:biz}=await sb.from('frt_businesses').select('pin_hash,pin_length').eq('id',state.cloud.businessId).single();
+    const{data:biz}=await conTimeout(
+      sb.from('frt_businesses').select('pin_hash,pin_length').eq('id',state.cloud.businessId).single(),10000,'pin');
     if(biz){state.config.pinHash=biz.pin_hash||null;state.config.pinLength=biz.pin_length||null;}
   }catch(e){console.warn('pin pull:',e);}
   // Solo marcamos "sincronizado" si TODAS las tablas bajaron bien — el indicador
-  // debe decir la verdad, no asumir éxito.
-  if(fallaron===0)state.config._lastPullAt=new Date().toISOString();
+  // debe decir la verdad, no asumir éxito. La marca se retrasa 2 s para no perder
+  // registros escritos justo mientras corría la consulta.
+  if(fallaron===0){
+    state.config._lastPullAt=new Date(Date.now()-2000).toISOString();
+    state.config._pullCount=n;
+  }
   save();refrescarIndicadorSync();render();
   if(!silent)toast(fallaron?(fallaron+' tabla(s) no bajaron'):'Sincronizado ✓', fallaron?'bad':'ok');
+  return fallaron===0;
 }
 
 // Indicador honesto: dice hace cuánto fue la última sincronización COMPLETA exitosa,
@@ -3781,10 +3840,18 @@ function pendientesCount(){const p=state.config._pendientes;if(!p)return 0;retur
 async function push(table,row){
   if(!sb||!state.cloud.connected)return;
   _pendMark(table,row.id); // se anota ANTES de intentar; se borra solo cuando el servidor confirma
-  try{
+  const intentar=async()=>{
     const r={...row,business_id:state.cloud.businessId};
-    const{error}=await sb.from(frt(table)).upsert(r);
+    const{error}=await conTimeout(sb.from(frt(table)).upsert(r),15000,'push '+table);
     if(error)throw error;
+  };
+  try{
+    try{await intentar();}
+    catch(e){
+      // Token expirado (típico justo al despertar tras horas en segundo plano):
+      // renovar y reintentar una vez de inmediato, sin esperar al siguiente ciclo.
+      if(_esErrorAuth(e)&&await refrescarSesion())await intentar();else throw e;
+    }
     _pendClear(table,row.id);
     if(_syncFailCount>0){_syncFailCount=0;refrescarIndicadorSync();}
   }catch(e){
@@ -3996,10 +4063,15 @@ async function start(){
 // Autosanación: corre sola al abrir la app, al recuperar conexión, y al volver de segundo plano.
 // Así ningún dato queda atrapado en un solo aparato sin que nadie tenga que acordarse de nada.
 let _autoResyncBusy=false;
+let _autoResyncDesde=0;
 async function _autoResync(){
+  // Perro guardián: si un ciclo lleva >60 s "ocupado", es que un await se colgó (socket zombi
+  // tras horas en segundo plano). Se libera el candado para no bloquear todos los ciclos
+  // siguientes hasta recargar — que era una forma silenciosa de quedarse sin sincronización.
+  if(_autoResyncBusy&&Date.now()-_autoResyncDesde>60000){console.warn('autoResync: candado atorado, liberando');_autoResyncBusy=false;}
   if(_autoResyncBusy||!sb||!state.cloud.connected||!state.cloud.businessId)return false;
   if(navigator.onLine===false)return false; // sin red: no vale la pena marcar fallos, se reintenta al volver
-  _autoResyncBusy=true;
+  _autoResyncBusy=true;_autoResyncDesde=Date.now();
   try{
     // Primero jalamos cambios de OTROS dispositivos. El canal de tiempo real puede
     // quedarse "sordo" en silencio sin avisar (común en tablets/celulares: pantalla
@@ -4010,12 +4082,12 @@ async function _autoResync(){
 
     // 1) Lo que quedó pendiente de intentos anteriores, por ID. Es la vía principal:
     //    no depende del reloj del aparato ni de ninguna marca de tiempo.
-    let fallan=await pushPendientes();
+    let fallan=await conTimeout(pushPendientes(),45000,'pushPendientes');
 
     // 2) Red de seguridad por fecha: todo lo modificado desde el último ciclo.
     const desde=state.config._lastAutoSyncAt||null;
     const marcaTiempo=new Date().toISOString();
-    const res=await cloudPushAll(state.cloud.businessId,desde);
+    const res=await conTimeout(cloudPushAll(state.cloud.businessId,desde),45000,'cloudPushAll');
     // La marca avanza siempre — lo que falló ya quedó anotado por ID en pendientes (cloudPushAll
     // lo marca) y se reintenta en el siguiente ciclo. Antes, un registro que fallaba aquí se
     // perdía para siempre porque la marca avanzaba y nadie más lo volvía a intentar.
@@ -4035,17 +4107,53 @@ async function _autoResync(){
   _autoResyncBusy=false;
   return true;
 }
-window.addEventListener('online',()=>{_autoResync();ensureRealtime(true);});
+
+// ── Secuencia única de "despertar" ──────────────────────────────────────────────────────
+// iOS congela la pestaña en segundo plano: al volver, el token puede estar expirado, el
+// WebSocket zombi y los timers muertos. En vez de confiar en UN solo evento (iOS no siempre
+// dispara visibilitychange), escuchamos todas las señales de regreso y las agrupamos en una
+// sola secuencia robusta: sesión → descarga completa (con reintento) → canal en vivo.
+let _despertarT=null, _despertarCorriendo=false;
+function alDespertar(motivo){
+  clearTimeout(_despertarT);
+  _despertarT=setTimeout(async()=>{
+    if(_despertarCorriendo)return;
+    if(!sb||!state.cloud.connected||!state.cloud.businessId)return;
+    _despertarCorriendo=true;
+    try{
+      const oculto=_rt.hiddenAt?Date.now()-_rt.hiddenAt:0;
+      const largo=oculto>20000; // >20 s fuera: el socket casi siempre vuelve zombi
+      const pullReciente=state.config._lastPullAt&&(Date.now()-new Date(state.config._lastPullAt).getTime()<30000);
+      // 1. Sesión vigente primero — si esto falla, nada de lo demás va a funcionar.
+      await refrescarSesion();
+      // 2. Descarga completa (salvo que acabemos de hacer una hace <30 s: un parpadeo de foco
+      //    no justifica volver a bajar todo). Si falla, un reintento a los 3 s.
+      let ok=pullReciente;
+      if(!pullReciente){
+        // Tras un sueño largo se pide descarga COMPLETA: es el momento donde más puede
+        // haberse perdido y donde el costo de bajar todo se justifica.
+        try{ok=await conTimeout(cloudPull(true,largo),40000,'pull despertar');}catch(e){console.warn('despertar pull 1:',e);}
+        if(!ok){await new Promise(r=>setTimeout(r,3000));
+          try{ok=await conTimeout(cloudPull(true,true),40000,'pull despertar 2');}catch(e){console.warn('despertar pull 2:',e);}}
+      }
+      // 3. Canal en vivo: reconstruido de raíz si estuvo mucho tiempo fuera; si fue un
+      //    parpadeo, solo se verifica que siga sano (no se tira un canal que funciona).
+      ensureRealtime(largo||motivo==='online');
+      // 4. Subir lo que haya quedado pendiente en este aparato.
+      _autoResync();
+      if(!ok)toast('No se pudo actualizar desde la nube — revisa tu conexión','bad');
+    }catch(e){console.warn('alDespertar:',e);}
+    _despertarCorriendo=false;
+  },250); // agrupa visibilitychange+focus+pageshow que iOS dispara casi juntos
+}
+window.addEventListener('online',()=>alDespertar('online'));
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='hidden'){_rt.hiddenAt=Date.now();return;}
-  _autoResync();
-  // Tras más de 20 s en segundo plano el WebSocket suele volver "zombi" (abierto pero muerto):
-  // se reconstruye de raíz. Si fue un parpadeo, solo se verifica que el canal siga sano —
-  // NO se tira un canal que funciona, que era justo lo que dejaba sordo al aparato.
-  ensureRealtime(!!(_rt.hiddenAt&&Date.now()-_rt.hiddenAt>20000));
+  alDespertar('visible');
 });
+window.addEventListener('focus',()=>{if(document.visibilityState==='visible')alDespertar('focus');});
 // iOS restaura páginas desde caché sin disparar visibilitychange: mismo tratamiento.
-window.addEventListener('pageshow',e=>{if(e.persisted){_autoResync();ensureRealtime(true);}});
+window.addEventListener('pageshow',e=>{if(e.persisted)alDespertar('pageshow');});
 setInterval(_autoResync,5*60*1000); // red de seguridad cada 5 min mientras la app quede abierta
 
 start();
